@@ -1,13 +1,13 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 
 import "./index.css";
 
-import { router } from "@/app/routes/router";
+import { QueryProvider } from "./app/providers/QueryProvider";
+import { router } from "./app/routes";
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <QueryProvider>
     <RouterProvider router={router} />
-  </StrictMode>,
+  </QueryProvider>
 );
