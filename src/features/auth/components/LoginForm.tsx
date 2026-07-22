@@ -7,7 +7,7 @@ import PasswordField from "@/components/forms/PasswordField";
 import RememberMe from "@/components/forms/RememberMe";
 import SubmitButton from "@/components/forms/SubmitButton";
 
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "../hooks/useAuth";
 
 import {
   loginSchema,
@@ -16,6 +16,8 @@ import {
 
 export default function LoginForm() {
   const navigate = useNavigate();
+
+  const { login } = useAuth();
 
   const {
     register,
@@ -30,34 +32,17 @@ export default function LoginForm() {
   });
 
   async function onSubmit(data: LoginSchema) {
-    console.clear();
+    try {
+      await login(data);
 
-    console.log("========== LOGIN TEST ==========");
-    console.log("Email:", data.email);
-
-    const { data: authData, error } =
-      await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
-
-    console.log("Supabase Response:");
-    console.log({
-      authData,
-      error,
-    });
-
-    if (error) {
-      console.error("❌ Login failed:");
-      console.error(error);
-      alert(error.message);
-      return;
+      navigate("/dashboard");
+    } catch (error) {
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert("An unexpected error occurred.");
+      }
     }
-
-    console.log("✅ Login successful!");
-    console.log(authData);
-
-    navigate("/dashboard");
   }
 
   return (

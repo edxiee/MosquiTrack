@@ -6,8 +6,12 @@ import "./index.css";
 import { QueryProvider } from "./app/providers/QueryProvider";
 import { router } from "./app/routes";
 
+import AuthProvider from "./features/auth/context/AuthProvider";
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <QueryProvider>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </QueryProvider>
 );
