@@ -51,16 +51,6 @@ export default function AuthProvider({
 
   async function login(data: LoginRequest) {
     await loginService(data);
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    setSession(session);
-
-    setUser(session?.user ?? null);
-
-    await refreshProfile();
   }
 
   async function logout() {
@@ -97,14 +87,19 @@ export default function AuthProvider({
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        setSession(session);
+        setLoading(true);
 
-        setUser(session?.user ?? null);
+        try {
+          setSession(session);
+          setUser(session?.user ?? null);
 
-        if (session) {
-          await refreshProfile();
-        } else {
-          setProfile(null);
+          if (session) {
+            await refreshProfile();
+          } else {
+            setProfile(null);
+          }
+        } finally {
+          setLoading(false);
         }
       }
     );
@@ -122,7 +117,7 @@ export default function AuthProvider({
         profile,
         loading,
 
-        isAuthenticated: !!session,
+        isAuthenticated: !!session && !!profile,
 
         login,
         logout,

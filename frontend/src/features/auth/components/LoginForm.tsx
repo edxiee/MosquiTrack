@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link} from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -15,7 +15,6 @@ import {
 } from "../schemas/login.schema";
 
 export default function LoginForm() {
-  const navigate = useNavigate();
 
   const { login } = useAuth();
 
@@ -34,8 +33,6 @@ export default function LoginForm() {
   async function onSubmit(data: LoginSchema) {
     try {
       await login(data);
-
-      navigate("/dashboard");
     } catch (error) {
       if (error instanceof Error) {
         alert(error.message);

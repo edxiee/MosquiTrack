@@ -1,28 +1,9 @@
 import { supabase } from "@/lib/supabase";
 
 import type {
-  AuthBarangay,
   AuthProfile,
   AuthRole,
 } from "../types/auth.types";
-
-interface ProfileQueryResult {
-  id: string;
-
-  first_name: string;
-  middle_name: string | null;
-  last_name: string;
-
-  email: string;
-
-  phone_number: string | null;
-
-  is_active: boolean;
-
-  role: AuthRole | AuthRole[];
-
-  barangay: AuthBarangay | AuthBarangay[] | null;
-}
 
 export async function getCurrentProfile(): Promise<AuthProfile> {
   const {
@@ -37,6 +18,8 @@ export async function getCurrentProfile(): Promise<AuthProfile> {
   if (!user) {
     throw new Error("No authenticated user.");
   }
+
+  console.log("Authenticated User ID:", user.id);
 
   const { data, error } = await supabase
     .from("profiles")
@@ -59,23 +42,19 @@ export async function getCurrentProfile(): Promise<AuthProfile> {
       )
     `)
     .eq("id", user.id)
-    .single<ProfileQueryResult>();
+    .single();
+
+    console.log("Query finished");
+    console.log("Error:", error);
+    console.log("Data:", data);
 
   if (error) {
     throw error;
   }
 
-  const role = Array.isArray(data.role)
-    ? data.role[0]
-    : data.role;
-
-  if (!role) {
-    throw new Error("User has no assigned role.");
+  if (!data) {
+    throw new Error("Profile not found.");
   }
-
-  const barangay = Array.isArray(data.barangay)
-    ? data.barangay[0] ?? null
-    : data.barangay;
 
   return {
     id: data.id,
@@ -84,8 +63,9 @@ export async function getCurrentProfile(): Promise<AuthProfile> {
     last_name: data.last_name,
     email: data.email,
     phone_number: data.phone_number,
-    is_active: data.is_active,
-    role,
-    barangay,
+    is_active: data.is_active ?? false,
+
+    role: data.role as AuthRole,
+    barangay: data.barangay,
   };
 }

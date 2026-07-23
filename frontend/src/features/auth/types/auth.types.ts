@@ -1,10 +1,11 @@
 import type { Session, User } from "@supabase/supabase-js";
 
 import type { LoginRequest } from "./login.type";
+import type { RoleCode } from "../constants/roles";
 
 export interface AuthRole {
   id: string;
-  role_code: string;
+  role_code: RoleCode;
   role_name: string;
 }
 
