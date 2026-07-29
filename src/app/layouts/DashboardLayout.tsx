@@ -8,7 +8,7 @@ export default function DashboardLayout() {
       <Sidebar />
 
       {/* Main Content */}
-      <section className="flex-1 p-6">
+      <section className="flex-1 bg-[linear-gradient(180deg,_rgba(248,250,252,0.96),_rgba(236,253,245,0.7))] p-6">
         <Outlet />
       </section>
     </main>

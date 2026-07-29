@@ -6,7 +6,7 @@ import DashboardLayout from "@/app/layouts/DashboardLayout";
 import RoleGuard from "@/features/auth/components/RoleGuard";
 import { ROLES } from "@/features/auth/constants/roles";
 
-import DashboardPage from "@/features/dashboard/pages/DashboardPage";
+import BhwDashboard from "@/features/dashboard/pages/BhwDashboard";
 
 export const bhwRoutes: RouteObject[] = [
   {
@@ -21,7 +21,7 @@ export const bhwRoutes: RouteObject[] = [
     children: [
       {
         path: "dashboard",
-        element: <DashboardPage />,
+        element: <BhwDashboard />,
       },
     ],
   },

@@ -1,11 +1,13 @@
 import { NavLink } from "react-router-dom";
+import { LogOut } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { SIDEBAR_CONFIG } from "../config/sidebar.config";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { ROLES } from "@/features/auth/constants/roles";
 
 export default function Sidebar() {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
 
   const role =
     profile?.role.role_code ?? ROLES.SYSTEM_ADMIN;
@@ -13,9 +15,21 @@ export default function Sidebar() {
   const navigationSections =
     SIDEBAR_CONFIG[role];
 
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.";
+
+      window.alert(message);
+    }
+  }
+
   return (
-    <aside className="flex w-72 flex-col border-r border-slate-200 bg-white">
-      {/* Logo */}
+<aside className="sticky top-0 flex h-screen w-72 flex-col border-r border-slate-200 bg-white">      {/* Logo */}
       <div className="border-b border-slate-200 p-6">
         <h1 className="text-2xl font-bold text-emerald-600">
           🦟 MosquiTrack
@@ -57,6 +71,17 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      <div className="border-t border-slate-200 p-4">
+        <Button
+          variant="outline"
+          onClick={handleLogout}
+          className="w-full justify-start border-rose-200 text-rose-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800"
+        >
+          <LogOut className="size-4" />
+          Logout
+        </Button>
+      </div>
     </aside>
   );
 }

@@ -6,7 +6,7 @@ import DashboardLayout from "@/app/layouts/DashboardLayout";
 import RoleGuard from "@/features/auth/components/RoleGuard";
 import { ROLES } from "@/features/auth/constants/roles";
 
-import DashboardPage from "@/features/dashboard/pages/DashboardPage";
+import LguDashboard from "@/features/dashboard/pages/LguDashboard";
 
 export const lguRoutes: RouteObject[] = [
   {
@@ -21,7 +21,7 @@ export const lguRoutes: RouteObject[] = [
     children: [
       {
         path: "dashboard",
-        element: <DashboardPage />,
+        element: <LguDashboard />,
       },
     ],
   },
