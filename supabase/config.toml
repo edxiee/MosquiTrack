@@ -1,0 +1,5 @@
+[functions.create-user]
+enabled = true
+verify_jwt = false
+import_map = "./functions/create-user/deno.json"
+entrypoint = "./functions/create-user/index.ts"
