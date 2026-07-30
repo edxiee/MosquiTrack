@@ -29,29 +29,6 @@ import {
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { ROUTES } from "@/features/navigation/config/routes";
 
-const alertSummary = [
-  {
-    label: "High priority",
-    count: 4,
-    tone: "border-rose-200 bg-rose-50/80 text-rose-700",
-  },
-  {
-    label: "Active warning",
-    count: 8,
-    tone: "border-amber-200 bg-amber-50/80 text-amber-800",
-  },
-  {
-    label: "Under observation",
-    count: 12,
-    tone: "border-sky-200 bg-sky-50/80 text-sky-700",
-  },
-  {
-    label: "Safe",
-    count: 19,
-    tone: "border-emerald-200 bg-emerald-50/80 text-emerald-700",
-  },
-] as const;
-
 const recentAlerts = [
   {
     location: "San Roque Elementary School",

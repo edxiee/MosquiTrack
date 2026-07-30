@@ -1,13 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/lib/supabase";
-import type { Database } from "@/types/database.types";
 
-type DeviceRow =
-  Database["public"]["Tables"]["ovitrap_devices"]["Row"];
+type DeviceRow = {
+  id: string;
+  device_code: string;
+  last_seen_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
-type ReadingRow =
-  Database["public"]["Tables"]["ovitrap_readings"]["Row"];
+type ReadingRow = {
+  id: string;
+  device_id: string;
+  egg_count: number;
+  battery_level: number | null;
+  captured_at: string;
+  created_at: string;
+  humidity_percent: number | null;
+  temperature_c: number | null;
+  ai_confidence: number | null;
+  image_path: string | null;
+};
 
 const ONLINE_WINDOW_MINUTES = 15;
 const TELEMETRY_WINDOW_MINUTES = 60;
