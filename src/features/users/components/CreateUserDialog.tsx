@@ -18,7 +18,7 @@ import { validateCreateUserForm } from "../utils/validateCreateUserForm";
 
 import type { CreateUserForm } from "../types/create-user-form";
 import type { UserFormErrors } from "../types/user-form-errors";
-import { createUser } from "../services/user.service.ts";
+import { createUser } from "../services/users.service.ts";
 
 interface CreateUserDialogProps {
   open: boolean;
