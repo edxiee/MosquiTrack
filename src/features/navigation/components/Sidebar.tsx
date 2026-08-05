@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { SIDEBAR_CONFIG } from "../config/sidebar.config";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { ROLES } from "@/features/auth/constants/roles";
+import AppLogo  from "@/components/common/AppLogo";
 
 export default function Sidebar() {
   const { profile, logout } = useAuth();
@@ -29,14 +30,14 @@ export default function Sidebar() {
   }
 
   return (
-<aside className="sticky top-0 flex h-screen w-72 flex-col border-r border-slate-200 bg-white">      {/* Logo */}
+<aside className="sticky top-0 flex h-screen w-60 flex-col border-r border-slate-200 bg-white">      {/* Logo */}
       <div className="border-b border-slate-200 p-6">
-        <h1 className="text-2xl font-bold text-emerald-600">
-          🦟 MosquiTrack
-        </h1>
+        <div className="flex items-center justify-center">
+          <AppLogo className="h-3- w-30" />
+        </div>
 
-        <p className="mt-1 text-sm text-slate-500">
-          Early Warning System
+        <p className="mt-0.5 text-sm font-medium tracking-wide text-slate-500">
+          Smart Early Warning System
         </p>
       </div>
 

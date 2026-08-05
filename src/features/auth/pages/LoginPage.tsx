@@ -10,7 +10,7 @@ import LoginForm from "../components/LoginForm";
 import { getDashboardPath } from "../utils/getDashboardPath";
 
 export default function LoginPage() {
-    const {
+  const {
     loading,
     isAuthenticated,
     profile,
@@ -32,7 +32,7 @@ export default function LoginPage() {
       />
     );
   }
-  
+
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-4 py-10">
       <AuthBackground />

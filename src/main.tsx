@@ -12,6 +12,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <QueryProvider>
     <AuthProvider>
       <RouterProvider router={router} />
-    </AuthProvider>
+    </AuthProvider> 
   </QueryProvider>
 );
