@@ -7,6 +7,9 @@ import RoleGuard from "@/features/auth/components/RoleGuard";
 import { ROLES } from "@/features/auth/constants/roles";
 
 import BhwDashboard from "@/features/dashboard/pages/BhwDashboard";
+import BarangaySurveillancePage from "@/features/surveillance/pages/BarangaySurveillancePage";
+import HardwareNodesPage from "@/features/nodes/pages/HardwareNodesPage";
+import ActionTriageLogPage from "@/features/triage/pages/ActionTriageLogPage";
 
 export const bhwRoutes: RouteObject[] = [
   {
@@ -22,6 +25,18 @@ export const bhwRoutes: RouteObject[] = [
       {
         path: "dashboard",
         element: <BhwDashboard />,
+      },
+      {
+        path: "surveillance",
+        element: <BarangaySurveillancePage />,
+      },
+      {
+        path: "hardware",
+        element: <HardwareNodesPage />,
+      },
+      {
+        path: "triage",
+        element: <ActionTriageLogPage />,
       },
     ],
   },
