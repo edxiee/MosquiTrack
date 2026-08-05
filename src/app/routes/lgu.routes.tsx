@@ -7,6 +7,10 @@ import RoleGuard from "@/features/auth/components/RoleGuard";
 import { ROLES } from "@/features/auth/constants/roles";
 
 import LguDashboard from "@/features/dashboard/pages/LguDashboard";
+import MacroGeospatialHeatmapPage from "@/features/georeferencing/pages/MacroGeospatialHeatmapPage";
+import PrescriptiveAnalyticsPage from "@/features/reports/pages/PrescriptiveAnalyticsPage";
+import ReportsAnalyticsPage from "@/features/reports/pages/ReportsAnalyticsPage";
+
 
 export const lguRoutes: RouteObject[] = [
   {
@@ -23,6 +27,18 @@ export const lguRoutes: RouteObject[] = [
         path: "dashboard",
         element: <LguDashboard />,
       },
-    ],
+      {
+        path: "reports",
+        element: <ReportsAnalyticsPage />,
+      },
+      {
+        path: "heatmap",
+        element: <MacroGeospatialHeatmapPage />,
+      },
+      {
+        path: "analytics",
+        element: <PrescriptiveAnalyticsPage />,
+      },
+    ]
   },
 ];
