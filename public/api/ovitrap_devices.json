@@ -1,0 +1,26 @@
+[
+  {
+    "id": "TRAP-001",
+    "locationName": "Site A",
+    "barangay": "Barangay 1",
+    "deploymentType": "Indoor",
+    "latitude": "14.5995",
+    "longitude": "120.9842"
+  },
+  {
+    "id": "TRAP-002",
+    "locationName": "Site B",
+    "barangay": "Barangay 2",
+    "deploymentType": "Outdoor",
+    "latitude": null,
+    "longitude": null
+  },
+  {
+    "id": "TRAP-003",
+    "locationName": "Site C",
+    "barangay": "Barangay 3",
+    "deploymentType": "Indoor",
+    "latitude": "",
+    "longitude": ""
+  }
+]

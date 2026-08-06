@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   MapPin,
@@ -7,9 +8,11 @@ import {
   Loader2,
   RefreshCw,
   Pencil,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { ROUTES } from "@/features/navigation/config/routes";
 import DeviceModal from "../components/nodes/DeviceModal";
 import {
   fetchDevices,
@@ -23,6 +26,7 @@ import { formatDeployedBy, isDeviceActive } from "../utils/deviceHelpers";
 import type { OvitrapDevice, DeviceStatus, Barangay } from "../types/device";
 
 export default function NodeProvisioningPage() {
+  const navigate = useNavigate();
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [statuses, setStatuses] = useState<DeviceStatus[]>([]);
   const [barangays, setBarangays] = useState<Barangay[]>([]);
@@ -37,20 +41,20 @@ export default function NodeProvisioningPage() {
 
   const loadData = async () => {
     setLoading(true);
-    setError(null);
     try {
-      const [devs, stats, bars] = await Promise.all([
+      const [devs, st, bg] = await Promise.all([
         fetchDevices(),
         fetchStatuses(),
         fetchBarangays(),
       ]);
       setDevices(devs);
-      setStatuses(stats);
-      setBarangays(bars);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message ?? "Failed to load data");
-      setDevices([]);
+      setStatuses(st);
+      setBarangays(bg);
+      setError(null);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to load devices";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -61,23 +65,20 @@ export default function NodeProvisioningPage() {
   }, []);
 
   const openCreate = () => {
-    setModalMode("create");
     setEditingDevice(null);
+    setModalMode("create");
     setModalOpen(true);
   };
 
   const openEdit = (device: OvitrapDevice) => {
-    setModalMode("edit");
     setEditingDevice(device);
+    setModalMode("edit");
     setModalOpen(true);
   };
 
   const handleViewLocation = (device: OvitrapDevice) => {
     if (!device.latitude || !device.longitude) return;
-    console.log("View location", {
-      lat: device.latitude,
-      lng: device.longitude,
-    });
+    navigate(`${ROUTES.admin.georeferencing}?viewId=${device.id}`);
   };
 
   const handleAction = async (device: OvitrapDevice) => {
@@ -91,30 +92,11 @@ export default function NodeProvisioningPage() {
           return;
         }
         await pickUpDevice(device.id, offline.id);
+        await loadData();
       } else {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          console.error("No logged-in user");
-          return;
-        }
-
-        await setDeployedBy(device.id, user.id);
-
-        await maybeForceActive(
-          device.id,
-          device.device_statuses?.status_name,
-          device.latitude,
-          device.longitude,
-          user.id
-        );
-
-        console.log("Set location for", device.device_code, device.id);
+        // Navigate to Static Georeferencing with this trap selected
+        navigate(`${ROUTES.admin.georeferencing}?trapId=${device.id}`);
       }
-
-      await loadData();
     } catch (err) {
       console.error(err);
     }

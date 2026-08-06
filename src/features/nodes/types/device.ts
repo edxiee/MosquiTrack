@@ -31,6 +31,7 @@ export interface OvitrapDevice {
   created_at: string;
   deployed_by: string | null;
   device_statuses: DeviceStatus | null;
+  barangays?: Barangay | null;
   users: UserName | null;
 }
 

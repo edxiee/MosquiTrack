@@ -1,41 +1,47 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   MapContainer,
   TileLayer,
   Marker,
   useMap,
   useMapEvents,
+  Popup,
 } from "react-leaflet";
 import L from "leaflet";
 import {
-  MapPin,
   Navigation,
-  Compass,
   Check,
-  AlertCircle,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/lib/supabase";
+import type { OvitrapDevice } from "@/features/nodes/types/device";
+import { ACTIVE_STATUS_ID } from "@/features/nodes/constants/device";
+import { ROUTES } from "@/features/navigation/config/routes";
 
 import "leaflet/dist/leaflet.css";
 
-// Fix for default leaflet marker icon resolution in Vite
-// We use a custom, highly styled divIcon using Tailwind for a premium feel
-const createCustomMarker = (isActive: boolean) => {
+// Status → colour mapping for map markers
+const createCustomMarker = (status: string) => {
+  const colorMap = {
+    Active: { bg: "emerald", ping: true },
+    Maintenance: { bg: "amber", ping: false },
+    Offline: { bg: "rose", ping: false },
+    Default: { bg: "sky", ping: false },
+  };
+  const { bg, ping } = colorMap[status as keyof typeof colorMap] ?? colorMap.Default;
   return L.divIcon({
     className: "custom-div-icon",
     html: `
       <div class="flex items-center justify-center -translate-y-4">
         <div class="relative w-10 h-10 flex items-center justify-center">
-          ${
-            isActive
-              ? `<div class="absolute inset-0 bg-emerald-500 rounded-full opacity-40 animate-ping"></div>`
-              : ""
-          }
-          <div class="absolute inset-2 bg-emerald-100 rounded-full shadow-inner"></div>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 text-emerald-600 relative z-10 filter drop-shadow-md">
+          ${ping ? `<div class="absolute inset-0 bg-${bg}-500 rounded-full opacity-40 animate-ping"></div>` : ""}
+          <div class="absolute inset-2 bg-${bg}-100 rounded-full shadow-inner"></div>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 text-${bg}-600 relative z-10 filter drop-shadow-md">
             <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
           </svg>
         </div>
@@ -46,16 +52,10 @@ const createCustomMarker = (isActive: boolean) => {
   });
 };
 
-const defaultCenter: [number, number] = [14.5995, 120.9842]; // Manila, Philippines
+const defaultCenter: [number, number] = [14.5995, 120.9842];
 
-// Component to handle map view updates (pan/zoom)
-function MapController({
-  center,
-  zoom,
-}: {
-  center: [number, number];
-  zoom: number;
-}) {
+// Pans / zooms map when center or zoom state changes
+function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
     map.setView(center, zoom, { animate: true, duration: 1.5 });
@@ -63,12 +63,8 @@ function MapController({
   return null;
 }
 
-// Component to listen to map clicks and set coordinates
-function MapClickHandler({
-  onMapClick,
-}: {
-  onMapClick: (lat: number, lng: number) => void;
-}) {
+// Captures map clicks and passes lat/lng up
+function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(e) {
       onMapClick(e.latlng.lat, e.latlng.lng);
@@ -77,41 +73,66 @@ function MapClickHandler({
   return null;
 }
 
-export default function StaticGeoreferencingPage() {
-  // Load saved coordinates from localStorage if they exist, else use default
-  const [latInput, setLatInput] = useState<string>(() => {
-    return localStorage.getItem("georef_lat") || defaultCenter[0].toString();
-  });
-  const [lngInput, setLngInput] = useState<string>(() => {
-    return localStorage.getItem("georef_lng") || defaultCenter[1].toString();
-  });
+// ---------------------------------------------------------------------------
 
+export default function StaticGeoreferencingPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const paramTrapId = searchParams.get("trapId");
+  const viewId = searchParams.get("viewId");
+  const markerRefs = useRef<Record<string, L.Marker | null>>({});
+
+  // ── coordinate state ──────────────────────────────────────────────────────
+  const [latInput, setLatInput] = useState<string>(
+    () => localStorage.getItem("georef_lat") || defaultCenter[0].toString()
+  );
+  const [lngInput, setLngInput] = useState<string>(
+    () => localStorage.getItem("georef_lng") || defaultCenter[1].toString()
+  );
   const [markerPos, setMarkerPos] = useState<[number, number]>(() => {
     const lat = parseFloat(localStorage.getItem("georef_lat") || "");
     const lng = parseFloat(localStorage.getItem("georef_lng") || "");
     return !isNaN(lat) && !isNaN(lng) ? [lat, lng] : defaultCenter;
   });
-
   const [mapCenter, setMapCenter] = useState<[number, number]>(markerPos);
   const [mapZoom, setMapZoom] = useState<number>(13);
+
+  // Helper to get today's date in YYYY-MM-DD local format
+  const getTodayDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  // ── form state ────────────────────────────────────────────────────────────
+  const [selectedTrapId, setSelectedTrapId] = useState<string>("");
+  const [locationName, setLocationName] = useState<string>("");
+  const [barangay, setBarangay] = useState<string>("");
+  const [deploymentDate, setDeploymentDate] = useState<string>(getTodayDateString());
+  const [deployedBy, setDeployedBy] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
+
+  // ── trap data from Supabase ───────────────────────────────────────────────
+  const [unassignedTraps, setUnassignedTraps] = useState<OvitrapDevice[]>([]);
+  const [deployedTraps, setDeployedTraps] = useState<OvitrapDevice[]>([]);
+  const [trapsLoading, setTrapsLoading] = useState<boolean>(true);
+
+  // ── UI state ──────────────────────────────────────────────────────────────
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(false);
-
   const [toast, setToast] = useState<{
     type: "success" | "error" | "info";
     message: string;
   } | null>(null);
-
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── helpers ───────────────────────────────────────────────────────────────
   const showToast = (type: "success" | "error" | "info", message: string) => {
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ type, message });
-    toastTimeoutRef.current = setTimeout(() => {
-      setToast(null);
-    }, 4000);
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 4000);
   };
 
   useEffect(() => {
@@ -120,229 +141,575 @@ export default function StaticGeoreferencingPage() {
     };
   }, []);
 
-  // Handle map click
+  // ── Helper to auto-fill form fields when a trap is selected ──────────────────
+  const applyTrapToForm = useCallback((trap: OvitrapDevice | null) => {
+    if (!trap) {
+      setSelectedTrapId("");
+      setLocationName("");
+      setBarangay("");
+      setNotes("");
+      setDeploymentDate(getTodayDateString());
+      setDeployedBy("");
+      return;
+    }
+
+    setSelectedTrapId(trap.id);
+    setLocationName(trap.description || "");
+    setBarangay(trap.barangays?.barangay_name || "");
+    setNotes(trap.notes || "");
+
+    const formattedDate =
+      (trap.installation_date ? String(trap.installation_date).split("T")[0] : null) ||
+      getTodayDateString();
+    setDeploymentDate(formattedDate);
+
+    const deployedByName = trap.users
+      ? `${trap.users.first_name || ""} ${trap.users.last_name || ""}`.trim()
+      : trap.deployed_by || "";
+    setDeployedBy(deployedByName);
+
+    if (trap.latitude != null && trap.longitude != null) {
+      setLatInput(trap.latitude.toString());
+      setLngInput(trap.longitude.toString());
+      setMarkerPos([trap.latitude, trap.longitude]);
+      setMapCenter([trap.latitude, trap.longitude]);
+    }
+  }, []);
+
+  // ── fetch unassigned traps on mount ───────────────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      setTrapsLoading(true);
+      try {
+        // Fetch all traps to separate unassigned and deployed
+        const { data, error } = await supabase
+          .from("ovitrap_devices")
+          .select(
+            `id, device_code, serial_number, description, barangay_id,
+             latitude, longitude, device_status_id, notes,
+             installation_date, last_seen_at, created_at, deployed_by,
+             device_statuses (id, status_name, description),
+             barangays (id, barangay_name),
+             users:deployed_by (first_name, last_name)`
+          )
+          .order("device_code");
+
+        if (error) throw error;
+        let allTraps = (data as unknown as OvitrapDevice[]) ?? [];
+
+        // If trapId parameter is passed from URL, ensure it's loaded & selected
+        if (paramTrapId && !allTraps.some((t) => t.id === paramTrapId)) {
+          const { data: singleTrap } = await supabase
+            .from("ovitrap_devices")
+            .select(
+              `id, device_code, serial_number, description, barangay_id,
+               latitude, longitude, device_status_id, notes,
+               installation_date, last_seen_at, created_at, deployed_by,
+               device_statuses (id, status_name, description),
+               barangays (id, barangay_name),
+               users:deployed_by (first_name, last_name)`
+            )
+            .eq("id", paramTrapId)
+            .maybeSingle();
+
+          if (singleTrap) {
+            allTraps = [singleTrap as unknown as OvitrapDevice, ...allTraps];
+          }
+        }
+
+        const unassigned = allTraps.filter((t) => t.latitude == null);
+        const deployed = allTraps.filter((t) => t.latitude != null);
+
+        setUnassignedTraps(unassigned);
+        setDeployedTraps(deployed);
+
+        if (paramTrapId) {
+          const selected = allTraps.find((t) => t.id === paramTrapId);
+          if (selected) {
+            applyTrapToForm(selected);
+          } else {
+            setSelectedTrapId(paramTrapId);
+          }
+        }
+
+        if (viewId) {
+          const trapToView = allTraps.find((t) => t.id === viewId);
+          if (trapToView && trapToView.latitude != null && trapToView.longitude != null) {
+            setMapCenter([trapToView.latitude, trapToView.longitude]);
+            setMapZoom(16);
+
+            // Try to open the popup after a short delay to allow rendering
+            setTimeout(() => {
+              if (markerRefs.current[viewId]) {
+                markerRefs.current[viewId]?.openPopup();
+              }
+            }, 500);
+          }
+        }
+      } catch {
+        showToast("error", "Failed to load unassigned traps.");
+      } finally {
+        setTrapsLoading(false);
+      }
+    };
+    load();
+  }, [paramTrapId, viewId, applyTrapToForm]);
+
+  const selectedTrap =
+    unassignedTraps.find((t) => t.id === selectedTrapId) ??
+    deployedTraps.find((t) => t.id === selectedTrapId) ??
+    null;
+
+  const handleTrapSelect = (trapId: string) => {
+    const trap =
+      unassignedTraps.find((t) => t.id === trapId) ??
+      deployedTraps.find((t) => t.id === trapId) ??
+      null;
+    applyTrapToForm(trap);
+  };
+
+  // ── map handlers ──────────────────────────────────────────────────────────
   const handleMapClick = (lat: number, lng: number) => {
-    const roundedLat = parseFloat(lat.toFixed(6));
-    const roundedLng = parseFloat(lng.toFixed(6));
-    setLatInput(roundedLat.toString());
-    setLngInput(roundedLng.toString());
-    setMarkerPos([roundedLat, roundedLng]);
+    const rLat = parseFloat(lat.toFixed(6));
+    const rLng = parseFloat(lng.toFixed(6));
+    setLatInput(rLat.toString());
+    setLngInput(rLng.toString());
+    setMarkerPos([rLat, rLng]);
     setIsSaved(false);
-    showToast("info", "Coordinates selected from map");
+    showToast("info", "Coordinates selected from map.");
   };
 
-  // Handle manual "Set" button confirmation
-  const handleSetCoordinates = () => {
-    const lat = parseFloat(latInput);
-    const lng = parseFloat(lngInput);
-
-    if (isNaN(lat) || lat < -90 || lat > 90) {
-      showToast("error", "Please enter a valid Latitude between -90 and 90.");
-      return;
-    }
-    if (isNaN(lng) || lng < -180 || lng > 180) {
-      showToast("error", "Please enter a valid Longitude between -180 and 180.");
-      return;
-    }
-
-    const roundedLat = parseFloat(lat.toFixed(6));
-    const roundedLng = parseFloat(lng.toFixed(6));
-
-    setMarkerPos([roundedLat, roundedLng]);
-    setMapCenter([roundedLat, roundedLng]);
-    setMapZoom(15);
-    localStorage.setItem("georef_lat", roundedLat.toString());
-    localStorage.setItem("georef_lng", roundedLng.toString());
-    setIsSaved(true);
-    showToast("success", "Georeferenced coordinates saved successfully!");
-  };
-
-  // Handle Browser Geolocation
   const handleGetMyLocation = () => {
-    if (!navigator.geolocation) {
-      showToast("error", "Geolocation is not supported by your browser.");
-      return;
-    }
-
+    if (!navigator.geolocation) return showToast("error", "Geolocation not supported.");
     setIsLocating(true);
-    showToast("info", "Requesting device location...");
-
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const roundedLat = parseFloat(latitude.toFixed(6));
-        const roundedLng = parseFloat(longitude.toFixed(6));
-
-        setLatInput(roundedLat.toString());
-        setLngInput(roundedLng.toString());
-        setMarkerPos([roundedLat, roundedLng]);
-        setMapCenter([roundedLat, roundedLng]);
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setLatInput(latitude.toFixed(6));
+        setLngInput(longitude.toFixed(6));
+        setMarkerPos([latitude, longitude]);
+        setMapCenter([latitude, longitude]);
         setMapZoom(16);
         setIsLocating(false);
-        setIsSaved(false);
-        showToast("success", "Location retrieved successfully!");
       },
-      (error) => {
+      () => {
         setIsLocating(false);
-        let errorMsg = "Unable to retrieve your location.";
-        if (error.code === error.PERMISSION_DENIED) {
-          errorMsg = "Location permission denied. Please allow access in browser settings.";
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          errorMsg = "Location information is unavailable.";
-        } else if (error.code === error.TIMEOUT) {
-          errorMsg = "Location request timed out.";
-        }
-        showToast("error", errorMsg);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
+        showToast("error", "Could not get location.");
+      }
     );
   };
 
+  // ── form actions ──────────────────────────────────────────────────────────
+  const handleDeploy = async () => {
+    if (!selectedTrapId) {
+      showToast("error", "Please select a trap first.");
+      return;
+    }
+    if (!latInput || !lngInput) {
+      showToast("error", "Please set coordinates on the map.");
+      return;
+    }
+
+    try {
+      // Find status ID for Active/Online status
+      let activeStatusId = ACTIVE_STATUS_ID;
+      const { data: statusData } = await supabase
+        .from("device_statuses")
+        .select("id")
+        .or("status_name.ilike.Active,status_name.ilike.Online")
+        .limit(1)
+        .maybeSingle();
+
+      if (statusData?.id) {
+        activeStatusId = statusData.id;
+      }
+
+      const { error } = await supabase
+        .from("ovitrap_devices")
+        .update({
+          latitude: parseFloat(latInput),
+          longitude: parseFloat(lngInput),
+          description: locationName || null,
+          notes: notes || null,
+          installation_date: deploymentDate || null,
+          device_status_id: activeStatusId,
+        })
+        .eq("id", selectedTrapId);
+
+      if (error) throw error;
+
+      setIsSaved(true);
+      showToast("success", `${selectedTrap?.device_code} deployed & set to Online!`);
+      // Move from unassigned to deployed list
+      const deployedTrap = unassignedTraps.find((t) => t.id === selectedTrapId);
+      if (deployedTrap) {
+        setDeployedTraps((prev) => [
+          ...prev,
+          {
+            ...deployedTrap,
+            latitude: parseFloat(latInput),
+            longitude: parseFloat(lngInput),
+            device_statuses: {
+              id: activeStatusId,
+              status_name: "Active",
+              description: ""
+            }
+          },
+        ]);
+      }
+      setUnassignedTraps((prev) => prev.filter((t) => t.id !== selectedTrapId));
+      handleClearForm();
+    } catch {
+      showToast("error", "Failed to deploy trap. Please try again.");
+    }
+  };
+
+  const handleClearForm = () => {
+    applyTrapToForm(null);
+    setIsSaved(false);
+  };
+
+  const handlePickUp = async (trap: OvitrapDevice) => {
+    try {
+      let offlineStatusId = trap.device_status_id;
+      const { data: statusData } = await supabase
+        .from("device_statuses")
+        .select("id")
+        .ilike("status_name", "Offline")
+        .limit(1)
+        .maybeSingle();
+
+      if (statusData?.id) {
+        offlineStatusId = statusData.id;
+      }
+
+      const { error } = await supabase
+        .from("ovitrap_devices")
+        .update({
+          latitude: null,
+          longitude: null,
+          deployed_by: null,
+          device_status_id: offlineStatusId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", trap.id);
+
+      if (error) throw error;
+
+      showToast("success", `${trap.device_code} picked up from the map.`);
+      
+      // Update local state
+      setDeployedTraps((prev) => prev.filter((t) => t.id !== trap.id));
+      setUnassignedTraps((prev) => [
+        ...prev,
+        {
+          ...trap,
+          latitude: null,
+          longitude: null,
+          device_statuses: offlineStatusId
+            ? { id: offlineStatusId, status_name: "Offline", description: "" }
+            : trap.device_statuses,
+        },
+      ]);
+      
+      // Close popup manually if needed, or it might just disappear because it is removed from deployedTraps
+    } catch {
+      showToast("error", "Failed to pick up trap. Please try again.");
+    }
+  };
+
+  // ── render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-6 h-[calc(100vh-5rem)]">
+      {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Static Georeferencing
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Pinpoint and confirm the exact spatial coordinates for mosquito monitoring nodes and analysis.
+          <p className="text-sm text-slate-500 mt-0.5">
+            Deploy and register Smart Ovi Traps on the map
           </p>
         </div>
         {isSaved && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200 self-start md:self-auto animate-fade-in">
-            <Check className="w-3.5 h-3.5" />
-            Coordinates Synchronized
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200">
+            <Check className="w-3.5 h-3.5" /> Trap Deployed
           </div>
         )}
       </div>
 
-      {/* Map Container */}
-      <div className="flex-1 relative rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-md">
-        {/* Leaflet Map */}
-        <MapContainer
-          center={mapCenter}
-          zoom={mapZoom}
-          zoomControl={false} // Disable default top-left zoom so we don't conflict with our custom UI
-          className="w-full h-full z-0"
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <MapController center={mapCenter} zoom={mapZoom} />
-          <MapClickHandler onMapClick={handleMapClick} />
-          <Marker position={markerPos} icon={createCustomMarker(true)} />
-        </MapContainer>
+      {/* Main layout: left panel + map */}
+      <div className="flex flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
 
-        {/* Floating Custom Zoom Controls (Top Right) */}
-        <div className="absolute right-4 top-4 z-10 flex flex-col gap-1 shadow-md rounded-lg overflow-hidden bg-white/90 border border-slate-200 backdrop-blur">
-          {/* Zoom controls handled implicitly or via custom map calls, 
-              but standard mouse wheel/double click and touch zoom remain active.
-              We also keep a beautiful scale indicator. */}
-        </div>
+        {/* ── Left Panel ─────────────────────────────────────────────────── */}
+        <aside className="w-96 flex-shrink-0 border-r border-slate-200 bg-white/95 backdrop-blur-md p-6 overflow-y-auto flex flex-col gap-6">
 
-        {/* Toast Feedback Overlay */}
-        {toast && (
-          <div
-            className={`absolute top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-xl backdrop-blur transition-all duration-300 transform translate-y-0 scale-100 ${
-              toast.type === "success"
-                ? "bg-emerald-50/95 border-emerald-200 text-emerald-800"
-                : toast.type === "error"
-                ? "bg-rose-50/95 border-rose-200 text-rose-800"
-                : "bg-slate-900/95 border-slate-800 text-white"
-            }`}
-          >
-            {toast.type === "error" ? (
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600" />
-            ) : toast.type === "success" ? (
-              <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" />
+          {/* 1. Deployment Information */}
+          <section>
+            <h2 className="text-lg font-semibold text-slate-800 mb-0.5">
+              Deployment Information
+            </h2>
+            <p className="text-xs text-slate-500">Configure Smart Ovi Trap deployment</p>
+          </section>
+
+          {/* 2. Select Trap */}
+          <section className="space-y-2">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Select Trap
+            </label>
+            {trapsLoading ? (
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading traps…
+              </div>
             ) : (
-              <Compass className="w-5 h-5 flex-shrink-0 text-emerald-500 animate-spin-slow" />
+              <select
+                className="w-full h-9 rounded-md border border-slate-300 bg-slate-50 text-sm px-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={selectedTrapId}
+                onChange={(e) => handleTrapSelect(e.target.value)}
+              >
+                <option value="">— Choose an Unassigned Trap —</option>
+                {unassignedTraps.map((trap) => (
+                  <option key={trap.id} value={trap.id}>
+                    {trap.device_code}
+                  </option>
+                ))}
+              </select>
             )}
-            <span className="text-sm font-medium">{toast.message}</span>
-          </div>
-        )}
 
-        {/* Floating Coordinate Input Panel (Top-Left Corner) */}
-        <div className="absolute left-4 top-4 z-10 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-xl backdrop-blur-md">
-          <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
-            <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-700">
-              <MapPin className="w-4 h-4" />
+            {/* Show info after selection */}
+            {selectedTrap && (
+              <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-1 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-slate-600">Status</span>
+                  <span className="ml-auto flex items-center gap-1 text-amber-700 font-semibold">
+                    🟡 {selectedTrap.device_statuses?.status_name ?? "Unassigned"}
+                  </span>
+                </div>
+                {selectedTrap.description && (
+                  <div className="flex items-start gap-1.5">
+                    <span className="font-medium text-slate-600">Description</span>
+                    <span className="ml-auto text-slate-500 text-right">{selectedTrap.description}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* 3. Location Information */}
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Location Information
+            </h3>
+            <div>
+              <Label className="text-xs mb-1 block">Location Name</Label>
+              <Input
+                value={locationName}
+                onChange={(e) => setLocationName(e.target.value)}
+                placeholder="e.g. Near Central Park"
+                className="h-9"
+              />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-800">Coordinate Reference</h2>
-              <p className="text-[10px] text-slate-500">Configure or select site coordinates</p>
-            </div>
-          </div>
-
-          <div className="space-y-3.5">
-            <div className="space-y-1.5">
-              <Label htmlFor="latitude" className="text-xs font-semibold text-slate-600">
-                Latitude (X Coordinate)
-              </Label>
+              <Label className="text-xs mb-1 block">Barangay</Label>
               <Input
-                id="latitude"
-                type="number"
-                step="any"
-                placeholder="e.g. 14.5995"
-                value={latInput}
-                onChange={(e) => {
-                  setLatInput(e.target.value);
-                  setIsSaved(false);
-                }}
-                className="h-9 text-sm focus-visible:ring-emerald-500 bg-slate-50/50 border-slate-200"
+                value={barangay}
+                onChange={(e) => setBarangay(e.target.value)}
+                placeholder="e.g. Barangay 123"
+                className="h-9"
               />
             </div>
+          </section>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="longitude" className="text-xs font-semibold text-slate-600">
-                Longitude (Y Coordinate)
-              </Label>
+          {/* 4. Coordinates (read-only) */}
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Coordinates
+            </h3>
+            <p className="text-xs text-slate-400">
+              Click the map or use "Get My Location" to fill these fields.
+            </p>
+            <div>
+              <Label className="text-xs mb-1 block">Latitude</Label>
+              <Input readOnly value={latInput} className="h-9 bg-slate-100 text-slate-600 cursor-default" />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Longitude</Label>
+              <Input readOnly value={lngInput} className="h-9 bg-slate-100 text-slate-600 cursor-default" />
+            </div>
+          </section>
+
+          {/* 5. Deployment Details */}
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Deployment Details
+            </h3>
+            <div>
+              <Label className="text-xs mb-1 block">Deployment Date</Label>
               <Input
-                id="longitude"
-                type="number"
-                step="any"
-                placeholder="e.g. 120.9842"
-                value={lngInput}
-                onChange={(e) => {
-                  setLngInput(e.target.value);
-                  setIsSaved(false);
-                }}
-                className="h-9 text-sm focus-visible:ring-emerald-500 bg-slate-50/50 border-slate-200"
+                type="date"
+                value={deploymentDate}
+                onChange={(e) => setDeploymentDate(e.target.value)}
+                className="h-9"
               />
             </div>
+            <div>
+              <Label className="text-xs mb-1 block">Deployed By</Label>
+              <Input
+                value={deployedBy}
+                onChange={(e) => setDeployedBy(e.target.value)}
+                placeholder="e.g. Juan Espira"
+                className="h-9"
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Notes (Optional)</Label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any additional notes…"
+                rows={3}
+                className="w-full rounded-md border border-slate-300 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              />
+            </div>
+          </section>
 
+          {/* 6. Buttons */}
+          <div className="flex gap-3 pt-2">
             <Button
-              onClick={handleSetCoordinates}
-              className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium text-xs tracking-wide shadow-sm transition-colors rounded-lg flex items-center justify-center gap-1.5"
+              onClick={handleDeploy}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              Set Coordinates
+              Deploy Trap
+            </Button>
+            <Button
+              onClick={handleClearForm}
+              variant="outline"
+              className="flex-1"
+            >
+              Clear Form
+            </Button>
+          </div>
+        </aside>
+
+        {/* ── Map ───────────────────────────────────────────────────────── */}
+        <div className="relative flex-1">
+          <MapContainer
+            center={mapCenter}
+            zoom={mapZoom}
+            zoomControl={false}
+            className="w-full h-full"
+          >
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <MapController center={mapCenter} zoom={mapZoom} />
+            <MapClickHandler onMapClick={handleMapClick} />
+            {deployedTraps.map((trap) => (
+              <Marker
+                key={trap.id}
+                ref={(r) => { markerRefs.current[trap.id] = r; }}
+                position={[trap.latitude!, trap.longitude!]}
+                icon={createCustomMarker(trap.device_statuses?.status_name ?? "Active")}
+              >
+                <Popup>
+                  <div className="w-48 p-1">
+                    <h3 className="font-bold text-slate-800 text-sm mb-1">{trap.device_code}</h3>
+                    {trap.description && <p className="text-xs text-slate-600 mb-2">{trap.description}</p>}
+                    
+                    <div className="space-y-1.5 text-xs text-slate-700">
+                      <div className="flex justify-between">
+                        <span className="font-semibold">Barangay:</span>
+                        <span>{trap.barangays?.barangay_name ?? "Unknown"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-semibold">Status:</span>
+                        <span>{trap.device_statuses?.status_name ?? "Unknown"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-semibold">Battery:</span>
+                        <span>89%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-semibold">Last Sync:</span>
+                        <span>2 mins ago</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 h-7 text-xs px-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(ROUTES.admin.nodes);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="flex-1 h-7 text-xs px-1 bg-amber-500 hover:bg-amber-600 text-white"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePickUp(trap);
+                        }}
+                      >
+                        Pick up
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="flex-1 h-7 text-xs px-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(ROUTES.admin.nodes);
+                        }}
+                      >
+                        View
+                      </Button>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+            <Marker position={markerPos} icon={createCustomMarker("Default")} />
+          </MapContainer>
+
+          {/* Get My Location button */}
+          <div className="absolute left-4 bottom-4 z-[999]">
+            <Button
+              onClick={handleGetMyLocation}
+              disabled={isLocating}
+              className="flex items-center gap-2 px-4 h-10 rounded-xl bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-lg text-xs font-semibold transition-all"
+            >
+              {isLocating ? (
+                <>
+                  <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
+                  <span>Locating…</span>
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-4 h-4 text-emerald-600 rotate-45" />
+                  <span>Get My Location</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
-
-        {/* Floating Current Location Button (Bottom-Left Corner) */}
-        <div className="absolute left-4 bottom-4 z-10">
-          <Button
-            onClick={handleGetMyLocation}
-            disabled={isLocating}
-            className="flex items-center gap-2 px-4 h-10 rounded-xl bg-white text-slate-700 hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 shadow-lg text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-85 disabled:pointer-events-none"
-          >
-            {isLocating ? (
-              <>
-                <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
-                <span>Locating...</span>
-              </>
-            ) : (
-              <>
-                <Navigation className="w-4 h-4 text-emerald-600 rotate-45" />
-                <span>Get My Location</span>
-              </>
-            )}
-          </Button>
-        </div>
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-[9999] flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium border transition-all
+            ${toast.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : ""}
+            ${toast.type === "error" ? "bg-red-50 border-red-200 text-red-800" : ""}
+            ${toast.type === "info" ? "bg-sky-50 border-sky-200 text-sky-800" : ""}
+          `}
+        >
+          {toast.type === "error" && <AlertCircle className="w-4 h-4" />}
+          {toast.type === "success" && <Check className="w-4 h-4" />}
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
