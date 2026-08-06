@@ -5,6 +5,7 @@ export const ROUTES = {
     georeferencing: "/admin/georeferencing",
     nodes: "/admin/nodes",
     telemetry: "/admin/telemetry",
+    liveMonitoring: "/admin/live-monitoring",
   },
 
   lgu: {

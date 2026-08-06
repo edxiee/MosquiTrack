@@ -11,6 +11,7 @@ import UserAccessControlPage from "@/features/users/pages/UserAccessControlPage"
 import StaticGeoreferencingPage from "@/features/georeferencing/pages/StaticGeoreferencingPage";
 import NodeProvisioningPage from "@/features/nodes/pages/NodeProvisioningPage";
 import RawTelemetryHubPage from "@/features/telemetry/pages/RawTelemetryHubPage";
+import LiveMonitoringPage from "@/features/monitoring/pages/LiveMonitoringPage";
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -42,6 +43,10 @@ export const adminRoutes: RouteObject[] = [
       {
         path: "telemetry",
         element: <RawTelemetryHubPage />,
+      },
+      {
+        path: "live-monitoring",
+        element: <LiveMonitoringPage />,
       },
     ],
   },

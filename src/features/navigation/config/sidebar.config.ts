@@ -48,6 +48,10 @@ export const SIDEBAR_CONFIG: Record<
           name: "Raw Telemetry Hub",
           path: ROUTES.admin.telemetry,
         },
+        {
+          name: "Live Monitoring",
+          path: ROUTES.admin.liveMonitoring,
+        },
       ],
     },
   ],
