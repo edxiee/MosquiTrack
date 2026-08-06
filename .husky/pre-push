@@ -1,0 +1,17 @@
+FILE="src/types/database.types.ts"
+
+if [ ! -s "$FILE" ]; then
+  echo "❌ Push blocked: $FILE is empty."
+  echo "   Regenerate it before pushing:"
+  echo "   supabase gen types typescript --project-id pstvqtoxsdwcfhgimugu --schema public > $FILE"
+  exit 1
+fi
+
+if ! grep -q "export type Database" "$FILE"; then
+  echo "❌ Push blocked: $FILE is missing 'export type Database'."
+  echo "   Regenerate it before pushing:"
+  echo "   supabase gen types typescript --project-id pstvqtoxsdwcfhgimugu --schema public > $FILE"
+  exit 1
+fi
+
+echo "✅ database.types.ts looks valid."
