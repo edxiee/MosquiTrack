@@ -8,19 +8,15 @@ import {
   Loader2,
   RefreshCw,
   Pencil,
-  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabase";
 import { ROUTES } from "@/features/navigation/config/routes";
 import DeviceModal from "../components/nodes/DeviceModal";
 import {
   fetchDevices,
   fetchStatuses,
   fetchBarangays,
-  setDeployedBy,
   pickUpDevice,
-  maybeForceActive,
 } from "../services/deviceService";
 import { formatDeployedBy, isDeviceActive } from "../utils/deviceHelpers";
 import type { OvitrapDevice, DeviceStatus, Barangay } from "../types/device";
