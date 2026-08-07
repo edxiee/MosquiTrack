@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { MapErrorBoundary } from "@/features/common/components/MapErrorBoundary";
 import {
   MapContainer,
   TileLayer,
@@ -643,30 +644,32 @@ export default function LiveMonitoringPage() {
                         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">Device Location</h3>
                       </div>
                       {selectedDevice.latitude != null && selectedDevice.longitude != null ? (
-                        <div className="h-64">
-                          <MapContainer
-                            center={[Number(selectedDevice.latitude), Number(selectedDevice.longitude)]}
-                            zoom={16}
-                            zoomControl={false}
-                            className="w-full h-full rounded-b-xl"
-                            key={selectedDevice.id}
-                          >
-                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                            <MapFlyTo lat={Number(selectedDevice.latitude)} lng={Number(selectedDevice.longitude)} />
-                            <Marker
-                              position={[Number(selectedDevice.latitude), Number(selectedDevice.longitude)]}
-                              icon={createCustomMarker(status.state)}
+                        <div className="h-64 flex-1 relative z-0">
+                          <MapErrorBoundary>
+                            <MapContainer
+                              center={[Number(selectedDevice.latitude), Number(selectedDevice.longitude)]}
+                              zoom={16}
+                              zoomControl={false}
+                              className="w-full h-full rounded-b-xl"
+                              key={selectedDevice.id}
                             >
-                              <Popup>
-                                <div className="text-xs space-y-1">
-                                  <p className="font-bold text-sm">{selectedDevice.device_code}</p>
-                                  <p>{selectedDevice.description || "N/A"}</p>
-                                  <p>{status.state}</p>
-                                  <p>Last seen: {formatTimeAgo(lastSeenStr)}</p>
-                                </div>
-                              </Popup>
-                            </Marker>
-                          </MapContainer>
+                              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                              <MapFlyTo lat={Number(selectedDevice.latitude)} lng={Number(selectedDevice.longitude)} />
+                              <Marker
+                                position={[Number(selectedDevice.latitude), Number(selectedDevice.longitude)]}
+                                icon={createCustomMarker(status.state)}
+                              >
+                                <Popup>
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-bold text-sm">{selectedDevice.device_code}</p>
+                                    <p>{selectedDevice.description || "N/A"}</p>
+                                    <p>{status.state}</p>
+                                    <p>Last seen: {formatTimeAgo(lastSeenStr)}</p>
+                                  </div>
+                                </Popup>
+                              </Marker>
+                            </MapContainer>
+                          </MapErrorBoundary>
                         </div>
                       ) : (
                         <div className="h-64 flex flex-col items-center justify-center bg-slate-50 text-slate-400 text-sm">

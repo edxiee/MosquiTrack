@@ -6,10 +6,12 @@ import DashboardLayout from "@/app/layouts/DashboardLayout";
 import RoleGuard from "@/features/auth/components/RoleGuard";
 import { ROLES } from "@/features/auth/constants/roles";
 
+import { lazy } from "react";
 import LguDashboard from "@/features/dashboard/pages/LguDashboard";
-import MacroGeospatialHeatmapPage from "@/features/georeferencing/pages/MacroGeospatialHeatmapPage";
-import PrescriptiveAnalyticsPage from "@/features/reports/pages/PrescriptiveAnalyticsPage";
-import ReportsAnalyticsPage from "@/features/reports/pages/ReportsAnalyticsPage";
+
+const MacroGeospatialHeatmapPage = lazy(() => import("@/features/georeferencing/pages/MacroGeospatialHeatmapPage"));
+const PrescriptiveAnalyticsPage = lazy(() => import("@/features/reports/pages/PrescriptiveAnalyticsPage"));
+const ReportsAnalyticsPage = lazy(() => import("@/features/reports/pages/ReportsAnalyticsPage"));
 
 
 export const lguRoutes: RouteObject[] = [

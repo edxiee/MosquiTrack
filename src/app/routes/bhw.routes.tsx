@@ -6,10 +6,12 @@ import DashboardLayout from "@/app/layouts/DashboardLayout";
 import RoleGuard from "@/features/auth/components/RoleGuard";
 import { ROLES } from "@/features/auth/constants/roles";
 
+import { lazy } from "react";
 import BhwDashboard from "@/features/dashboard/pages/BhwDashboard";
-import BarangaySurveillancePage from "@/features/surveillance/pages/BarangaySurveillancePage";
-import HardwareNodesPage from "@/features/nodes/pages/HardwareNodesPage";
-import ActionTriageLogPage from "@/features/triage/pages/ActionTriageLogPage";
+
+const BarangaySurveillancePage = lazy(() => import("@/features/surveillance/pages/BarangaySurveillancePage"));
+const HardwareNodesPage = lazy(() => import("@/features/nodes/pages/HardwareNodesPage"));
+const ActionTriageLogPage = lazy(() => import("@/features/triage/pages/ActionTriageLogPage"));
 
 export const bhwRoutes: RouteObject[] = [
   {

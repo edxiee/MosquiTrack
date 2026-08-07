@@ -20,6 +20,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
+import { MapErrorBoundary } from "@/features/common/components/MapErrorBoundary";
 import L from "leaflet";
 import {
   AlertTriangle,
@@ -348,62 +349,64 @@ export default function BarangaySurveillancePage() {
               </div>
             </CardHeader>
             <div className="flex-1 relative z-0">
-              <MapContainer
-                center={[BARANGAY_CENTER.lat, BARANGAY_CENTER.lng]}
-                zoom={16}
-                zoomControl={false}
-                className="w-full h-full"
-              >
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                {selectedTrap && <MapFlyTo lat={selectedTrap.lat} lng={selectedTrap.lng} />}
-                
-                {MOCK_TRAPS.map((trap) => {
-                  const sColor = getStatusColor(trap.status);
-                  const aColor = getActivityColor(trap.activityLevel);
-                  const hexColor = getHexColor(aColor);
+              <MapErrorBoundary>
+                <MapContainer
+                  center={[BARANGAY_CENTER.lat, BARANGAY_CENTER.lng]}
+                  zoom={16}
+                  zoomControl={false}
+                  className="w-full h-full"
+                >
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  {selectedTrap && <MapFlyTo lat={selectedTrap.lat} lng={selectedTrap.lng} />}
+                  
+                  {MOCK_TRAPS.map((trap) => {
+                    const sColor = getStatusColor(trap.status);
+                    const aColor = getActivityColor(trap.activityLevel);
+                    const hexColor = getHexColor(aColor);
 
-                  return (
-                    <div key={trap.id}>
-                      <Circle
-                        center={[trap.lat, trap.lng]}
-                        radius={75}
-                        pathOptions={{
-                          color: hexColor,
-                          fillColor: hexColor,
-                          fillOpacity: 0.15,
-                          weight: 1.5,
-                          dashArray: "4 4"
-                        }}
-                      />
-                      <Marker
-                        position={[trap.lat, trap.lng]}
-                        icon={createCustomMarker(trap.activityLevel)}
-                        eventHandlers={{
-                          click: () => setSelectedTrap(trap),
-                        }}
-                      >
-                        <Popup className="custom-popup">
-                          <div className="p-1 space-y-3 min-w-[200px]">
-                            <div className="flex items-center justify-between border-b pb-2">
-                              <p className="font-bold text-slate-800">{trap.id}</p>
-                              <Badge className={`bg-${sColor}-100 text-${sColor}-700 border-none px-1.5 py-0 text-[10px]`}>{trap.status}</Badge>
+                    return (
+                      <div key={trap.id}>
+                        <Circle
+                          center={[trap.lat, trap.lng]}
+                          radius={75}
+                          pathOptions={{
+                            color: hexColor,
+                            fillColor: hexColor,
+                            fillOpacity: 0.15,
+                            weight: 1.5,
+                            dashArray: "4 4"
+                          }}
+                        />
+                        <Marker
+                          position={[trap.lat, trap.lng]}
+                          icon={createCustomMarker(trap.activityLevel)}
+                          eventHandlers={{
+                            click: () => setSelectedTrap(trap),
+                          }}
+                        >
+                          <Popup className="custom-popup">
+                            <div className="p-1 space-y-3 min-w-[200px]">
+                              <div className="flex items-center justify-between border-b pb-2">
+                                <p className="font-bold text-slate-800">{trap.id}</p>
+                                <Badge className={`bg-${sColor}-100 text-${sColor}-700 border-none px-1.5 py-0 text-[10px]`}>{trap.status}</Badge>
+                              </div>
+                              <div className="space-y-1.5 text-xs text-slate-600">
+                                <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 text-slate-400" /> {trap.location}</p>
+                                <p className="flex items-center gap-2"><Bug className="h-3.5 w-3.5 text-slate-400" /> 
+                                  Count: <span className={`font-bold text-${aColor}-600`}>{trap.count}</span>
+                                </p>
+                                <p className="flex items-center gap-2"><Activity className="h-3.5 w-3.5 text-slate-400" /> DVI: {(trap.count / 3.2).toFixed(1)}</p>
+                                <p className="flex items-center gap-2"><Battery className="h-3.5 w-3.5 text-slate-400" /> Battery: {trap.battery}%</p>
+                                <p className="flex items-center gap-2 text-[10px] text-slate-400 pt-1 border-t">Last Comm: {trap.lastComm}</p>
+                              </div>
                             </div>
-                            <div className="space-y-1.5 text-xs text-slate-600">
-                              <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 text-slate-400" /> {trap.location}</p>
-                              <p className="flex items-center gap-2"><Bug className="h-3.5 w-3.5 text-slate-400" /> 
-                                Count: <span className={`font-bold text-${aColor}-600`}>{trap.count}</span>
-                              </p>
-                              <p className="flex items-center gap-2"><Activity className="h-3.5 w-3.5 text-slate-400" /> DVI: {(trap.count / 3.2).toFixed(1)}</p>
-                              <p className="flex items-center gap-2"><Battery className="h-3.5 w-3.5 text-slate-400" /> Battery: {trap.battery}%</p>
-                              <p className="flex items-center gap-2 text-[10px] text-slate-400 pt-1 border-t">Last Comm: {trap.lastComm}</p>
-                            </div>
-                          </div>
-                        </Popup>
-                      </Marker>
-                    </div>
-                  );
-                })}
-              </MapContainer>
+                          </Popup>
+                        </Marker>
+                      </div>
+                    );
+                  })}
+                </MapContainer>
+              </MapErrorBoundary>
             </div>
           </Card>
         </div>
