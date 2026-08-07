@@ -33,10 +33,6 @@ export async function getCurrentProfile(): Promise<AuthProfile> {
         id,
         role_code,
         role_name
-      ),
-      barangay:barangays (
-        id,
-        barangay_name
       )
     `)
     .eq("id", user.id)
@@ -61,6 +57,6 @@ export async function getCurrentProfile(): Promise<AuthProfile> {
     is_active: data.is_active ?? false,
 
     role: data.role as AuthRole,
-    barangay: data.barangay,
+    barangay: null,
   };
 }
