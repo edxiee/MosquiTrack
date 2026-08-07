@@ -289,7 +289,7 @@ export default function AdminDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>TRAP ID</TableHead>
-                  <TableHead>Egg count</TableHead>
+                  <TableHead>Mosquito count</TableHead>
                   <TableHead>Battery / voltage</TableHead>
                   <TableHead>Captured</TableHead>
                 </TableRow>
