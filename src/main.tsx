@@ -10,7 +10,7 @@ import AuthProvider from "./features/auth/context/AuthProvider";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <QueryProvider>
-    <AuthProvider>
+    <AuthProvider> 
       <RouterProvider router={router} />
     </AuthProvider> 
   </QueryProvider>
