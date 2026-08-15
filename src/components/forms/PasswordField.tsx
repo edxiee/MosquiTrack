@@ -1,12 +1,10 @@
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { useState } from "react";
 import type { FieldError, UseFormRegister } from "react-hook-form";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-import type { LoginSchema } from "@/features/auth/schemas/login.schema";
+import type { LoginSchema } from "@/schemas/login.schema";
 
 interface PasswordFieldProps {
   register: UseFormRegister<LoginSchema>;

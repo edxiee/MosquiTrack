@@ -1,9 +1,11 @@
+import { RouterProvider } from "react-router-dom";
+import { AppProviders } from "@/providers/AppProviders";
+import { router } from "@/routes/router";
+
 export default function App() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100">
-      <h1 className="text-5xl font-bold text-slate-900">
-        MosquiTrack
-      </h1>
-    </main>
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>
   );
 }
