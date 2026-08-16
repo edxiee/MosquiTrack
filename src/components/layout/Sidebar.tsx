@@ -3,14 +3,13 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SIDEBAR_CONFIG } from "@/utils/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { ROLES } from "@/constants/roles";
 import AppLogo from "@/components/common/AppLogo";
 
 export default function Sidebar() {
   const { profile, logout } = useAuth();
 
-  const role = profile?.role?.role_code ?? ROLES.SYSTEM_ADMIN;
-  const navigationSections = SIDEBAR_CONFIG[role] ?? [];
+  const role = profile?.role?.role_code;
+  const navigationSections = role ? (SIDEBAR_CONFIG[role] ?? []) : [];
 
   async function handleLogout() {
     try {

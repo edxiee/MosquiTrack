@@ -31,7 +31,7 @@ export default function PersonalInformationForm({
           <Input
             id="firstName"
             placeholder="Enter first name"
-            value={firstName}
+            value={firstName ?? ""}
             onChange={(e) => onFirstNameChange(e.target.value)}
           />
           {errors.firstName && (
@@ -44,7 +44,7 @@ export default function PersonalInformationForm({
           <Input
             id="middleName"
             placeholder="Enter middle name"
-            value={middleName}
+            value={middleName ?? ""}
             onChange={(e) => onMiddleNameChange(e.target.value)}
           />
         </div>
@@ -55,7 +55,7 @@ export default function PersonalInformationForm({
         <Input
           id="lastName"
           placeholder="Enter last name"
-          value={lastName}
+          value={lastName ?? ""}
           onChange={(e) => onLastNameChange(e.target.value)}
         />
         {errors.lastName && (

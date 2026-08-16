@@ -1,9 +1,8 @@
 import { supabase } from "@/lib/supabase";
-import { ACTIVE_STATUS_ID } from "@/constants/device";
-import type { OvitrapDevice, DeviceStatus, Barangay } from "@/types/device.types";
+import type { OvitrapDevice, DeviceStatus, Barangay, UserName } from "@/types/device.types";
 
 export async function fetchDevices(): Promise<OvitrapDevice[]> {
-  const { data, error } = await supabase
+  const { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
     .select(
       `
@@ -25,16 +24,42 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
         status_name,
         description
       ),
-      users:deployed_by (
-        first_name,
-        last_name
+      barangays (
+        id,
+        barangay_name
       )
     `
     )
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return (data as unknown as OvitrapDevice[]) ?? [];
+  if (devicesError) throw devicesError;
+  if (!devicesData || devicesData.length === 0) return [];
+
+  const userIds = Array.from(
+    new Set(devicesData.map((d) => d.deployed_by).filter(Boolean))
+  ) as string[];
+
+  const userMap = new Map<string, UserName>();
+  if (userIds.length > 0) {
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", userIds);
+
+    if (profilesData) {
+      for (const p of profilesData) {
+        userMap.set(p.id, {
+          first_name: p.first_name,
+          last_name: p.last_name,
+        });
+      }
+    }
+  }
+
+  return devicesData.map((d) => ({
+    ...d,
+    users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+  })) as unknown as OvitrapDevice[];
 }
 
 export async function fetchStatuses(): Promise<DeviceStatus[]> {
@@ -71,13 +96,21 @@ export async function maybeForceActive(
     lng != null &&
     deployedBy != null
   ) {
-    await supabase
-      .from("ovitrap_devices")
-      .update({
-        device_status_id: ACTIVE_STATUS_ID,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", deviceId);
+    const { data: activeStatus } = await supabase
+      .from("device_statuses")
+      .select("id")
+      .ilike("status_name", "Active")
+      .maybeSingle();
+
+    if (activeStatus) {
+      await supabase
+        .from("ovitrap_devices")
+        .update({
+          device_status_id: activeStatus.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", deviceId);
+    }
   }
 }
 
@@ -142,7 +175,7 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
 
   // 2. Get the user’s profile (barangay + municipality)
   const { data: profile, error: profileError } = await supabase
-    .from("users" as any)
+    .from("profiles")
     .select("barangay, municipality")
     .eq("id", user.id)
     .single();
@@ -152,13 +185,12 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     throw new Error("Could not load user profile");
   }
 
-  const userProfile = profile as any as {
+  const userProfile = profile as {
     barangay: string | null;
     municipality: string | null;
   };
 
   if (!userProfile.barangay) {
-    // User has no barangay assigned → return empty list
     return [];
   }
 
@@ -178,18 +210,14 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
   const { data: barangayRow, error: barangayError } =
     await barangayQuery.maybeSingle();
 
-  if (barangayError) {
-    throw barangayError;
-  }
-
-  if (!barangayRow) {
+  if (barangayError || !barangayRow) {
     return [];
   }
 
   const matchedBarangay = barangayRow as { id: string };
 
   // 4. Fetch devices that belong to this barangay
-  const { data, error } = await supabase
+  const { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
     .select(
       `
@@ -211,15 +239,42 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
         status_name,
         description
       ),
-      users:deployed_by (
-        first_name,
-        last_name
+      barangays (
+        id,
+        barangay_name
       )
     `
     )
     .eq("barangay_id", matchedBarangay.id)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return (data as unknown as OvitrapDevice[]) ?? [];
+  if (devicesError) throw devicesError;
+  if (!devicesData || devicesData.length === 0) return [];
+
+  // 5. Hydrate user profiles
+  const userIds = Array.from(
+    new Set(devicesData.map((d) => d.deployed_by).filter(Boolean))
+  ) as string[];
+
+  const userMap = new Map<string, UserName>();
+  if (userIds.length > 0) {
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", userIds);
+
+    if (profilesData) {
+      for (const p of profilesData) {
+        userMap.set(p.id, {
+          first_name: p.first_name,
+          last_name: p.last_name,
+        });
+      }
+    }
+  }
+
+  return devicesData.map((d) => ({
+    ...d,
+    users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+  })) as unknown as OvitrapDevice[];
 }

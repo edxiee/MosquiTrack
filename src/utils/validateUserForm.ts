@@ -10,30 +10,30 @@ export function validateCreateUserForm(
   const errors: UserFormErrors = {};
 
   // Personal Information
-  if (!formData.firstName.trim()) {
+  if (!(formData.firstName ?? "").trim()) {
     errors.firstName = "First name is required.";
   }
 
-  if (!formData.lastName.trim()) {
+  if (!(formData.lastName ?? "").trim()) {
     errors.lastName = "Last name is required.";
   }
 
   // Contact Information
-  if (!formData.email.trim()) {
+  if (!(formData.email ?? "").trim()) {
     errors.email = "Email is required.";
   }
 
-  if (!formData.phoneNumber.trim()) {
+  if (!(formData.phoneNumber ?? "").trim()) {
     errors.phoneNumber = "Phone number is required.";
   }
 
   // Username
-  if (!formData.username.trim()) {
+  if (!(formData.username ?? "").trim()) {
     errors.username = "Username is required.";
   }
 
   // Password
-  if (!formData.password.trim()) {
+  if (!(formData.password ?? "").trim()) {
     errors.password = "Password is required.";
   }
 
@@ -52,16 +52,15 @@ export function validateCreateUserForm(
 
   // Location
   if (
-    (formData.role === "MHO" ||
-      formData.role === "BHW") &&
-    !formData.municipality.trim()
+    (formData.role === "MHO" || formData.role === "BHW") &&
+    !(formData.municipality ?? "").trim()
   ) {
     errors.municipality = "Municipality is required.";
   }
 
   if (
     formData.role === "BHW" &&
-    !formData.barangay.trim()
+    !(formData.barangay ?? "").trim()
   ) {
     errors.barangay = "Barangay is required.";
   }
@@ -75,25 +74,25 @@ export function validateUpdateUserForm(
   const errors: UserFormErrors = {};
 
   // Personal Information
-  if (!formData.firstName.trim()) {
+  if (!(formData.firstName ?? "").trim()) {
     errors.firstName = "First name is required.";
   }
 
-  if (!formData.lastName.trim()) {
+  if (!(formData.lastName ?? "").trim()) {
     errors.lastName = "Last name is required.";
   }
 
   // Contact Information
-  if (!formData.email.trim()) {
+  if (!(formData.email ?? "").trim()) {
     errors.email = "Email is required.";
   }
 
-  if (!formData.phoneNumber.trim()) {
+  if (!(formData.phoneNumber ?? "").trim()) {
     errors.phoneNumber = "Phone number is required.";
   }
 
   // Username
-  if (!formData.username.trim()) {
+  if (!(formData.username ?? "").trim()) {
     errors.username = "Username is required.";
   }
 
@@ -104,16 +103,15 @@ export function validateUpdateUserForm(
 
   // Location
   if (
-    (formData.role === "MHO" ||
-      formData.role === "BHW") &&
-    !formData.municipality.trim()
+    (formData.role === "MHO" || formData.role === "BHW") &&
+    !(formData.municipality ?? "").trim()
   ) {
     errors.municipality = "Municipality is required.";
   }
 
   if (
     formData.role === "BHW" &&
-    !formData.barangay.trim()
+    !(formData.barangay ?? "").trim()
   ) {
     errors.barangay = "Barangay is required.";
   }

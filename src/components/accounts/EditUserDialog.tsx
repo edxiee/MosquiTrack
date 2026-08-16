@@ -17,6 +17,8 @@ import type {
 } from "@/types/user.types";
 import { updateUser } from "@/services/update-user.service";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 interface EditUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,6 +30,7 @@ export default function EditUserDialog({
   onOpenChange,
   user,
 }: EditUserDialogProps) {
+  const { profile, refreshProfile } = useAuth();
   const [formData, setFormData] = useState<UpdateUserForm>({
     id: "",
     firstName: "",
@@ -49,13 +52,13 @@ export default function EditUserDialog({
 
     setFormData({
       id: user.id,
-      firstName: user.first_name,
+      firstName: user.first_name ?? "",
       middleName: user.middle_name ?? "",
-      lastName: user.last_name,
-      email: user.email,
+      lastName: user.last_name ?? "",
+      email: user.email ?? "",
       phoneNumber: user.phone_number ?? "",
-      username: user.username,
-      role: user.role,
+      username: user.username ?? "",
+      role: user.role ?? "",
       municipality: user.municipality ?? "",
       barangay: user.barangay ?? "",
     });
@@ -85,6 +88,9 @@ export default function EditUserDialog({
 
     try {
       await updateUser(formData);
+      if (profile && profile.id === formData.id) {
+        await refreshProfile();
+      }
       alert("User updated successfully.");
       onOpenChange(false);
     } catch (error) {

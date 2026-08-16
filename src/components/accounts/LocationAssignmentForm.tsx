@@ -32,7 +32,7 @@ export default function LocationAssignmentForm({
         <Input
           id="municipality"
           placeholder="Enter municipality"
-          value={municipality}
+          value={municipality ?? ""}
           onChange={(e) => onMunicipalityChange(e.target.value)}
         />
         {errors.municipality && (
@@ -46,7 +46,7 @@ export default function LocationAssignmentForm({
           <Input
             id="barangay"
             placeholder="Enter barangay"
-            value={barangay}
+            value={barangay ?? ""}
             onChange={(e) => onBarangayChange(e.target.value)}
           />
           {errors.barangay && (

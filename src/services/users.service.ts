@@ -1,78 +1,67 @@
-import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import type { CreateUserForm } from "@/types/user.types";
 
 export async function createUser(formData: CreateUserForm) {
-  const body = {
-    firstName: formData.firstName,
-    middleName: formData.middleName,
-    lastName: formData.lastName,
+  // 1. Create the Auth user via Supabase Auth
+  const { data: authData, error: authError } = await supabase.auth.signUp({
     email: formData.email,
-    username: formData.username,
     password: formData.password,
-    phoneNumber: formData.phoneNumber,
-    role: formData.role,
-    municipality: formData.municipality,
-    barangay: formData.barangay,
-  };
-
-  const { data, error } = await supabase.functions.invoke("create-user", {
-    body,
+    options: {
+      data: {
+        first_name: formData.firstName,
+        middle_name: formData.middleName || null,
+        last_name: formData.lastName,
+        username: formData.username,
+        phone_number: formData.phoneNumber,
+        role: formData.role,
+        municipality: formData.municipality,
+        barangay: formData.barangay,
+      },
+    },
   });
 
-  if (error) {
-    if (error instanceof FunctionsHttpError) {
-      const errorBody = await error.context.json();
-      console.error("Edge Function Response:", errorBody);
-    }
-    console.error("Function invoke error:", error);
-    throw error;
+  if (authError) {
+    throw new Error(authError.message);
   }
-  if (!data.success) {
-    throw new Error(data.error);
-  }
-  return data;
+
+  return {
+    success: true,
+    userId: authData.user?.id,
+    message: "User account created successfully.",
+  };
 }
 
 export async function deleteUser(userId: string) {
-  const { data, error } = await supabase.functions.invoke("delete-user", {
-    body: { userId },
-  });
+  const { error } = await supabase
+    .from("profiles")
+    .delete()
+    .eq("id", userId);
 
   if (error) {
-    if (error instanceof FunctionsHttpError) {
-      const errorBody = await error.context.json();
-      console.error("Edge Function Response:", errorBody);
-    }
-    throw error;
+    throw new Error(error.message);
   }
-  if (!data.success) {
-    throw new Error(data.error);
-  }
-  return data;
+
+  return { success: true };
 }
 
-// action: "deactivate" locks the account and sets status to INACTIVE.
-// "activate" unlocks it, restoring ACTIVE if they'd logged in before,
-// or PENDING if they hadn't (the Edge Function decides which).
 export async function setUserStatus(
   userId: string,
-  action: "activate" | "deactivate",
+  action: "activate" | "deactivate"
 ) {
-  const { data, error } = await supabase.functions.invoke(
-    "toggle-user-status",
-    { body: { userId, action } },
-  );
+  const nextStatus = action === "deactivate" ? "INACTIVE" : "ACTIVE";
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      status: nextStatus,
+      is_active: action === "activate",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
 
   if (error) {
-    if (error instanceof FunctionsHttpError) {
-      const errorBody = await error.context.json();
-      console.error("Edge Function Response:", errorBody);
-    }
-    throw error;
+    throw new Error(error.message);
   }
-  if (!data.success) {
-    throw new Error(data.error);
-  }
-  return data;
+
+  return { success: true, status: nextStatus };
 }

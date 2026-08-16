@@ -27,7 +27,7 @@ export default function RoleAssignmentForm({
         <Label htmlFor="role">Role</Label>
 
         <Select
-          value={role}
+          value={role ?? ""}
           onValueChange={(value) =>
             onRoleChange(value as BaseUserForm["role"])
           }

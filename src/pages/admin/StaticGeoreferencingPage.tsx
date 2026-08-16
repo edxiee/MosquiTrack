@@ -22,6 +22,7 @@ import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice } from "@/types/device.types";
 import { ACTIVE_STATUS_ID } from "@/constants/device";
 import { ROUTES } from "@/utils/navigation";
+import { fetchDevices } from "@/services/device.service";
 
 import "leaflet/dist/leaflet.css";
 
@@ -179,20 +180,7 @@ export default function StaticGeoreferencingPage() {
     const load = async () => {
       setTrapsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from("ovitrap_devices")
-          .select(
-            `id, device_code, serial_number, description, barangay_id,
-             latitude, longitude, device_status_id, notes,
-             installation_date, last_seen_at, created_at, deployed_by,
-             device_statuses (id, status_name, description),
-             barangays (id, barangay_name),
-             users:deployed_by (first_name, last_name)`
-          )
-          .order("device_code");
-
-        if (error) throw error;
-        let allTraps = (data as unknown as OvitrapDevice[]) ?? [];
+        let allTraps = await fetchDevices();
 
         if (paramTrapId && !allTraps.some((t) => t.id === paramTrapId)) {
           const { data: singleTrap } = await supabase
@@ -202,8 +190,7 @@ export default function StaticGeoreferencingPage() {
                latitude, longitude, device_status_id, notes,
                installation_date, last_seen_at, created_at, deployed_by,
                device_statuses (id, status_name, description),
-               barangays (id, barangay_name),
-               users:deployed_by (first_name, last_name)`
+               barangays (id, barangay_name)`
             )
             .eq("id", paramTrapId)
             .maybeSingle();
@@ -241,7 +228,8 @@ export default function StaticGeoreferencingPage() {
             }, 500);
           }
         }
-      } catch {
+      } catch (err) {
+        console.error("Georeferencing trap load error:", err);
         showToast("error", "Failed to load unassigned traps.");
       } finally {
         setTrapsLoading(false);

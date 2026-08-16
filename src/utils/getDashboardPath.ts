@@ -3,6 +3,7 @@ import { ROLES, type RoleCode } from "@/constants/roles";
 export function getDashboardPath(role: RoleCode): string {
   switch (role) {
     case ROLES.SYSTEM_ADMIN:
+    case ROLES.ADMIN:
       return "/admin/dashboard";
 
     case ROLES.LGU_ADMIN:

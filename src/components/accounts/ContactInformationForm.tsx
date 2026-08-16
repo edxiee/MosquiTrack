@@ -27,7 +27,7 @@ export default function ContactInformationForm({
           id="email"
           type="email"
           placeholder="Enter email address"
-          value={email}
+          value={email ?? ""}
           onChange={(e) => onEmailChange(e.target.value)}
         />
         {errors.email && (
@@ -40,7 +40,7 @@ export default function ContactInformationForm({
         <Input
           id="phoneNumber"
           placeholder="09XXXXXXXXXX"
-          value={phoneNumber}
+          value={phoneNumber ?? ""}
           onChange={(e) => onPhoneNumberChange(e.target.value)}
         />
         {errors.phoneNumber && (

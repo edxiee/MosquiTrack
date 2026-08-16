@@ -73,6 +73,43 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
     },
   ],
 
+  [ROLES.ADMIN]: [
+    {
+      title: "",
+      items: [
+        {
+          name: "Dashboard",
+          path: ROUTES.admin.dashboard,
+        },
+      ],
+    },
+    {
+      title: "SYSTEM ADMINISTRATION",
+      items: [
+        {
+          name: "User Access Control",
+          path: ROUTES.admin.users,
+        },
+        {
+          name: "Static Georeferencing",
+          path: ROUTES.admin.georeferencing,
+        },
+        {
+          name: "Node Provisioning",
+          path: ROUTES.admin.nodes,
+        },
+        {
+          name: "Raw Telemetry Hub",
+          path: ROUTES.admin.telemetry,
+        },
+        {
+          name: "Live Monitoring",
+          path: ROUTES.admin.liveMonitoring,
+        },
+      ],
+    },
+  ],
+
   [ROLES.LGU_ADMIN]: [
     {
       title: "",

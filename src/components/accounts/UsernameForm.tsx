@@ -20,7 +20,7 @@ export default function UsernameForm({
         <Label htmlFor="username">Username</Label>
         <Input
           id="username"
-          value={username}
+          value={username ?? ""}
           onChange={(e) => onUsernameChange(e.target.value)}
           placeholder="Enter username"
         />

@@ -8,7 +8,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { fetchDevices } from "@/services/device.service";
 import type { OvitrapDevice } from "@/types/device.types";
 
 import "leaflet/dist/leaflet.css";
@@ -68,21 +68,7 @@ export default function MacroGeospatialHeatmapPage() {
     const load = async () => {
       setTrapsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from("ovitrap_devices")
-          .select(
-            `id, device_code, serial_number, description, barangay_id,
-             latitude, longitude, device_status_id, notes,
-             installation_date, last_seen_at, created_at, deployed_by,
-             device_statuses (id, status_name, description),
-             barangays (id, barangay_name),
-             users:deployed_by (first_name, last_name)`
-          )
-          .order("device_code");
-
-        if (error) throw error;
-        
-        const allTraps = (data as unknown as OvitrapDevice[]) ?? [];
+        const allTraps = await fetchDevices();
         
         const deployed = allTraps.filter(
           t => t.latitude != null && t.longitude != null
