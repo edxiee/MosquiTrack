@@ -13,6 +13,8 @@ import { fetchDevicesForCurrentUser } from "@/services/device.service";
 import { formatDeployedBy, isDeviceActive } from "@/utils/deviceHelpers";
 import type { OvitrapDevice } from "@/types/device.types";
 
+import { getErrorMessage } from "@/utils/errorHelpers";
+
 export default function HardwareNodesPage() {
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +29,7 @@ export default function HardwareNodesPage() {
       setDevices(devs);
     } catch (err: unknown) {
       console.error("HardwareNodesPage load error:", err);
-      const msg =
-        err instanceof Error ? err.message : "Failed to load devices";
+      const msg = getErrorMessage(err, "Failed to load devices");
       setError(msg);
       setDevices([]);
     } finally {

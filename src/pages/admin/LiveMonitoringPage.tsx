@@ -134,8 +134,8 @@ export default function LiveMonitoringPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
 
-  const [lastSync, setLastSync] = useState<Date>(new Date());
-  const [lastSyncLabel, setLastSyncLabel] = useState("just now");
+  const [lastDataSync, setLastDataSync] = useState<Date | null>(null);
+  const [lastSyncLabel, setLastSyncLabel] = useState<string>("Loading...");
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchDevices = useCallback(async () => {
@@ -157,11 +157,11 @@ export default function LiveMonitoringPage() {
 
       const { data: readings } = await supabase
         .from("ovitrap_readings")
-        .select("device_id, battery_level, captured_at")
-        .order("captured_at", { ascending: false })
+        .select("device_id, battery_level, captured_at, created_at")
+        .order("created_at", { ascending: false })
         .limit(1000);
 
-      if (readings) {
+      if (readings && readings.length > 0) {
         const latestMap: Record<string, { battery_level: number | null; captured_at: string }> = {};
         for (const r of readings) {
           if (!latestMap[r.device_id]) {
@@ -169,6 +169,14 @@ export default function LiveMonitoringPage() {
           }
         }
         setDeviceLatestReadings(latestMap);
+
+        const newest = readings[0];
+        if (newest) {
+          const rawTs = (newest as any).created_at || newest.captured_at;
+          if (rawTs) {
+            setLastDataSync(new Date(rawTs));
+          }
+        }
       }
 
       setSelectedDevice(prev => {
@@ -228,8 +236,25 @@ export default function LiveMonitoringPage() {
 
     fetchDeviceTelemetry();
 
+    const selectedDeviceChannel = supabase
+      .channel(`selected-device-readings-${selectedDevice.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ovitrap_readings",
+          filter: `device_id=eq.${selectedDevice.id}`,
+        },
+        () => {
+          fetchDeviceTelemetry();
+        }
+      )
+      .subscribe();
+
     return () => {
       isMounted = false;
+      supabase.removeChannel(selectedDeviceChannel);
     };
   }, [selectedDevice?.id]);
 
@@ -237,38 +262,79 @@ export default function LiveMonitoringPage() {
     fetchDevices();
 
     const deviceChannel = supabase
-      .channel("live-monitoring-devices")
-      .on("postgres_changes", { event: "*", schema: "public", table: "ovitrap_devices" }, () => {
-        fetchDevices();
-        setLastSync(new Date());
-      })
+      .channel("live-monitoring-devices-channel")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_devices" },
+        () => {
+          fetchDevices();
+        }
+      )
       .subscribe();
 
     const readingsChannel = supabase
-      .channel("live-monitoring-readings")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ovitrap_readings" }, () => {
-        fetchDevices();
-        setLastSync(new Date());
-      })
+      .channel("live-monitoring-readings-channel")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_readings" },
+        (payload) => {
+          fetchDevices();
+          const rawTs =
+            payload.new && typeof payload.new === "object"
+              ? (payload.new as Record<string, unknown>).created_at ||
+                (payload.new as Record<string, unknown>).captured_at
+              : null;
+          if (rawTs) {
+            setLastDataSync(new Date(rawTs as string));
+          } else {
+            setLastDataSync(new Date());
+          }
+        }
+      )
       .subscribe();
+
+    // 5-second automatic heartbeat polling fallback
+    const pollInterval = setInterval(() => {
+      fetchDevices();
+    }, 5000);
 
     return () => {
       supabase.removeChannel(deviceChannel);
       supabase.removeChannel(readingsChannel);
+      clearInterval(pollInterval);
     };
   }, [fetchDevices]);
 
   useEffect(() => {
-    syncIntervalRef.current = setInterval(() => {
-      const diff = Math.floor((Date.now() - lastSync.getTime()) / 1000);
-      if (diff < 5) setLastSyncLabel("just now");
-      else if (diff < 60) setLastSyncLabel(`${diff} seconds ago`);
-      else setLastSyncLabel(`${Math.floor(diff / 60)} minutes ago`);
-    }, 1000);
+    function updateSyncLabel() {
+      if (!lastDataSync) {
+        setLastSyncLabel("No telemetry received yet");
+        return;
+      }
+      const diffSecs = Math.floor((Date.now() - lastDataSync.getTime()) / 1000);
+      if (diffSecs < 0 || diffSecs < 5) {
+        setLastSyncLabel("just now");
+      } else if (diffSecs < 60) {
+        setLastSyncLabel(`${diffSecs} seconds ago`);
+      } else if (diffSecs < 3600) {
+        const mins = Math.floor(diffSecs / 60);
+        setLastSyncLabel(`${mins} minute${mins > 1 ? "s" : ""} ago`);
+      } else if (diffSecs < 86400) {
+        const hrs = Math.floor(diffSecs / 3600);
+        setLastSyncLabel(`${hrs} hour${hrs > 1 ? "s" : ""} ago`);
+      } else {
+        const days = Math.floor(diffSecs / 86400);
+        setLastSyncLabel(`${days} day${days > 1 ? "s" : ""} ago`);
+      }
+    }
+
+    updateSyncLabel();
+    syncIntervalRef.current = setInterval(updateSyncLabel, 1000);
+
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     };
-  }, [lastSync]);
+  }, [lastDataSync]);
 
   const devicesWithStatus = devices.map(d => {
     const lastSeenStr = deviceLatestReadings[d.id]?.captured_at || d.last_seen_at;
@@ -306,13 +372,41 @@ export default function LiveMonitoringPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6 min-h-full">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Live Monitoring
-        </h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Monitor the operational status and recent activity of deployed Smart Ovi Trap devices.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Live Monitoring
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              REALTIME LIVE
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Monitor the operational status and real-time telemetry streaming of deployed Smart Ovi Trap devices.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <RefreshCw className="w-3.5 h-3.5 text-slate-400 animate-spin-slow" />
+            Last synced: <strong className="text-slate-700 font-semibold">{lastSyncLabel}</strong>
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              fetchDevices();
+            }}
+            className="h-8 px-3 text-xs font-medium border-slate-200"
+          >
+            Refresh Now
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -644,7 +738,6 @@ export default function LiveMonitoringPage() {
                           className="w-full justify-start gap-3 h-11 text-sm bg-white"
                           onClick={() => {
                             fetchDevices();
-                            setLastSync(new Date());
                           }}
                         >
                           <RefreshCw className="h-4 w-4 text-emerald-600" />

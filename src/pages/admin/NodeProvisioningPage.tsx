@@ -21,6 +21,8 @@ import {
 import { formatDeployedBy, isDeviceActive } from "@/utils/deviceHelpers";
 import type { OvitrapDevice, DeviceStatus, Barangay } from "@/types/device.types";
 
+import { getErrorMessage } from "@/utils/errorHelpers";
+
 export default function NodeProvisioningPage() {
   const navigate = useNavigate();
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
@@ -48,8 +50,8 @@ export default function NodeProvisioningPage() {
       setBarangays(bg);
       setError(null);
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to load devices";
+      console.error("NodeProvisioning load error:", err);
+      const msg = getErrorMessage(err, "Failed to load devices");
       setError(msg);
     } finally {
       setLoading(false);
@@ -166,8 +168,10 @@ export default function NodeProvisioningPage() {
               <tbody className="divide-y divide-slate-100">
                 {devices.map((device) => {
                   const active = isDeviceActive(device);
-                  const statusName =
-                    device.device_statuses?.status_name ?? "Unknown";
+                  const rawStatus = device.device_statuses;
+                  const statusName = Array.isArray(rawStatus)
+                    ? (rawStatus as any)[0]?.status_name ?? "Unknown"
+                    : rawStatus?.status_name ?? "Unknown";
 
                   return (
                     <tr

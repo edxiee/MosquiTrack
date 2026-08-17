@@ -56,10 +56,16 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
     }
   }
 
-  return devicesData.map((d) => ({
-    ...d,
-    users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
-  })) as unknown as OvitrapDevice[];
+  return devicesData.map((d: any) => {
+    const rawStatus = d.device_statuses;
+    const rawBarangay = d.barangays;
+    return {
+      ...d,
+      device_statuses: Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null,
+      barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
+      users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+    };
+  }) as unknown as OvitrapDevice[];
 }
 
 export async function fetchStatuses(): Promise<DeviceStatus[]> {
@@ -173,48 +179,53 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     throw new Error("Not authenticated");
   }
 
-  // 2. Get the user’s profile (barangay + municipality)
+  // 2. Get the user’s profile (barangay, municipality, barangay_id)
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("barangay, municipality")
+    .select("barangay, municipality, barangay_id")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (profileError || !profile) {
+  if (profileError) {
     console.error("Profile error:", profileError);
-    throw new Error("Could not load user profile");
+    throw profileError;
+  }
+
+  if (!profile) {
+    return [];
   }
 
   const userProfile = profile as {
     barangay: string | null;
     municipality: string | null;
+    barangay_id: string | null;
   };
 
-  if (!userProfile.barangay) {
+  let targetBarangayId = userProfile.barangay_id;
+
+  if (!targetBarangayId && userProfile.barangay) {
+    // 3. Find the matching barangay record by name if barangay_id is not on profile
+    let barangayQuery = supabase
+      .from("barangays")
+      .select("id")
+      .eq("barangay_name", userProfile.barangay);
+
+    if (userProfile.municipality) {
+      barangayQuery = barangayQuery.eq(
+        "municipality",
+        userProfile.municipality
+      );
+    }
+
+    const { data: barangayRow } = await barangayQuery.maybeSingle();
+    if (barangayRow) {
+      targetBarangayId = (barangayRow as { id: string }).id;
+    }
+  }
+
+  if (!targetBarangayId) {
     return [];
   }
-
-  // 3. Find the matching barangay record
-  let barangayQuery = supabase
-    .from("barangays")
-    .select("id")
-    .eq("barangay_name", userProfile.barangay);
-
-  if (userProfile.municipality) {
-    barangayQuery = barangayQuery.eq(
-      "municipality",
-      userProfile.municipality
-    );
-  }
-
-  const { data: barangayRow, error: barangayError } =
-    await barangayQuery.maybeSingle();
-
-  if (barangayError || !barangayRow) {
-    return [];
-  }
-
-  const matchedBarangay = barangayRow as { id: string };
 
   // 4. Fetch devices that belong to this barangay
   const { data: devicesData, error: devicesError } = await supabase
@@ -245,7 +256,7 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
       )
     `
     )
-    .eq("barangay_id", matchedBarangay.id)
+    .eq("barangay_id", targetBarangayId)
     .order("created_at", { ascending: false });
 
   if (devicesError) throw devicesError;
@@ -273,8 +284,14 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     }
   }
 
-  return devicesData.map((d) => ({
-    ...d,
-    users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
-  })) as unknown as OvitrapDevice[];
+  return devicesData.map((d: any) => {
+    const rawStatus = d.device_statuses;
+    const rawBarangay = d.barangays;
+    return {
+      ...d,
+      device_statuses: Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null,
+      barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
+      users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+    };
+  }) as unknown as OvitrapDevice[];
 }

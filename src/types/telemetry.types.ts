@@ -1,6 +1,8 @@
 export interface TelemetryReading {
   id: string;
   captured_at: string;
+  created_at?: string;
+  updated_at?: string | null;
   egg_count: number | null;
   image_path: string | null;
   ai_confidence: number | null;
@@ -9,19 +11,16 @@ export interface TelemetryReading {
   humidity_percent: number | null;
   device_id: string;
   device_code: string;
+  latitude: number | null;
+  longitude: number | null;
   barangay_name: string | null;
   status_name: string | null;
-  // Mocked fields for Raw Telemetry Hub
-  upload_status?: "Success" | "Failed" | "Retrying";
-  http_response?: number;
-  latency_ms?: number;
-  lte_signal?: string;
 }
 
 export interface TelemetryFilterValues {
   search: string;
   barangay: string; // barangay_name, or "all"
-  uploadStatus: string; // "Success", "Failed", "Retrying", or "all"
+  status: string; // "Active", "Offline", "Maintenance", or "all"
   dateFrom: string; // "YYYY-MM-DD", or ""
   dateTo: string; // "YYYY-MM-DD", or ""
 }

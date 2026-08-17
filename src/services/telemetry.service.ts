@@ -22,6 +22,8 @@ interface RawReadingRow {
 const READING_SELECT = `
   id,
   captured_at,
+  created_at,
+  updated_at,
   egg_count,
   image_path,
   ai_confidence,
@@ -29,17 +31,31 @@ const READING_SELECT = `
   temperature_c,
   humidity_percent,
   device_id,
-  device:ovitrap_devices (
+  ovitrap_devices (
+    id,
     device_code,
-    barangay:barangays ( barangay_name ),
-    device_status:device_statuses ( status_name )
+    latitude,
+    longitude,
+    barangays ( id, barangay_name ),
+    device_statuses ( id, status_name )
   )
 `;
 
-function flattenReading(row: RawReadingRow): TelemetryReading {
+function flattenReading(row: any): TelemetryReading {
+  const rawDevice = row.ovitrap_devices ?? row.device;
+  const device = Array.isArray(rawDevice) ? rawDevice[0] : rawDevice;
+
+  const rawBarangay = device?.barangays ?? device?.barangay;
+  const barangay = Array.isArray(rawBarangay) ? rawBarangay[0] : rawBarangay;
+
+  const rawStatus = device?.device_statuses ?? device?.device_status;
+  const deviceStatus = Array.isArray(rawStatus) ? rawStatus[0] : rawStatus;
+
   return {
     id: row.id,
     captured_at: row.captured_at,
+    created_at: row.created_at ?? row.captured_at,
+    updated_at: row.updated_at ?? null,
     egg_count: row.egg_count,
     image_path: row.image_path,
     ai_confidence: row.ai_confidence,
@@ -47,9 +63,11 @@ function flattenReading(row: RawReadingRow): TelemetryReading {
     temperature_c: row.temperature_c,
     humidity_percent: row.humidity_percent,
     device_id: row.device_id,
-    device_code: row.device?.device_code ?? "Unknown",
-    barangay_name: row.device?.barangay?.barangay_name ?? null,
-    status_name: row.device?.device_status?.status_name ?? null,
+    device_code: device?.device_code ?? "Unknown",
+    latitude: device?.latitude ?? null,
+    longitude: device?.longitude ?? null,
+    barangay_name: barangay?.barangay_name ?? null,
+    status_name: deviceStatus?.status_name ?? null,
   };
 }
 

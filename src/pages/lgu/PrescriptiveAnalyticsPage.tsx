@@ -17,6 +17,8 @@ import { fetchDevices } from "@/services/device.service";
 import { formatDeployedBy, isDeviceActive } from "@/utils/deviceHelpers";
 import type { OvitrapDevice } from "@/types/device.types";
 
+import { getErrorMessage } from "@/utils/errorHelpers";
+
 const REQUEST_TYPES = [
   "Send Monitoring Personnel",
   "Clean-up Drive",
@@ -231,8 +233,7 @@ export default function PrescriptiveAnalyticsPage() {
       setDevices(activeOnly);
     } catch (err: unknown) {
       console.error("PrescriptiveAnalyticsPage load error:", err);
-      const msg =
-        err instanceof Error ? err.message : "Failed to load devices";
+      const msg = getErrorMessage(err, "Failed to load devices");
       setError(msg);
       setDevices([]);
     } finally {

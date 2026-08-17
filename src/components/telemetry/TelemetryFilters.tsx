@@ -50,17 +50,17 @@ export default function TelemetryFilters({
       </Select>
 
       <Select
-        value={filters.uploadStatus}
-        onValueChange={(value) => update({ uploadStatus: value })}
+        value={filters.status}
+        onValueChange={(value) => update({ status: value })}
       >
         <SelectTrigger className="w-full md:w-44 bg-white">
-          <SelectValue placeholder="All Upload Status" />
+          <SelectValue placeholder="All Statuses" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Upload Status</SelectItem>
-          <SelectItem value="Success">Success</SelectItem>
-          <SelectItem value="Failed">Failed</SelectItem>
-          <SelectItem value="Retrying">Retrying</SelectItem>
+          <SelectItem value="all">All Statuses</SelectItem>
+          <SelectItem value="Active">Active</SelectItem>
+          <SelectItem value="Offline">Offline</SelectItem>
+          <SelectItem value="Maintenance">Maintenance</SelectItem>
         </SelectContent>
       </Select>
 

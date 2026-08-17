@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import type { TelemetryReading } from "@/types/telemetry.types";
 
 interface TelemetryTableProps {
@@ -22,35 +23,22 @@ interface TelemetryTableProps {
   isLoading: boolean;
 }
 
-function UploadStatusBadge({ status }: { status: string | undefined }) {
-  if (status === "Success") {
-    return (
-      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none shadow-none">
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-        Success
-      </Badge>
-    );
-  }
-  if (status === "Retrying") {
-    return (
-      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none shadow-none">
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-        Retrying
-      </Badge>
-    );
-  }
-  if (status === "Failed") {
-    return (
-      <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-none shadow-none">
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"></span>
-        Failed
-      </Badge>
-    );
-  }
+function StatusBadge({ status }: { status: string | null }) {
+  const isOk = status === "Active";
   return (
-    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none shadow-none">
-      <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-      Success
+    <Badge
+      className={`border-none shadow-none font-medium ${
+        isOk
+          ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+          : "bg-slate-100 text-slate-700 hover:bg-slate-100"
+      }`}
+    >
+      <span
+        className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${
+          isOk ? "bg-emerald-500" : "bg-slate-400"
+        }`}
+      />
+      {status ?? "Unknown"}
     </Badge>
   );
 }
@@ -85,12 +73,12 @@ export default function TelemetryTable({
                 <TableHead className="font-semibold text-slate-500">Timestamp</TableHead>
                 <TableHead className="font-semibold text-slate-500">Trap ID</TableHead>
                 <TableHead className="font-semibold text-slate-500">Barangay</TableHead>
-                <TableHead className="font-semibold text-slate-500">Mosquito Count</TableHead>
+                <TableHead className="font-semibold text-slate-500">Egg Count</TableHead>
+                <TableHead className="font-semibold text-slate-500">Temp (°C)</TableHead>
+                <TableHead className="font-semibold text-slate-500">Humidity (%)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Battery (%)</TableHead>
-                <TableHead className="font-semibold text-slate-500">LTE Signal</TableHead>
-                <TableHead className="font-semibold text-slate-500">Upload Status</TableHead>
-                <TableHead className="font-semibold text-slate-500">HTTP Response</TableHead>
-                <TableHead className="font-semibold text-slate-500">Latency (ms)</TableHead>
+                <TableHead className="font-semibold text-slate-500">AI Confidence</TableHead>
+                <TableHead className="font-semibold text-slate-500">Device Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -102,7 +90,7 @@ export default function TelemetryTable({
                   >
                     <div className="max-w-md mx-auto space-y-3">
                       <p className="font-semibold text-slate-700 text-lg">No telemetry packets have been received yet.</p>
-                      <p className="text-sm">Power on a deployed Smart Ovi Trap and ensure it is connected to the LTE network to begin transmitting telemetry.</p>
+                      <p className="text-sm">Power on a deployed Smart Ovi Trap and ensure telemetry ingestion is active to transmit readings to Cloud Firestore / Supabase.</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -114,7 +102,7 @@ export default function TelemetryTable({
                     onClick={() => handleRowClick(reading)}
                   >
                     <TableCell className="text-slate-600 font-medium whitespace-nowrap">
-                      {new Date(reading.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      {formatTelemetryTimestamp(reading.created_at || reading.captured_at)}
                     </TableCell>
                     <TableCell className="font-bold text-slate-800">
                       {reading.device_code}
@@ -122,16 +110,20 @@ export default function TelemetryTable({
                     <TableCell className="text-slate-600">{reading.barangay_name ?? "—"}</TableCell>
                     <TableCell className="font-semibold text-slate-700">{reading.egg_count ?? "0"}</TableCell>
                     <TableCell className="text-slate-600">
-                      {reading.battery_level !== null
-                        ? `${reading.battery_level}%`
-                        : "—"}
+                      {reading.temperature_c != null ? `${reading.temperature_c}°C` : "—"}
                     </TableCell>
-                    <TableCell className="text-slate-600">{reading.lte_signal ?? "Excellent (-68 dBm)"}</TableCell>
+                    <TableCell className="text-slate-600">
+                      {reading.humidity_percent != null ? `${reading.humidity_percent}%` : "—"}
+                    </TableCell>
+                    <TableCell className="text-slate-600">
+                      {reading.battery_level != null ? `${reading.battery_level}%` : "—"}
+                    </TableCell>
+                    <TableCell className="text-slate-600 font-mono text-xs">
+                      {reading.ai_confidence != null ? `${(reading.ai_confidence * 100).toFixed(1)}%` : "—"}
+                    </TableCell>
                     <TableCell>
-                      <UploadStatusBadge status={reading.upload_status} />
+                      <StatusBadge status={reading.status_name} />
                     </TableCell>
-                    <TableCell className="text-slate-600 font-mono text-xs">{reading.http_response ?? 200}</TableCell>
-                    <TableCell className="text-slate-600 font-mono text-xs">{reading.latency_ms ?? Math.floor(Math.random() * 100 + 120)} ms</TableCell>
                   </TableRow>
                 ))
               )}
@@ -141,21 +133,13 @@ export default function TelemetryTable({
       </Card>
 
       <Dialog open={!!selectedPayload} onOpenChange={(open) => !open && setSelectedPayload(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-slate-800">Raw JSON Payload</DialogTitle>
+            <DialogTitle className="text-slate-800">Database Record (Raw JSON)</DialogTitle>
           </DialogHeader>
           <div className="bg-slate-900 rounded-md p-4 overflow-x-auto mt-2">
             <pre className="text-emerald-400 font-mono text-xs leading-relaxed">
-              {selectedPayload && JSON.stringify({
-                trap_id: selectedPayload.device_code,
-                mosquito_count: selectedPayload.egg_count ?? 0,
-                battery: selectedPayload.battery_level ?? 100,
-                signal_strength: selectedPayload.lte_signal?.split(' ')[0] ?? "Excellent",
-                latitude: 14.6205,
-                longitude: 121.0048,
-                timestamp: selectedPayload.captured_at
-              }, null, 2)}
+              {selectedPayload && JSON.stringify(selectedPayload, null, 2)}
             </pre>
           </div>
         </DialogContent>
