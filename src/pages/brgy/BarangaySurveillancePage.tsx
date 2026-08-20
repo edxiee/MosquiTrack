@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -120,16 +121,54 @@ const createCustomMarker = (activity: string) => {
 };
 
 export default function BarangaySurveillancePage() {
+  const [searchParams] = useSearchParams();
+  const viewId = searchParams.get("viewId");
+  const markerRefs = useRef<Record<string, L.Marker | null>>({});
+
   const [data, setData] = useState<BarangaySurveillanceData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTrap, setSelectedTrap] = useState<BarangaySurveillanceDevice | null>(null);
+
+  // Ref to the map card so we can scroll it into view
+  const mapSectionRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     try {
       setError(null);
       const res = await fetchBarangaySurveillanceData();
       setData(res);
+
+      // Prefer the trap coming from ?viewId=...
+      if (viewId) {
+        const trapFromUrl =
+          res.traps.find((t) => t.id === viewId) ||
+          res.traps.find((t) => t.device_code === viewId);
+            
+          if (trapFromUrl) {
+            setSelectedTrap(trapFromUrl);
+
+          // Smooth-scroll the map section into view after a short delay
+          setTimeout(() => {
+            mapSectionRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }, 300);
+        
+          // open the popup after fly animation
+          setTimeout(() => {
+            const marker = markerRefs.current[trapFromUrl.id];
+            if (marker) {
+              marker.openPopup();
+            }
+          }, 1600);
+
+          return;
+        }
+      }
+
+      // Fallback: keep previous selection or pick first trap
       setSelectedTrap((prev) => {
         if (!prev) return res.traps[0] ?? null;
         const updated = res.traps.find((t) => t.id === prev.id);
@@ -141,7 +180,7 @@ export default function BarangaySurveillancePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [viewId]);
 
   useEffect(() => {
     loadData();
@@ -408,7 +447,7 @@ export default function BarangaySurveillancePage() {
         </div>
 
         {/* Right Column: Interactive Leaflet Map */}
-        <div className="lg:col-span-8 flex flex-col">
+        <div className="lg:col-span-8 flex flex-col" ref={mapSectionRef}>
           <Card className="flex-1 flex flex-col overflow-hidden min-h-[500px]">
             <CardHeader className="pb-3 border-b border-slate-100 bg-white z-10 shadow-sm relative">
               <div className="flex items-center justify-between">
@@ -454,6 +493,9 @@ export default function BarangaySurveillancePage() {
                           }}
                         />
                         <Marker
+                          ref={(r) => {
+                            markerRefs.current[trap.id] = r;
+                          }}
                           position={[trap.lat, trap.lng]}
                           icon={createCustomMarker(trap.activityLevel)}
                           eventHandlers={{

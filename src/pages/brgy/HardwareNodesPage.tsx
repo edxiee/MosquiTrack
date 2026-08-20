@@ -7,6 +7,9 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
+
+import { ROUTES } from "@/utils/navigation";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchDevicesForCurrentUser } from "@/services/device.service";
@@ -16,6 +19,7 @@ import type { OvitrapDevice } from "@/types/device.types";
 import { getErrorMessage } from "@/utils/errorHelpers";
 
 export default function HardwareNodesPage() {
+  const navigate = useNavigate();
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,12 +65,9 @@ export default function HardwareNodesPage() {
   }, [devices, search]);
 
   const handleViewLocation = (device: OvitrapDevice) => {
-    if (!device.latitude || !device.longitude) return;
-    console.log("View location", {
-      lat: device.latitude,
-      lng: device.longitude,
-    });
-  };
+      if (!device.latitude || !device.longitude) return;
+      navigate(`${ROUTES.bhw.surveillance}?viewId=${device.id}`);
+    };
 
   const handleRequestPickup = async (device: OvitrapDevice) => {
     console.log("Request Pick-up for", device.device_code, device.id);

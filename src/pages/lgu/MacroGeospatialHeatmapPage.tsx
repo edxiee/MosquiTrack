@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   MapContainer,
   TileLayer,
@@ -39,50 +40,99 @@ const createCustomMarker = (status: string) => {
   });
 };
 
+// Pans + zooms when center/zoom state changes
+function MapController({
+  center,
+  zoom,
+}: {
+  center: [number, number];
+  zoom: number;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom, { animate: true, duration: 1.2 });
+  }, [center, zoom, map]);
+  return null;
+}
+
 function MapBoundsFitter({ traps }: { traps: OvitrapDevice[] }) {
   const map = useMap();
-  
+
   useEffect(() => {
     if (traps.length === 0) return;
-    
+
     const validCoords = traps
-      .filter(t => !isNaN(Number(t.latitude)) && !isNaN(Number(t.longitude)))
-      .map(t => [Number(t.latitude), Number(t.longitude)] as [number, number]);
-      
+      .filter((t) => !isNaN(Number(t.latitude)) && !isNaN(Number(t.longitude)))
+      .map((t) => [Number(t.latitude), Number(t.longitude)] as [number, number]);
+
     if (validCoords.length > 0) {
       const bounds = L.latLngBounds(validCoords);
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
     }
   }, [traps, map]);
-  
+
   return null;
 }
 
 const defaultCenter: [number, number] = [14.5995, 120.9842];
 
 export default function MacroGeospatialHeatmapPage() {
+  const [searchParams] = useSearchParams();
+  const viewId = searchParams.get("viewId");
+
   const [deployedTraps, setDeployedTraps] = useState<OvitrapDevice[]>([]);
-  const [trapsLoading, setTrapsLoading] = useState<boolean>(true);
+  const [trapsLoading, setTrapsLoading] = useState(true);
+
+  const [mapCenter, setMapCenter] = useState<[number, number]>(defaultCenter);
+  const [mapZoom, setMapZoom] = useState(13);
+  const [shouldFitBounds, setShouldFitBounds] = useState(true);
+
+  // Store marker refs so we can open the popup programmatically
+  const markerRefs = useRef<Record<string, L.Marker | null>>({});
 
   useEffect(() => {
     const load = async () => {
       setTrapsLoading(true);
       try {
         const allTraps = await fetchDevices();
-        
+
         const deployed = allTraps.filter(
-          t => t.latitude != null && t.longitude != null
+          (t) => t.latitude != null && t.longitude != null
         );
-        
+
         setDeployedTraps(deployed);
+
+        // If a specific device was requested via ?viewId=...
+        if (viewId) {
+          const trapToView = deployed.find((t) => t.id === viewId);
+
+          if (
+            trapToView &&
+            trapToView.latitude != null &&
+            trapToView.longitude != null
+          ) {
+            setMapCenter([
+              Number(trapToView.latitude),
+              Number(trapToView.longitude),
+            ]);
+            setMapZoom(16);
+            setShouldFitBounds(false); // don't override with fitBounds
+
+            // Open the popup after the map has moved
+            setTimeout(() => {
+              markerRefs.current[viewId]?.openPopup();
+            }, 600);
+          }
+        }
       } catch (err) {
         console.error("Failed to load deployed traps.", err);
       } finally {
         setTrapsLoading(false);
       }
     };
+
     load();
-  }, []);
+  }, [viewId]);
 
   return (
     <div className="flex flex-col gap-6 h-[calc(100vh-5rem)]">
@@ -108,37 +158,58 @@ export default function MacroGeospatialHeatmapPage() {
 
         <div className="relative flex-1">
           <MapContainer
-            center={defaultCenter}
-            zoom={13}
+            center={mapCenter}
+            zoom={mapZoom}
             zoomControl={false}
             className="w-full h-full"
           >
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            <MapBoundsFitter traps={deployedTraps} />
+
+            {/* Only fit bounds when we are NOT viewing a specific device */}
+            {shouldFitBounds && <MapBoundsFitter traps={deployedTraps} />}
+
+            {/* Controlled pan/zoom when viewId is present */}
+            <MapController center={mapCenter} zoom={mapZoom} />
+
             {deployedTraps.map((trap) => {
               const lat = Number(trap.latitude);
               const lng = Number(trap.longitude);
               if (isNaN(lat) || isNaN(lng)) return null;
-              
+
               return (
                 <Marker
                   key={trap.id}
+                  ref={(r) => {
+                    markerRefs.current[trap.id] = r;
+                  }}
                   position={[lat, lng]}
-                  icon={createCustomMarker(trap.device_statuses?.status_name ?? "Active")}
+                  icon={createCustomMarker(
+                    trap.device_statuses?.status_name ?? "Active"
+                  )}
                 >
                   <Popup>
                     <div className="w-48 p-1">
-                      <h3 className="font-bold text-slate-800 text-sm mb-1">{trap.device_code}</h3>
-                      {trap.description && <p className="text-xs text-slate-600 mb-2">{trap.description}</p>}
-                      
+                      <h3 className="font-bold text-slate-800 text-sm mb-1">
+                        {trap.device_code}
+                      </h3>
+                      {trap.description && (
+                        <p className="text-xs text-slate-600 mb-2">
+                          {trap.description}
+                        </p>
+                      )}
+
                       <div className="space-y-1.5 text-xs text-slate-700">
                         <div className="flex justify-between">
                           <span className="font-semibold">Barangay:</span>
-                          <span>{trap.barangays?.barangay_name ?? "Unknown"}</span>
+                          <span>
+                            {trap.barangays?.barangay_name ?? "Unknown"}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-semibold">Status:</span>
-                          <span>{trap.device_statuses?.status_name ?? "Unknown"}</span>
+                          <span>
+                            {trap.device_statuses?.status_name ?? "Unknown"}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-semibold">Battery:</span>
