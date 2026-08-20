@@ -58,7 +58,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
           path: ROUTES.admin.georeferencing,
         },
         {
-          name: "Node Provisioning",
+          name: "Trap Management",
           path: ROUTES.admin.nodes,
         },
         {
@@ -95,7 +95,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
           path: ROUTES.admin.georeferencing,
         },
         {
-          name: "Node Provisioning",
+          name: "Trap Management",
           path: ROUTES.admin.nodes,
         },
         {
@@ -128,7 +128,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
           path: ROUTES.lgu.heatmap,
         },
         {
-          name: "Prescriptive Analytics",
+          name: "Traps Reports & Requests",
           path: ROUTES.lgu.analytics,
         },
         {
@@ -157,7 +157,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
           path: ROUTES.bhw.surveillance,
         },
         {
-          name: "Hardware Nodes",
+          name: "Traps Overview",
           path: ROUTES.bhw.hardware,
         },
         {

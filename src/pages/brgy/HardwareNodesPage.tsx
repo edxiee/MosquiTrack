@@ -84,10 +84,10 @@ export default function HardwareNodesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Hardware Nodes
+            Trap Overview
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            View ovitrap devices and request deployment or pick-up.
+            View mosquito trap devices and request deployment or pick-up.
           </p>
         </div>
 

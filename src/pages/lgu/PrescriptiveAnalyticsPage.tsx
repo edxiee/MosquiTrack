@@ -291,10 +291,10 @@ export default function PrescriptiveAnalyticsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Prescriptive Analytics
+            Traps Reports & Requests
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Active ovitrap nodes ready for prescribed actions.
+            Active Traps ready for Reports and Request actions.
           </p>
         </div>
 
