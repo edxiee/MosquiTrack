@@ -44,14 +44,14 @@ export default function TelemetryTrendChart({
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                label={{ value: "Avg Egg Count", angle: 90, position: "insideRight" }}
+                label={{ value: "Avg Mosquito Count", angle: 90, position: "insideRight" }}
               />
               <Tooltip />
               <Legend />
               <Bar
                 yAxisId="right"
                 dataKey="avgEggCount"
-                name="Avg Egg Count"
+                name="Avg Mosquito Count"
                 fill="#94a3b8"
                 barSize={16}
               />

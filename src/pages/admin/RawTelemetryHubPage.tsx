@@ -200,7 +200,7 @@ export default function RawTelemetryHubPage() {
       "Device Code",
       "Device ID",
       "Barangay",
-      "Egg Count",
+      "Mosquito Count",
       "Temperature (C)",
       "Humidity (%)",
       "Battery (%)",

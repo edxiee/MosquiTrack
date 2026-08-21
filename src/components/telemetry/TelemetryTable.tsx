@@ -73,7 +73,7 @@ export default function TelemetryTable({
                 <TableHead className="font-semibold text-slate-500">Timestamp</TableHead>
                 <TableHead className="font-semibold text-slate-500">Trap ID</TableHead>
                 <TableHead className="font-semibold text-slate-500">Barangay</TableHead>
-                <TableHead className="font-semibold text-slate-500">Egg Count</TableHead>
+                <TableHead className="font-semibold text-slate-500">Mosquito Count</TableHead>
                 <TableHead className="font-semibold text-slate-500">Temp (°C)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Humidity (%)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Battery (%)</TableHead>
