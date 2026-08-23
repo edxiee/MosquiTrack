@@ -14,6 +14,7 @@ import {
   logout as logoutService,
 } from "@/services/auth.service";
 import { getCurrentProfile } from "@/services/profile.service";
+import { markFirstLoginActive } from "@/services/users.service";
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -70,7 +71,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setLoading(true);
 
       try {
@@ -78,6 +79,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(newSession?.user ?? null);
 
         if (newSession) {
+          // Only on an actual sign-in — not on page-load session
+          // restores or token refreshes, which also flow through
+          // this same listener.
+          if (event === "SIGNED_IN") {
+            await markFirstLoginActive();
+          }
           await refreshProfile();
         } else {
           setProfile(null);
