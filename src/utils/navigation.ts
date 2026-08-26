@@ -54,7 +54,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
           path: ROUTES.admin.users,
         },
         {
-          name: "Static Georeferencing",
+          name: "Handle Location",
           path: ROUTES.admin.georeferencing,
         },
         {
@@ -62,7 +62,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
           path: ROUTES.admin.nodes,
         },
         {
-          name: "Raw Telemetry Hub",
+          name: "Trap Data Overview",
           path: ROUTES.admin.telemetry,
         },
         {
@@ -124,7 +124,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "LGU MONITORING",
       items: [
         {
-          name: "Macro Geospatial Heatmap",
+          name: "Mosquito Trap Map",
           path: ROUTES.lgu.heatmap,
         },
         {

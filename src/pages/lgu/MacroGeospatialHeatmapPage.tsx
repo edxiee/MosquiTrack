@@ -139,7 +139,7 @@ export default function MacroGeospatialHeatmapPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Macro Geospatial Heatmap
+            Mosquito Trap Map
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
             View all deployed Smart Ovi Traps locations and status

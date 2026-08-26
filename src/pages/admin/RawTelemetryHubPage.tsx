@@ -265,9 +265,9 @@ export default function RawTelemetryHubPage() {
     <div className="space-y-6 p-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Raw Telemetry Hub</h1>
+          <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Trap Data Overview</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Backend telemetry console displaying authentic database records from Cloud Firestore / Supabase.
+            Trap Data Overview with live database records from Deployed Traps.
           </p>
         </div>
         
