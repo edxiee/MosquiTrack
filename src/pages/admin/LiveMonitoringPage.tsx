@@ -126,7 +126,8 @@ export default function LiveMonitoringPage() {
 
   const [latestReading, setLatestReading] = useState<{
     battery_level: number | null;
-    egg_count: number | null;
+    mosquito_count?: number | null;
+    egg_count?: number | null;
     captured_at: string;
   } | null>(null);
   const [deviceTodayCount, setDeviceTodayCount] = useState<number | null>(null);
@@ -204,7 +205,7 @@ export default function LiveMonitoringPage() {
       try {
         const { data: latest } = await supabase
           .from("ovitrap_readings")
-          .select("battery_level, egg_count, captured_at")
+          .select("battery_level, mosquito_count, egg_count, captured_at")
           .eq("device_id", selectedDevice!.id)
           .order("captured_at", { ascending: false })
           .limit(1)
@@ -218,13 +219,13 @@ export default function LiveMonitoringPage() {
 
         const { data: todayReadings } = await supabase
           .from("ovitrap_readings")
-          .select("egg_count")
+          .select("mosquito_count, egg_count")
           .eq("device_id", selectedDevice!.id)
           .gte("captured_at", todayStart.toISOString());
 
         if (!isMounted) return;
         if (todayReadings && todayReadings.length > 0) {
-          const sum = todayReadings.reduce((acc, r) => acc + (r.egg_count ?? 0), 0);
+          const sum = todayReadings.reduce((acc, r: any) => acc + (r.mosquito_count ?? r.egg_count ?? 0), 0);
           setDeviceTodayCount(sum);
         } else {
           setDeviceTodayCount(0);

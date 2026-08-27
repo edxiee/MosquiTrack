@@ -50,7 +50,7 @@ export default function TelemetryTrendChart({
               <Legend />
               <Bar
                 yAxisId="right"
-                dataKey="avgEggCount"
+                dataKey="avgMosquitoCount"
                 name="Avg Mosquito Count"
                 fill="#94a3b8"
                 barSize={16}

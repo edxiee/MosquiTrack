@@ -108,7 +108,7 @@ export default function TelemetryTable({
                       {reading.device_code}
                     </TableCell>
                     <TableCell className="text-slate-600">{reading.barangay_name ?? "—"}</TableCell>
-                    <TableCell className="font-semibold text-slate-700">{reading.egg_count ?? "0"}</TableCell>
+                    <TableCell className="font-semibold text-slate-700">{reading.mosquito_count ?? reading.egg_count ?? "0"}</TableCell>
                     <TableCell className="text-slate-600">
                       {reading.temperature_c != null ? `${reading.temperature_c}°C` : "—"}
                     </TableCell>

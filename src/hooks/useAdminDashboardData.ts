@@ -12,7 +12,8 @@ type DeviceRow = {
 type ReadingRow = {
   id: string;
   device_id: string;
-  egg_count: number;
+  mosquito_count?: number;
+  egg_count?: number;
   battery_level: number | null;
   captured_at: string;
   created_at: string;
@@ -60,7 +61,7 @@ async function fetchRecentReadings() {
   const { data, error } = await supabase
     .from("ovitrap_readings")
     .select(
-      "id, device_id, egg_count, battery_level, captured_at, created_at, humidity_percent, temperature_c, ai_confidence, image_path"
+      "id, device_id, mosquito_count, battery_level, captured_at, created_at, humidity_percent, temperature_c, ai_confidence, image_path"
     )
     .order("captured_at", { ascending: false })
     .limit(RECENT_FEED_LIMIT);
@@ -69,7 +70,11 @@ async function fetchRecentReadings() {
     throw error;
   }
 
-  return data ?? [];
+  return (data ?? []).map((r: any) => ({
+    ...r,
+    mosquito_count: r.mosquito_count ?? r.egg_count ?? 0,
+    egg_count: r.mosquito_count ?? r.egg_count ?? 0,
+  }));
 }
 
 async function fetchTelemetryRate() {

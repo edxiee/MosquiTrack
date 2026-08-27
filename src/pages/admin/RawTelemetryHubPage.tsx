@@ -216,7 +216,7 @@ export default function RawTelemetryHubPage() {
       r.device_code,
       r.device_id,
       r.barangay_name ?? "",
-      r.egg_count ?? 0,
+      r.mosquito_count ?? r.egg_count ?? 0,
       r.temperature_c ?? "",
       r.humidity_percent ?? "",
       r.battery_level ?? "",
@@ -250,7 +250,7 @@ export default function RawTelemetryHubPage() {
   const handleDownloadLogs = () => {
     if (filteredReadings.length === 0) return;
     const logLines = filteredReadings.map(
-      r => `[${r.captured_at}] [DEVICE:${r.device_code}] [BARANGAY:${r.barangay_name ?? "N/A"}] EGGS:${r.egg_count ?? 0} TEMP:${r.temperature_c ?? "N/A"}C HUM:${r.humidity_percent ?? "N/A"}% BAT:${r.battery_level ?? "N/A"}% CONF:${r.ai_confidence ?? "N/A"}`
+      r => `[${r.captured_at}] [DEVICE:${r.device_code}] [BARANGAY:${r.barangay_name ?? "N/A"}] MOSQUITOES:${r.mosquito_count ?? r.egg_count ?? 0} TEMP:${r.temperature_c ?? "N/A"}C HUM:${r.humidity_percent ?? "N/A"}% BAT:${r.battery_level ?? "N/A"}% CONF:${r.ai_confidence ?? "N/A"}`
     );
     const blob = new Blob([logLines.join("\n")], { type: "text/plain;charset=utf-8;" });
     const url = URL.createObjectURL(blob);

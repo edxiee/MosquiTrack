@@ -42,12 +42,16 @@ export function computeTelemetryTrend(
 
   return Array.from(byDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, rows]) => ({
-      date,
-      avgTemperature: computeAvgTemperature(rows),
-      avgHumidity: computeAvgHumidity(rows),
-      avgEggCount: average(
-        rows.map((r) => r.egg_count).filter((v): v is number => v !== null),
-      ),
-    }));
+    .map(([date, rows]) => {
+      const avgMosquito = average(
+        rows.map((r) => r.mosquito_count ?? r.egg_count).filter((v): v is number => v !== null && v !== undefined),
+      );
+      return {
+        date,
+        avgTemperature: computeAvgTemperature(rows),
+        avgHumidity: computeAvgHumidity(rows),
+        avgMosquitoCount: avgMosquito,
+        avgEggCount: avgMosquito,
+      };
+    });
 }

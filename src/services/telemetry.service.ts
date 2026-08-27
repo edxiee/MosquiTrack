@@ -5,7 +5,8 @@ import type { TelemetryReading } from "@/types/telemetry.types";
 interface RawReadingRow {
   id: string;
   captured_at: string;
-  egg_count: number | null;
+  mosquito_count?: number | null;
+  egg_count?: number | null;
   image_path: string | null;
   ai_confidence: number | null;
   battery_level: number | null;
@@ -24,7 +25,7 @@ const READING_SELECT = `
   captured_at,
   created_at,
   updated_at,
-  egg_count,
+  mosquito_count,
   image_path,
   ai_confidence,
   battery_level,
@@ -51,12 +52,15 @@ function flattenReading(row: any): TelemetryReading {
   const rawStatus = device?.device_statuses ?? device?.device_status;
   const deviceStatus = Array.isArray(rawStatus) ? rawStatus[0] : rawStatus;
 
+  const count = row.mosquito_count ?? row.egg_count ?? null;
+
   return {
     id: row.id,
     captured_at: row.captured_at,
     created_at: row.created_at ?? row.captured_at,
     updated_at: row.updated_at ?? null,
-    egg_count: row.egg_count,
+    mosquito_count: count,
+    egg_count: count,
     image_path: row.image_path,
     ai_confidence: row.ai_confidence,
     battery_level: row.battery_level,

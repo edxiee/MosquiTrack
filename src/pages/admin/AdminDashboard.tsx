@@ -278,12 +278,12 @@ export default function AdminDashboard() {
                       <TableCell className="font-medium text-slate-950">
                         {reading.deviceCode}
                       </TableCell>
-                      <TableCell>{reading.egg_count}</TableCell>
+                      <TableCell>{reading.mosquito_count ?? reading.egg_count ?? 0}</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center gap-2">
                           {formatVoltage(reading.battery_level)}
                           {reading.battery_level !== null &&
-                          reading.battery_level < 3.4 ? (
+                            reading.battery_level < 3.4 ? (
                             <Badge variant="destructive">Low</Badge>
                           ) : null}
                         </span>
