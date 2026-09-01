@@ -35,33 +35,65 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
   if (devicesError) throw devicesError;
   if (!devicesData || devicesData.length === 0) return [];
 
+  const deviceIds = devicesData.map((d: any) => d.id);
   const userIds = Array.from(
     new Set(devicesData.map((d) => d.deployed_by).filter(Boolean))
   ) as string[];
 
-  const userMap = new Map<string, UserName>();
-  if (userIds.length > 0) {
-    const { data: profilesData } = await supabase
-      .from("profiles")
-      .select("id, first_name, last_name")
-      .in("id", userIds);
+  const [profilesRes, readingsRes] = await Promise.all([
+    userIds.length > 0
+      ? supabase.from("profiles").select("id, first_name, last_name").in("id", userIds)
+      : Promise.resolve({ data: null }),
+    deviceIds.length > 0
+      ? supabase
+          .from("ovitrap_readings")
+          .select("device_id, captured_at, created_at")
+          .in("device_id", deviceIds)
+          .order("captured_at", { ascending: false })
+      : Promise.resolve({ data: null }),
+  ]);
 
-    if (profilesData) {
-      for (const p of profilesData) {
-        userMap.set(p.id, {
-          first_name: p.first_name,
-          last_name: p.last_name,
-        });
+  const userMap = new Map<string, UserName>();
+  if (profilesRes.data) {
+    for (const p of profilesRes.data) {
+      userMap.set(p.id, {
+        first_name: p.first_name,
+        last_name: p.last_name,
+      });
+    }
+  }
+
+  const latestReadingMap = new Map<string, string>();
+  if (readingsRes.data) {
+    for (const r of readingsRes.data) {
+      if (!latestReadingMap.has(r.device_id)) {
+        latestReadingMap.set(r.device_id, r.captured_at || r.created_at);
       }
     }
   }
 
+  const ONLINE_THRESHOLD_MS = 16 * 60 * 1000;
+
   return devicesData.map((d: any) => {
+    const latestTimestamp = latestReadingMap.get(d.id) || d.last_seen_at || null;
+    const isOnline = latestTimestamp
+      ? Date.now() - new Date(latestTimestamp).getTime() <= ONLINE_THRESHOLD_MS
+      : false;
+
     const rawStatus = d.device_statuses;
+    const statusObj = Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null;
+    const isMaintenance = statusObj?.status_name === "Maintenance";
+
+    const computedStatusName = isMaintenance ? "Maintenance" : isOnline ? "Online" : "Offline";
+    const computedStatus = statusObj
+      ? { ...statusObj, status_name: computedStatusName }
+      : { id: "dynamic-status", status_name: computedStatusName, description: null };
+
     const rawBarangay = d.barangays;
     return {
       ...d,
-      device_statuses: Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null,
+      last_seen_at: latestTimestamp,
+      device_statuses: computedStatus,
       barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
       users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
     };
@@ -147,13 +179,19 @@ export async function pickUpDevice(deviceId: string, offlineStatusId: string) {
   if (error) throw error;
 }
 
-export async function createDevice(payload: Record<string, unknown>) {
-  const { error } = await supabase.from("ovitrap_devices").insert({
-    ...payload,
-    latitude: null as number | null,
-    longitude: null as number | null,
-  } as any);
+export async function createDevice(payload: Record<string, unknown>): Promise<{ id: string; device_code: string }> {
+  const { data, error } = await supabase
+    .from("ovitrap_devices")
+    .insert({
+      ...payload,
+      latitude: null as number | null,
+      longitude: null as number | null,
+    } as any)
+    .select("id, device_code")
+    .single();
+
   if (error) throw error;
+  return data as { id: string; device_code: string };
 }
 
 export async function updateDevice(
@@ -262,34 +300,66 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
   if (devicesError) throw devicesError;
   if (!devicesData || devicesData.length === 0) return [];
 
-  // 5. Hydrate user profiles
+  // 5. Hydrate user profiles & latest readings
+  const deviceIds = devicesData.map((d: any) => d.id);
   const userIds = Array.from(
     new Set(devicesData.map((d) => d.deployed_by).filter(Boolean))
   ) as string[];
 
-  const userMap = new Map<string, UserName>();
-  if (userIds.length > 0) {
-    const { data: profilesData } = await supabase
-      .from("profiles")
-      .select("id, first_name, last_name")
-      .in("id", userIds);
+  const [profilesRes, readingsRes] = await Promise.all([
+    userIds.length > 0
+      ? supabase.from("profiles").select("id, first_name, last_name").in("id", userIds)
+      : Promise.resolve({ data: null }),
+    deviceIds.length > 0
+      ? supabase
+          .from("ovitrap_readings")
+          .select("device_id, captured_at, created_at")
+          .in("device_id", deviceIds)
+          .order("captured_at", { ascending: false })
+      : Promise.resolve({ data: null }),
+  ]);
 
-    if (profilesData) {
-      for (const p of profilesData) {
-        userMap.set(p.id, {
-          first_name: p.first_name,
-          last_name: p.last_name,
-        });
+  const userMap = new Map<string, UserName>();
+  if (profilesRes.data) {
+    for (const p of profilesRes.data) {
+      userMap.set(p.id, {
+        first_name: p.first_name,
+        last_name: p.last_name,
+      });
+    }
+  }
+
+  const latestReadingMap = new Map<string, string>();
+  if (readingsRes.data) {
+    for (const r of readingsRes.data) {
+      if (!latestReadingMap.has(r.device_id)) {
+        latestReadingMap.set(r.device_id, r.captured_at || r.created_at);
       }
     }
   }
 
+  const ONLINE_THRESHOLD_MS = 16 * 60 * 1000;
+
   return devicesData.map((d: any) => {
+    const latestTimestamp = latestReadingMap.get(d.id) || d.last_seen_at || null;
+    const isOnline = latestTimestamp
+      ? Date.now() - new Date(latestTimestamp).getTime() <= ONLINE_THRESHOLD_MS
+      : false;
+
     const rawStatus = d.device_statuses;
+    const statusObj = Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null;
+    const isMaintenance = statusObj?.status_name === "Maintenance";
+
+    const computedStatusName = isMaintenance ? "Maintenance" : isOnline ? "Online" : "Offline";
+    const computedStatus = statusObj
+      ? { ...statusObj, status_name: computedStatusName }
+      : { id: "dynamic-status", status_name: computedStatusName, description: null };
+
     const rawBarangay = d.barangays;
     return {
       ...d,
-      device_statuses: Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null,
+      last_seen_at: latestTimestamp,
+      device_statuses: computedStatus,
       barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
       users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
     };

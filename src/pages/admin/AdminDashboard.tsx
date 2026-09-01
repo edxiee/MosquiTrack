@@ -117,8 +117,8 @@ export default function AdminDashboard() {
       icon: Users,
     },
     {
-      label: "Static Georeferencing",
-      description: "Review barangay and device placement data.",
+      label: "Trap Location",
+      description: "View live GPS device tracking and spatial data.",
       href: ROUTES.admin.georeferencing,
       icon: MapPinned,
     },

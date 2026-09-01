@@ -58,7 +58,7 @@ function getConnectionStatus(lastSeenStr: string | null | undefined) {
     return { state: "Not Connected" as ConnectionState, bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400", ping: false, border: "border-slate-300" };
   }
   const diffMinutes = (Date.now() - new Date(lastSeenStr).getTime()) / (1000 * 60);
-  if (diffMinutes < 30) {
+  if (diffMinutes <= 16) {
     return { state: "Online" as ConnectionState, bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", ping: true, border: "border-emerald-300" };
   } else if (diffMinutes < 1440) {
     return { state: "Delayed" as ConnectionState, bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", ping: false, border: "border-amber-300" };

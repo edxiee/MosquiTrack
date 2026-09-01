@@ -54,7 +54,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
           path: ROUTES.admin.users,
         },
         {
-          name: "Handle Location",
+          name: "Trap Location",
           path: ROUTES.admin.georeferencing,
         },
         {
@@ -91,7 +91,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
           path: ROUTES.admin.users,
         },
         {
-          name: "Static Georeferencing",
+          name: "Trap Location",
           path: ROUTES.admin.georeferencing,
         },
         {

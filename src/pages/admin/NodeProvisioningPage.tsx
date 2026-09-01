@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
-  MapPin,
-  Package,
   Eye,
   Loader2,
   RefreshCw,
   Pencil,
+  Radio,
+  Copy,
+  Check,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/utils/navigation";
@@ -16,12 +18,12 @@ import {
   fetchDevices,
   fetchStatuses,
   fetchBarangays,
-  pickUpDevice,
 } from "@/services/device.service";
 import { formatDeployedBy, isDeviceActive } from "@/utils/deviceHelpers";
 import type { OvitrapDevice, DeviceStatus, Barangay } from "@/types/device.types";
 
 import { getErrorMessage } from "@/utils/errorHelpers";
+import { supabase } from "@/lib/supabase";
 
 export default function NodeProvisioningPage() {
   const navigate = useNavigate();
@@ -37,8 +39,36 @@ export default function NodeProvisioningPage() {
     null
   );
 
-  const loadData = async () => {
-    setLoading(true);
+  // Clipboard copy state & Toast
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string, type: "success" | "info" = "success") => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
+
+  const copyUuid = async (uuid: string, trapCode: string) => {
+    try {
+      await navigator.clipboard.writeText(uuid);
+      setCopiedId(uuid);
+      showToast(`Device UUID for ${trapCode} copied to clipboard!`, "success");
+      setTimeout(() => setCopiedId(null), 2500);
+    } catch (err) {
+      console.error("Failed to copy UUID:", err);
+    }
+  };
+
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     try {
       const [devs, st, bg] = await Promise.all([
         fetchDevices(),
@@ -54,12 +84,34 @@ export default function NodeProvisioningPage() {
       const msg = getErrorMessage(err, "Failed to load devices");
       setError(msg);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(true);
+
+    const channel = supabase
+      .channel("ovitrap_devices_provisioning_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_devices" },
+        () => {
+          loadData(false);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ovitrap_readings" },
+        () => {
+          loadData(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const openCreate = () => {
@@ -79,26 +131,6 @@ export default function NodeProvisioningPage() {
     navigate(`${ROUTES.admin.georeferencing}?viewId=${device.id}`);
   };
 
-  const handleAction = async (device: OvitrapDevice) => {
-    const active = isDeviceActive(device);
-
-    try {
-      if (active) {
-        const offline = statuses.find((s) => s.status_name === "Offline");
-        if (!offline) {
-          console.error("Offline status not found");
-          return;
-        }
-        await pickUpDevice(device.id, offline.id);
-        await loadData();
-      } else {
-        navigate(`${ROUTES.admin.georeferencing}?trapId=${device.id}`);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -107,7 +139,7 @@ export default function NodeProvisioningPage() {
             Trap Management
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Manage ovitrap devices and their georeferenced locations.
+            Manage ovitrap devices and view their hardware GPS locations.
           </p>
         </div>
 
@@ -115,7 +147,7 @@ export default function NodeProvisioningPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={loadData}
+            onClick={() => loadData(true)}
             disabled={loading}
             className="h-10 px-3"
           >
@@ -173,6 +205,16 @@ export default function NodeProvisioningPage() {
                     ? (rawStatus as any)[0]?.status_name ?? "Unknown"
                     : rawStatus?.status_name ?? "Unknown";
 
+                  const hasGps =
+                    device.latitude != null &&
+                    device.longitude != null &&
+                    !isNaN(Number(device.latitude)) &&
+                    !isNaN(Number(device.longitude)) &&
+                    Number(device.latitude) !== 0 &&
+                    Number(device.longitude) !== 0;
+
+                  const isCopied = copiedId === device.id;
+
                   return (
                     <tr
                       key={device.id}
@@ -202,20 +244,22 @@ export default function NodeProvisioningPage() {
                       </td>
 
                       <td className="px-5 py-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!active || device.latitude == null}
-                          onClick={() => handleViewLocation(device)}
-                          className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
-                            active && device.latitude != null
-                              ? "border-slate-200 text-slate-700 hover:bg-slate-50"
-                              : "opacity-50 cursor-not-allowed"
-                          }`}
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View
-                        </Button>
+                        {hasGps ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewLocation(device)}
+                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 border-slate-200 text-slate-700 hover:bg-slate-50"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                            View
+                          </Button>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                            <Radio className="w-3 h-3 text-slate-400 animate-pulse" />
+                            No GPS Fix
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-5 py-4">
@@ -231,23 +275,25 @@ export default function NodeProvisioningPage() {
                           </Button>
 
                           <Button
+                            variant="outline"
                             size="sm"
-                            onClick={() => handleAction(device)}
-                            className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
-                              active
-                                ? "bg-amber-500 hover:bg-amber-600 text-white"
-                                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={() => copyUuid(device.id, device.device_code)}
+                            className={`h-8 px-2.5 text-xs font-medium rounded-lg gap-1.5 transition-all ${
+                              isCopied
+                                ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                                : "border-slate-200 text-slate-700 hover:bg-slate-50"
                             }`}
+                            title="Copy UUID for ESP32 firmware"
                           >
-                            {active ? (
+                            {isCopied ? (
                               <>
-                                <Package className="w-3.5 h-3.5" />
-                                Pick up
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                Copied
                               </>
                             ) : (
                               <>
-                                <MapPin className="w-3.5 h-3.5" />
-                                Set Location
+                                <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                Copy UUID
                               </>
                             )}
                           </Button>
@@ -277,6 +323,14 @@ export default function NodeProvisioningPage() {
         onClose={() => setModalOpen(false)}
         onSuccess={loadData}
       />
+
+      {/* Floating Success Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium border bg-emerald-50 border-emerald-200 text-emerald-900 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{toast.message}</span>
+        </div>
+      )}
     </div>
   );
 }

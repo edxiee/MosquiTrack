@@ -39,3 +39,20 @@ export function formatTimestampCompact(
 
   return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
 }
+
+/** Formats timestamp as relative time string (e.g. "2m ago", "1h ago", "3d ago") */
+export function formatRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "—";
+
+  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  return `${diffDays}d ago`;
+}
+

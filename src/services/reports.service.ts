@@ -137,7 +137,7 @@ export async function getActiveOfflineDeviceCounts(): Promise<{
   offline: number;
 }> {
   const summary = await getDeviceStatusSummary({ barangay: "all", status: "all" });
-  const active = summary.find((s) => s.statusName === "Active")?.count ?? 0;
+  const active = (summary.find((s) => s.statusName === "Active" || s.statusName === "Online")?.count) ?? 0;
   const total = summary.reduce((sum, s) => sum + s.count, 0);
   return { active, offline: total - active };
 }

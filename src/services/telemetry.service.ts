@@ -120,7 +120,9 @@ export async function getDeviceStatusCounts(): Promise<{
   }[];
 
   const online = rows.filter(
-    (r) => r.device_status?.status_name === "Active",
+    (r) =>
+      r.device_status?.status_name === "Active" ||
+      r.device_status?.status_name === "Online",
   ).length;
   const offline = rows.length - online;
 

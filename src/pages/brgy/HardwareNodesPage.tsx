@@ -17,6 +17,7 @@ import { formatDeployedBy, isDeviceActive } from "@/utils/deviceHelpers";
 import type { OvitrapDevice } from "@/types/device.types";
 
 import { getErrorMessage } from "@/utils/errorHelpers";
+import { supabase } from "@/lib/supabase";
 
 export default function HardwareNodesPage() {
   const navigate = useNavigate();
@@ -25,8 +26,8 @@ export default function HardwareNodesPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     setError(null);
     try {
       const devs = await fetchDevicesForCurrentUser();
@@ -37,12 +38,34 @@ export default function HardwareNodesPage() {
       setError(msg);
       setDevices([]);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(true);
+
+    const channel = supabase
+      .channel("bhw_devices_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_devices" },
+        () => {
+          loadData(false);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ovitrap_readings" },
+        () => {
+          loadData(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredDevices = useMemo(() => {
@@ -105,7 +128,7 @@ export default function HardwareNodesPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={loadData}
+            onClick={() => loadData(true)}
             disabled={loading}
             className="h-10 px-3 shrink-0"
           >

@@ -23,7 +23,7 @@ type ReadingRow = {
   image_path: string | null;
 };
 
-const ONLINE_WINDOW_MINUTES = 15;
+const ONLINE_WINDOW_MINUTES = 16;
 const TELEMETRY_WINDOW_MINUTES = 60;
 const RECENT_FEED_LIMIT = 12;
 
@@ -120,33 +120,32 @@ export function useAdminDashboardData() {
   const devices = devicesQuery.data ?? [];
   const recentReadings = recentReadingsQuery.data ?? [];
 
-  const onlineDevices = devices.filter((device) => {
-    if (!device.last_seen_at) {
-      return false;
-    }
-
-    const lastSeenAt = Date.parse(device.last_seen_at);
-
-    if (Number.isNaN(lastSeenAt)) {
-      return false;
-    }
-
-    return (
-      Date.now() - lastSeenAt <= ONLINE_WINDOW_MINUTES * 60_000
-    );
-  });
-
-  const deviceMap = new Map(
-    devices.map((device) => [device.id, device])
-  );
-
   const latestReadingsByDevice = new Map<string, ReadingRow>();
-
   for (const reading of recentReadings) {
     if (!latestReadingsByDevice.has(reading.device_id)) {
       latestReadingsByDevice.set(reading.device_id, reading);
     }
   }
+
+  const onlineDevices = devices.filter((device) => {
+    const latestReading = latestReadingsByDevice.get(device.id);
+    const lastSeenStr = latestReading?.captured_at || latestReading?.created_at || device.last_seen_at;
+
+    if (!lastSeenStr) {
+      return false;
+    }
+
+    const lastSeenAt = Date.parse(lastSeenStr);
+    if (Number.isNaN(lastSeenAt)) {
+      return false;
+    }
+
+    return Date.now() - lastSeenAt <= ONLINE_WINDOW_MINUTES * 60_000;
+  });
+
+  const deviceMap = new Map(
+    devices.map((device) => [device.id, device])
+  );
 
   const lowBatteryDevices = Array.from(
     latestReadingsByDevice.values()
