@@ -53,14 +53,16 @@ function CustomTooltip({
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
-  const fullDate = payload[0].payload?.fullDate;
+  const item = payload[0];
+  if (!item) return null;
+  const fullDate = item.payload?.fullDate;
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-sm">
       <p className="font-semibold text-slate-950">
         {label} {fullDate ? `(${fullDate})` : ""}
       </p>
       <p className="text-emerald-600 font-medium">
-        {payload[0].value} {payload[0].value === 1 ? "mosquito" : "mosquitoes"} detected
+        {item.value} {item.value === 1 ? "mosquito" : "mosquitoes"} detected
       </p>
     </div>
   );
@@ -181,7 +183,7 @@ export default function AdminDashboard() {
     const dayMap = new Map(days.map((item) => [item.dateKey, item]));
 
     let todayCount = 0;
-    const todayDateKey = days[days.length - 1].dateKey;
+    const todayDateKey = days[days.length - 1]?.dateKey;
 
     for (const r of weeklyReadings) {
       if (!r.captured_at) continue;
