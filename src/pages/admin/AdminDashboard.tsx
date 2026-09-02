@@ -5,11 +5,20 @@ import {
   AlertTriangle,
   ArrowRight,
   BatteryLow,
+  BarChart3,
   LayoutDashboard,
-  MapPinned,
   Network,
-  Users,
+  Wifi,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,8 +40,33 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { ROUTES } from "@/utils/navigation";
 import { useAdminDashboardData } from "@/hooks/useAdminDashboardData";
-import { formatDateTime, formatVoltage, formatRate } from "@/utils/format";
+import { formatDateTime, formatVoltage } from "@/utils/format";
 
+// ─── Custom tooltip for Recharts ─────────────────────────────────────────────
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: { value: number; payload: { fullDate: string } }[];
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const fullDate = payload[0].payload?.fullDate;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-sm">
+      <p className="font-semibold text-slate-950">
+        {label} {fullDate ? `(${fullDate})` : ""}
+      </p>
+      <p className="text-emerald-600 font-medium">
+        {payload[0].value} {payload[0].value === 1 ? "mosquito" : "mosquitoes"} detected
+      </p>
+    </div>
+  );
+}
+
+// ─── KPI card ─────────────────────────────────────────────────────────────────
 function MetricCard({
   icon: Icon,
   label,
@@ -46,32 +80,47 @@ function MetricCard({
   detail: string;
   accent?: "emerald" | "amber" | "sky" | "slate";
 }) {
-  const accentStyles = {
-    emerald: "border-emerald-200 bg-emerald-50/80 text-emerald-700",
-    amber: "border-amber-200 bg-amber-50/80 text-amber-700",
-    sky: "border-sky-200 bg-sky-50/80 text-sky-700",
-    slate: "border-slate-200 bg-slate-50/80 text-slate-700",
+  const accentMap = {
+    emerald: {
+      badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      bar: "bg-emerald-500",
+    },
+    amber: {
+      badge: "border-amber-200 bg-amber-50 text-amber-700",
+      bar: "bg-amber-500",
+    },
+    sky: {
+      badge: "border-sky-200 bg-sky-50 text-sky-700",
+      bar: "bg-sky-500",
+    },
+    slate: {
+      badge: "border-slate-200 bg-slate-50 text-slate-700",
+      bar: "bg-slate-400",
+    },
   }[accent];
 
   return (
-    <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-      <CardContent className="flex items-start gap-4 p-6">
-        <div className={`rounded-2xl border p-3 ${accentStyles}`}>
+    <Card className="relative overflow-hidden border-slate-200 bg-white shadow-md backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg">
+      <div className={`absolute left-0 top-0 h-1 w-full ${accentMap.bar}`} />
+      <CardContent className="flex items-start gap-4 p-5 pt-6">
+        <div className={`rounded-2xl border p-3 ${accentMap.badge}`}>
           <Icon className="size-5" />
         </div>
-
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+            {label}
+          </p>
+          <div className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
             {value}
           </div>
-          <p className="mt-1 text-sm text-slate-500">{detail}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{detail}</p>
         </div>
       </CardContent>
     </Card>
   );
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { profile } = useAuth();
   const {
@@ -79,29 +128,35 @@ export default function AdminDashboard() {
     deviceMap,
     lowBatteryDevices,
     recentReadings,
+    weeklyReadings,
     activeAccountsQuery,
     devicesQuery,
     recentReadingsQuery,
     telemetryRateQuery,
+    weeklyReadingsQuery,
+    telemetry24hQuery,
   } = useAdminDashboardData();
 
   const loading =
     activeAccountsQuery.isLoading ||
     devicesQuery.isLoading ||
     recentReadingsQuery.isLoading ||
-    telemetryRateQuery.isLoading;
+    telemetryRateQuery.isLoading ||
+    weeklyReadingsQuery.isLoading ||
+    telemetry24hQuery.isLoading;
 
   const errorMessage =
     activeAccountsQuery.error?.message ||
     devicesQuery.error?.message ||
     recentReadingsQuery.error?.message ||
     telemetryRateQuery.error?.message ||
+    weeklyReadingsQuery.error?.message ||
+    telemetry24hQuery.error?.message ||
     null;
 
   const latestTelemetry = useMemo(() => {
     return recentReadings.map((reading) => {
       const device = deviceMap.get(reading.device_id);
-
       return {
         ...reading,
         deviceCode: device?.device_code ?? reading.device_id,
@@ -109,299 +164,366 @@ export default function AdminDashboard() {
     });
   }, [deviceMap, recentReadings]);
 
-  const quickLinks = [
-    {
-      label: "User Access Control",
-      description: "Manage system accounts and permissions.",
-      href: ROUTES.admin.users,
-      icon: Users,
-    },
-    {
-      label: "Trap Location",
-      description: "View live GPS device tracking and spatial data.",
-      href: ROUTES.admin.georeferencing,
-      icon: MapPinned,
-    },
-    {
-      label: "Node Provisioning",
-      description: "Register and maintain device inventory.",
-      href: ROUTES.admin.nodes,
-      icon: Network,
-    },
-    {
-      label: "Raw Telemetry Hub",
-      description: "Inspect the latest captured readings.",
-      href: ROUTES.admin.telemetry,
-      icon: Activity,
-    },
-  ];
+  // Compute 7-day trend from real readings
+  const trendData = useMemo(() => {
+    const days: { day: string; dateKey: string; count: number; fullDate: string }[] = [];
+    const now = new Date();
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+      const fullDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      days.push({ day: dayName, dateKey, count: 0, fullDate });
+    }
+
+    const dayMap = new Map(days.map((item) => [item.dateKey, item]));
+
+    let todayCount = 0;
+    const todayDateKey = days[days.length - 1].dateKey;
+
+    for (const r of weeklyReadings) {
+      if (!r.captured_at) continue;
+      const rDate = new Date(r.captured_at);
+      const rKey = `${rDate.getFullYear()}-${String(rDate.getMonth() + 1).padStart(2, "0")}-${String(rDate.getDate()).padStart(2, "0")}`;
+      const target = dayMap.get(rKey);
+      if (target) {
+        target.count += r.mosquito_count ?? 0;
+      }
+      if (rKey === todayDateKey) {
+        todayCount += r.mosquito_count ?? 0;
+      }
+    }
+
+    const weeklyTotal = days.reduce((sum, item) => sum + item.count, 0);
+    const dailyAverage = (weeklyTotal / 7).toFixed(1);
+
+    let peakDay = "—";
+    let maxCount = 0;
+    for (const d of days) {
+      if (d.count > maxCount) {
+        maxCount = d.count;
+        peakDay = d.day;
+      }
+    }
+
+    return {
+      trend: days,
+      todayCount,
+      weeklyTotal,
+      dailyAverage,
+      peakDay,
+      peakCount: maxCount,
+    };
+  }, [weeklyReadings]);
 
   return (
-    <div className="space-y-8">
-      <section className="overflow-hidden rounded-3xl border border-emerald-200 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_35%),linear-gradient(135deg,_rgba(255,255,255,0.98),_rgba(236,253,245,0.95))] p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">
-              <LayoutDashboard className="size-3.5" />
-              System Administrator
-            </div>
+    <div className="space-y-6">
+      {/* ── Clean flat header ────────────────────────────────────────────────── */}
+      <section className="border-b border-slate-200 pb-5">
+        <div className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          <LayoutDashboard className="size-3" />
+          IoT Command Center
+        </div>
 
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 lg:text-5xl">
-              MosquiTrack overview
-            </h1>
+        <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
+          MosquiTrack Overview
+        </h1>
 
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              {profile
-                ? `Welcome back, ${profile.first_name}. Track device uptime, recent telemetry, and low-battery alerts from a single operations view.`
-                : "Track device uptime, recent telemetry, and low-battery alerts from a single operations view."}
-            </p>
+        <p className="mt-1.5 max-w-2xl text-sm text-slate-500">
+          {profile
+            ? `Welcome back, ${profile.first_name}. Monitor node uptime, detection events, and hardware alerts.`
+            : "Monitor node uptime, detection events, and hardware alerts from a single operations view."}
+        </p>
+      </section>
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button asChild size="sm" className="rounded-full px-4 bg-emerald-600 hover:bg-emerald-700 text-white">
-                <Link to={ROUTES.admin.telemetry}>
-                  View telemetry hub
-                  <ArrowRight className="size-4 ml-1" />
-                </Link>
-              </Button>
-            </div>
+      {/* ── KPI cards ───────────────────────────────────────────────────────── */}
+      <div>
+        {errorMessage && (
+          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {errorMessage}
           </div>
+        )}
 
-          <Card className="w-full max-w-md border-emerald-200 bg-white/90 shadow-sm backdrop-blur">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            icon={Wifi}
+            label="Active Nodes"
+            value={
+              loading
+                ? "—"
+                : `${counts.onlineNodes} of ${counts.registeredNodes} Online`
+            }
+            detail="Nodes seen within the last 15 min."
+            accent="emerald"
+          />
+
+          <MetricCard
+            icon={Activity}
+            label="Mosquitoes Detected Today"
+            value={loading ? "—" : `${trendData.todayCount}`}
+            detail="Cumulative count across all traps."
+            accent="sky"
+          />
+
+          <MetricCard
+            icon={BarChart3}
+            label="Telemetry Packets 24h"
+            value={loading ? "—" : `${counts.telemetry24h}`}
+            detail="Packets received in the last 24 hours."
+            accent="slate"
+          />
+
+          <MetricCard
+            icon={BatteryLow}
+            label="Hardware Alerts"
+            value={
+              loading
+                ? "—"
+                : counts.lowBatteryNodes === 0
+                ? "0 Critical"
+                : `${counts.lowBatteryNodes} Critical`
+            }
+            detail="Low-battery nodes below 3.40 V."
+            accent={counts.lowBatteryNodes > 0 ? "amber" : "slate"}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {/* ── Live feeds row ─────────────────────────────────────────────────── */}
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          {/* Recent telemetry feed */}
+          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
             <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle className="text-lg">Live snapshot</CardTitle>
+              <CardTitle>Recent telemetry feed</CardTitle>
               <CardDescription>
-                Counts refresh every 30 seconds from Supabase.
+                Latest raw rows from ovitrap_readings, refreshed on a polling
+                interval.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>TRAP ID</TableHead>
+                    <TableHead>Mosquito count</TableHead>
+                    <TableHead>Battery / voltage</TableHead>
+                    <TableHead>Captured</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {latestTelemetry.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={4}
+                        className="py-10 text-center text-slate-500"
+                      >
+                        No telemetry rows available.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    latestTelemetry.map((reading) => (
+                      <TableRow key={reading.id}>
+                        <TableCell className="font-medium text-slate-950">
+                          {reading.deviceCode}
+                        </TableCell>
+                        <TableCell>
+                          {reading.mosquito_count ?? reading.egg_count ?? 0}
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-2">
+                            {formatVoltage(reading.battery_level)}
+                            {reading.battery_level !== null &&
+                            reading.battery_level < 3.4 ? (
+                              <Badge variant="destructive">Low</Badge>
+                            ) : null}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {formatDateTime(reading.captured_at)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Operational alerts */}
+          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <CardTitle>Operational alerts</CardTitle>
+              <CardDescription>
+                Current conditions needing attention.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Registered nodes</span>
-                <span className="text-lg font-semibold text-slate-950">
-                  {counts.registeredNodes}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Online nodes</span>
-                <span className="text-lg font-semibold text-slate-950">
-                  {counts.onlineNodes}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Active accounts</span>
-                <span className="text-lg font-semibold text-slate-950">
-                  {counts.activeAccounts}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Low battery alerts</span>
-                <span className="text-lg font-semibold text-rose-600">
-                  {counts.lowBatteryNodes}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {errorMessage && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {errorMessage}
-        </div>
-      )}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          icon={Network}
-          label="Registered nodes"
-          value={loading ? "—" : `${counts.registeredNodes}`}
-          detail="Devices in the active inventory."
-          accent="emerald"
-        />
-
-        <MetricCard
-          icon={Activity}
-          label="Telemetry rate"
-          value={loading ? "—" : formatRate(counts.telemetryRatePerMinute)}
-          detail="Readings captured in the last hour."
-          accent="sky"
-        />
-
-        <MetricCard
-          icon={Users}
-          label="Active accounts"
-          value={loading ? "—" : `${counts.activeAccounts}`}
-          detail="Profiles marked active in Supabase."
-          accent="slate"
-        />
-
-        <MetricCard
-          icon={BatteryLow}
-          label="Low battery nodes"
-          value={loading ? "—" : `${counts.lowBatteryNodes}`}
-          detail="Latest readings below 3.40 V."
-          accent="amber"
-        />
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-          <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle>Recent telemetry feed</CardTitle>
-            <CardDescription>
-              Latest raw rows exposed from ovitrap_readings and refreshed on a
-              polling interval.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>TRAP ID</TableHead>
-                  <TableHead>Mosquito count</TableHead>
-                  <TableHead>Battery / voltage</TableHead>
-                  <TableHead>Captured</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {latestTelemetry.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-10 text-center text-slate-500">
-                      No telemetry rows available.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  latestTelemetry.map((reading) => (
-                    <TableRow key={reading.id}>
-                      <TableCell className="font-medium text-slate-950">
-                        {reading.deviceCode}
-                      </TableCell>
-                      <TableCell>{reading.mosquito_count ?? reading.egg_count ?? 0}</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center gap-2">
-                          {formatVoltage(reading.battery_level)}
-                          {reading.battery_level !== null &&
-                            reading.battery_level < 3.4 ? (
-                            <Badge variant="destructive">Low</Badge>
-                          ) : null}
-                        </span>
-                      </TableCell>
-                      <TableCell>{formatDateTime(reading.captured_at)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-          <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle>Operational alerts</CardTitle>
-            <CardDescription>
-              Current conditions needing attention.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-5">
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
-                  <AlertTriangle className="size-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-950">
-                    Low battery nodes
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {lowBatteryDevices.length === 0
-                      ? "No nodes are currently below the 3.40 V threshold."
-                      : `${lowBatteryDevices.length} node${lowBatteryDevices.length === 1 ? "" : "s"} need attention.`}
-                  </p>
-                </div>
-              </div>
-
-              {lowBatteryDevices.length > 0 ? (
-                <div className="mt-4 space-y-3">
-                  {lowBatteryDevices.slice(0, 4).map((reading) => {
-                    const device = deviceMap.get(reading.device_id);
-
-                    return (
-                      <div
-                        key={reading.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2"
-                      >
-                        <div>
-                          <p className="font-medium text-slate-950">
-                            {device?.device_code ?? reading.device_id}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {formatDateTime(reading.captured_at)}
-                          </p>
-                        </div>
-
-                        <Badge variant="destructive">
-                          {formatVoltage(reading.battery_level)}
-                        </Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-medium text-slate-950">
-                Node uptime reference
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                {counts.onlineNodes} of {counts.registeredNodes} registered nodes
-                were seen within the last 15 minutes.
-              </p>
-            </div>
-
-            <Button asChild variant="outline" className="w-full justify-between">
-              <Link to={ROUTES.admin.telemetry}>
-                <span className="inline-flex items-center gap-2">
-                  <Activity className="size-4" />
-                  View telemetry hub
-                </span>
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {quickLinks.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <Button
-              key={item.href}
-              asChild
-              variant="outline"
-              className="h-auto justify-start rounded-2xl border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50/40"
-            >
-              <Link to={item.href}>
-                <div className="flex w-full items-start gap-4">
-                  <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-700">
-                    <Icon className="size-5" />
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
+                    <AlertTriangle className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-950">{item.label}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      {item.description}
+                    <p className="font-medium text-slate-950">Low battery nodes</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {lowBatteryDevices.length === 0
+                        ? "No nodes are currently below the 3.40 V threshold."
+                        : `${lowBatteryDevices.length} node${lowBatteryDevices.length === 1 ? "" : "s"} need attention.`}
                     </p>
                   </div>
                 </div>
-              </Link>
-            </Button>
-          );
-        })}
-      </section>
+
+                {lowBatteryDevices.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    {lowBatteryDevices.slice(0, 4).map((reading) => {
+                      const device = deviceMap.get(reading.device_id);
+                      return (
+                        <div
+                          key={reading.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2"
+                        >
+                          <div>
+                            <p className="font-medium text-slate-950">
+                              {device?.device_code ?? reading.device_id}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {formatDateTime(reading.captured_at)}
+                            </p>
+                          </div>
+                          <Badge variant="destructive">
+                            {formatVoltage(reading.battery_level)}
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-950">
+                  Node uptime reference
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {counts.onlineNodes} of {counts.registeredNodes} registered
+                  nodes were seen within the last 15 minutes.
+                </p>
+              </div>
+
+              <Button asChild variant="outline" className="w-full justify-between">
+                <Link to={ROUTES.admin.telemetry}>
+                  <span className="inline-flex items-center gap-2">
+                    <Activity className="size-4" />
+                    View telemetry hub
+                  </span>
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* ── 7-Day Detection Trend bar chart ────────────────────────────────── */}
+        <section>
+          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Network className="size-4 text-emerald-600" />
+                    7-Day Detection Trend
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Daily mosquito detection counts across all active trap nodes
+                    over the past week.
+                  </CardDescription>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="border-emerald-200 bg-emerald-50 text-emerald-700 text-xs"
+                >
+                  Last 7 days
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6 pb-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart
+                  data={trendData.trend}
+                  margin={{ top: 4, right: 16, left: -8, bottom: 0 }}
+                  barCategoryGap="35%"
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#f1f5f9"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ fill: "rgba(16,185,129,0.06)", radius: 8 }}
+                  />
+                  <Bar
+                    dataKey="count"
+                    fill="#10b981"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={48}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+
+              {/* summary strip */}
+              <div className="mt-4 grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 pt-4 text-center">
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-widest">
+                    Peak Day
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-950">
+                    {trendData.peakDay}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {trendData.peakCount > 0
+                      ? `${trendData.peakCount} detections`
+                      : "No detections"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-widest">
+                    Weekly Total
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-950">
+                    {trendData.weeklyTotal}
+                  </p>
+                  <p className="text-xs text-slate-500">across all traps</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-widest">
+                    Daily Average
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-950">
+                    {trendData.dailyAverage}
+                  </p>
+                  <p className="text-xs text-slate-500">mosquitoes / day</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      </div>
     </div>
   );
 }

@@ -92,6 +92,43 @@ async function fetchTelemetryRate() {
   return count ?? 0;
 }
 
+async function fetchWeeklyReadings() {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("ovitrap_readings")
+    .select("id, mosquito_count, egg_count, captured_at, created_at")
+    .gte("captured_at", sevenDaysAgo.toISOString())
+    .order("captured_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    mosquito_count: r.mosquito_count ?? r.egg_count ?? 0,
+    captured_at: r.captured_at || r.created_at,
+  }));
+}
+
+async function fetchTelemetry24hCount() {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { count, error } = await supabase
+    .from("ovitrap_readings")
+    .select("id", { count: "exact", head: true })
+    .gte("captured_at", since);
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
 export function useAdminDashboardData() {
   const activeAccountsQuery = useQuery({
     queryKey: ["admin-dashboard", "active-accounts"],
@@ -117,8 +154,21 @@ export function useAdminDashboardData() {
     refetchInterval: 30_000,
   });
 
+  const weeklyReadingsQuery = useQuery({
+    queryKey: ["admin-dashboard", "weekly-readings"],
+    queryFn: fetchWeeklyReadings,
+    refetchInterval: 30_000,
+  });
+
+  const telemetry24hQuery = useQuery({
+    queryKey: ["admin-dashboard", "telemetry-24h"],
+    queryFn: fetchTelemetry24hCount,
+    refetchInterval: 30_000,
+  });
+
   const devices = devicesQuery.data ?? [];
   const recentReadings = recentReadingsQuery.data ?? [];
+  const weeklyReadings = weeklyReadingsQuery.data ?? [];
 
   const latestReadingsByDevice = new Map<string, ReadingRow>();
   for (const reading of recentReadings) {
@@ -162,8 +212,11 @@ export function useAdminDashboardData() {
     devicesQuery,
     recentReadingsQuery,
     telemetryRateQuery,
+    weeklyReadingsQuery,
+    telemetry24hQuery,
     devices,
     recentReadings,
+    weeklyReadings,
     onlineDevices,
     deviceMap,
     lowBatteryDevices,
@@ -172,6 +225,7 @@ export function useAdminDashboardData() {
       onlineNodes: onlineDevices.length,
       activeAccounts: activeAccountsQuery.data ?? 0,
       telemetryRatePerMinute: telemetryRateQuery.data ?? 0,
+      telemetry24h: telemetry24hQuery.data ?? 0,
       lowBatteryNodes: lowBatteryDevices.length,
     },
   };

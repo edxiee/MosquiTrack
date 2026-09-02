@@ -379,13 +379,6 @@ export default function LiveMonitoringPage() {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Live Monitoring
             </h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              REALTIME LIVE
-            </span>
           </div>
           <p className="text-sm text-slate-500 mt-0.5">
             Monitor the operational status and real-time telemetry streaming of deployed Smart Ovi Trap devices.

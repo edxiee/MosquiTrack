@@ -72,8 +72,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      setLoading(true);
-
       try {
         setSession(newSession);
         setUser(newSession?.user ?? null);
@@ -89,8 +87,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           setProfile(null);
         }
-      } finally {
-        setLoading(false);
+      } catch (error) {
+        console.error("Auth state change error:", error);
       }
     });
 
