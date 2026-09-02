@@ -23,6 +23,22 @@ type ReadingRow = {
   image_path: string | null;
 };
 
+export type TriageActionRow = {
+  id: string;
+  barangay_id?: string;
+  device_id: string | null;
+  trigger_source: string;
+  priority: "Low" | "Medium" | "High" | "Critical";
+  status: "Pending" | "In Progress" | "Completed" | "Cancelled";
+  assigned_to?: string | null;
+  assigned_date?: string;
+  due_date?: string | null;
+  completed_at?: string | null;
+  remarks?: string | null;
+  created_at: string;
+  device?: { device_code: string } | null;
+};
+
 const ONLINE_WINDOW_MINUTES = 16;
 const TELEMETRY_WINDOW_MINUTES = 60;
 const RECENT_FEED_LIMIT = 12;
@@ -129,6 +145,27 @@ async function fetchTelemetry24hCount() {
   return count ?? 0;
 }
 
+async function fetchTriageActions(): Promise<TriageActionRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from("action_triage_log")
+      .select(
+        "id, barangay_id, device_id, trigger_source, priority, status, assigned_to, assigned_date, due_date, completed_at, remarks, created_at, device:ovitrap_devices ( device_code )"
+      )
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.warn("Could not query action_triage_log:", error.message);
+      return [];
+    }
+    return (data ?? []) as unknown as TriageActionRow[];
+  } catch (err) {
+    console.warn("Error fetching action_triage_log:", err);
+    return [];
+  }
+}
+
 export function useAdminDashboardData() {
   const activeAccountsQuery = useQuery({
     queryKey: ["admin-dashboard", "active-accounts"],
@@ -145,6 +182,12 @@ export function useAdminDashboardData() {
   const recentReadingsQuery = useQuery<ReadingRow[]>({
     queryKey: ["admin-dashboard", "recent-readings"],
     queryFn: fetchRecentReadings,
+    refetchInterval: 30_000,
+  });
+
+  const triageActionsQuery = useQuery<TriageActionRow[]>({
+    queryKey: ["admin-dashboard", "triage-actions"],
+    queryFn: fetchTriageActions,
     refetchInterval: 30_000,
   });
 
@@ -211,6 +254,7 @@ export function useAdminDashboardData() {
     activeAccountsQuery,
     devicesQuery,
     recentReadingsQuery,
+    triageActionsQuery,
     telemetryRateQuery,
     weeklyReadingsQuery,
     telemetry24hQuery,
@@ -219,7 +263,9 @@ export function useAdminDashboardData() {
     weeklyReadings,
     onlineDevices,
     deviceMap,
+    latestReadingsByDevice,
     lowBatteryDevices,
+    triageActions: triageActionsQuery.data ?? [],
     counts: {
       registeredNodes: devices.length,
       onlineNodes: onlineDevices.length,

@@ -2,10 +2,11 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   Activity,
-  AlertTriangle,
   ArrowRight,
   BatteryLow,
   BarChart3,
+  CheckCircle2,
+  ClipboardList,
   LayoutDashboard,
   Network,
   Wifi,
@@ -41,6 +42,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ROUTES } from "@/utils/navigation";
 import { useAdminDashboardData } from "@/hooks/useAdminDashboardData";
 import { formatDateTime, formatVoltage } from "@/utils/format";
+
+// ─── Priority badge styles ───────────────────────────────────────────────────
+const priorityConfig = {
+  High: {
+    pill: "bg-rose-100 text-rose-700 border border-rose-200",
+    dot: "bg-rose-500",
+  },
+  Med: {
+    pill: "bg-amber-100 text-amber-700 border border-amber-200",
+    dot: "bg-amber-400",
+  },
+  Low: {
+    pill: "bg-sky-100 text-sky-700 border border-sky-200",
+    dot: "bg-sky-400",
+  },
+} as const;
 
 // ─── Custom tooltip for Recharts ─────────────────────────────────────────────
 function CustomTooltip({
@@ -128,12 +145,15 @@ export default function AdminDashboard() {
   const {
     counts,
     deviceMap,
-    lowBatteryDevices,
+    devices,
+    latestReadingsByDevice,
     recentReadings,
     weeklyReadings,
+    triageActions,
     activeAccountsQuery,
     devicesQuery,
     recentReadingsQuery,
+    triageActionsQuery,
     telemetryRateQuery,
     weeklyReadingsQuery,
     telemetry24hQuery,
@@ -143,6 +163,7 @@ export default function AdminDashboard() {
     activeAccountsQuery.isLoading ||
     devicesQuery.isLoading ||
     recentReadingsQuery.isLoading ||
+    triageActionsQuery.isLoading ||
     telemetryRateQuery.isLoading ||
     weeklyReadingsQuery.isLoading ||
     telemetry24hQuery.isLoading;
@@ -151,10 +172,99 @@ export default function AdminDashboard() {
     activeAccountsQuery.error?.message ||
     devicesQuery.error?.message ||
     recentReadingsQuery.error?.message ||
+    triageActionsQuery.error?.message ||
     telemetryRateQuery.error?.message ||
     weeklyReadingsQuery.error?.message ||
     telemetry24hQuery.error?.message ||
     null;
+
+  // Derive real-time pending triage actions based on trap levels (High, Med, Low)
+  const computedPendingActions = useMemo(() => {
+    const list: {
+      id: string;
+      priority: "High" | "Med" | "Low";
+      task: string;
+      meta: string;
+      status: string;
+      sortOrder: number;
+    }[] = [];
+
+    // 1. Process explicit triage actions from action_triage_log if present
+    if (triageActions && triageActions.length > 0) {
+      for (const action of triageActions) {
+        const p: "High" | "Med" | "Low" =
+          action.priority === "Critical" || action.priority === "High"
+            ? "High"
+            : action.priority === "Medium"
+            ? "Med"
+            : "Low";
+
+        const devCode = action.device?.device_code;
+        const taskText = action.trigger_source
+          ? action.trigger_source
+          : devCode
+          ? `Triage alert on ${devCode}`
+          : "System triage alert";
+
+        list.push({
+          id: `action-${action.id}`,
+          priority: p,
+          task: taskText,
+          meta: action.due_date ? `Due: ${action.due_date}` : "Due: Today",
+          status: action.status || "Pending Assignment",
+          sortOrder: p === "High" ? 1 : p === "Med" ? 2 : 3,
+        });
+      }
+    }
+
+    // 2. Classify traps by level (High, Med, Low) from real telemetry readings
+    for (const device of devices) {
+      const reading = latestReadingsByDevice.get(device.id);
+      const code = device.device_code || `TRAP-${device.id.slice(0, 4)}`;
+      const count = reading?.mosquito_count ?? reading?.egg_count ?? 0;
+      const battery = reading?.battery_level ?? null;
+
+      if (count >= 30) {
+        list.push({
+          id: `trap-high-${device.id}`,
+          priority: "High",
+          task: `Inspect ${code}: High vector detection (${count} mosquitoes)`,
+          meta: "Due: Today",
+          status: "Requires Field Inspection",
+          sortOrder: 1,
+        });
+      } else if (battery !== null && battery < 3.4) {
+        list.push({
+          id: `trap-bat-${device.id}`,
+          priority: "High",
+          task: `Critical Battery: ${code} (${formatVoltage(battery)})`,
+          meta: "Due: Today",
+          status: "Low Voltage Alert",
+          sortOrder: 1,
+        });
+      } else if (count >= 10) {
+        list.push({
+          id: `trap-med-${device.id}`,
+          priority: "Med",
+          task: `Monitor ${code}: Moderate detection (${count} mosquitoes)`,
+          meta: "Due: Routine",
+          status: "Elevated Activity",
+          sortOrder: 2,
+        });
+      } else {
+        list.push({
+          id: `trap-low-${device.id}`,
+          priority: "Low",
+          task: `Routine Check: ${code} (${count} mosquitoes)`,
+          meta: "Status: Normal",
+          status: "Baseline Active",
+          sortOrder: 3,
+        });
+      }
+    }
+
+    return list.sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [triageActions, devices, latestReadingsByDevice]);
 
   const latestTelemetry = useMemo(() => {
     return recentReadings.map((reading) => {
@@ -297,53 +407,69 @@ export default function AdminDashboard() {
         {/* ── Live feeds row ─────────────────────────────────────────────────── */}
         <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           {/* Recent telemetry feed */}
-          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur flex flex-col">
             <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle>Recent telemetry feed</CardTitle>
-              <CardDescription>
-                Latest raw rows from ovitrap_readings, refreshed on a polling
-                interval.
-              </CardDescription>
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
+                  <Activity className="size-4" />
+                </div>
+                <div>
+                  <CardTitle>Recent telemetry feed</CardTitle>
+                  <CardDescription className="mt-0.5">
+                    Live raw packets received from deployed ovitraps.
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="flex-1 p-0 overflow-auto max-h-[340px]">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>TRAP ID</TableHead>
-                    <TableHead>Mosquito count</TableHead>
-                    <TableHead>Battery / voltage</TableHead>
-                    <TableHead>Captured</TableHead>
+                <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50">
+                    <TableHead className="font-semibold text-slate-600 text-xs py-3 pl-5">TRAP NODE</TableHead>
+                    <TableHead className="font-semibold text-slate-600 text-xs py-3">COUNT</TableHead>
+                    <TableHead className="font-semibold text-slate-600 text-xs py-3">BATTERY</TableHead>
+                    <TableHead className="font-semibold text-slate-600 text-xs py-3 pr-5 text-right">CAPTURED</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody className="divide-y divide-slate-100">
                   {latestTelemetry.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={4}
-                        className="py-10 text-center text-slate-500"
+                        className="py-12 text-center text-slate-500"
                       >
                         No telemetry rows available.
                       </TableCell>
                     </TableRow>
                   ) : (
                     latestTelemetry.map((reading) => (
-                      <TableRow key={reading.id}>
-                        <TableCell className="font-medium text-slate-950">
-                          {reading.deviceCode}
-                        </TableCell>
-                        <TableCell>
-                          {reading.mosquito_count ?? reading.egg_count ?? 0}
-                        </TableCell>
-                        <TableCell>
-                          <span className="inline-flex items-center gap-2">
-                            {formatVoltage(reading.battery_level)}
-                            {reading.battery_level !== null &&
-                            reading.battery_level < 3.4 ? (
-                              <Badge variant="destructive">Low</Badge>
-                            ) : null}
+                      <TableRow key={reading.id} className="hover:bg-slate-50/80 transition-colors">
+                        <TableCell className="font-medium text-slate-950 py-3.5 pl-5">
+                          <span className="inline-flex items-center rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 font-mono text-xs font-semibold text-slate-800">
+                            {reading.deviceCode}
                           </span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-3.5">
+                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
+                            {reading.mosquito_count ?? reading.egg_count ?? 0}
+                            <span className="text-xs font-normal text-slate-400">pcs</span>
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3.5">
+                          {reading.battery_level !== null &&
+                          reading.battery_level < 3.4 ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-xs font-medium text-rose-700">
+                              <BatteryLow className="size-3 text-rose-600" />
+                              {formatVoltage(reading.battery_level)}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                              <span className="size-1.5 rounded-full bg-emerald-500" />
+                              {formatVoltage(reading.battery_level)}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-3.5 pr-5 text-right whitespace-nowrap text-xs text-slate-500">
                           {formatDateTime(reading.captured_at)}
                         </TableCell>
                       </TableRow>
@@ -352,78 +478,76 @@ export default function AdminDashboard() {
                 </TableBody>
               </Table>
             </CardContent>
-          </Card>
-
-          {/* Operational alerts */}
-          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-            <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle>Operational alerts</CardTitle>
-              <CardDescription>
-                Current conditions needing attention.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-5">
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
-                    <AlertTriangle className="size-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-950">Low battery nodes</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {lowBatteryDevices.length === 0
-                        ? "No nodes are currently below the 3.40 V threshold."
-                        : `${lowBatteryDevices.length} node${lowBatteryDevices.length === 1 ? "" : "s"} need attention.`}
-                    </p>
-                  </div>
-                </div>
-
-                {lowBatteryDevices.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    {lowBatteryDevices.slice(0, 4).map((reading) => {
-                      const device = deviceMap.get(reading.device_id);
-                      return (
-                        <div
-                          key={reading.id}
-                          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2"
-                        >
-                          <div>
-                            <p className="font-medium text-slate-950">
-                              {device?.device_code ?? reading.device_id}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {formatDateTime(reading.captured_at)}
-                            </p>
-                          </div>
-                          <Badge variant="destructive">
-                            {formatVoltage(reading.battery_level)}
-                          </Badge>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-medium text-slate-950">
-                  Node uptime reference
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {counts.onlineNodes} of {counts.registeredNodes} registered
-                  nodes were seen within the last 15 minutes.
-                </p>
-              </div>
-
-              <Button asChild variant="outline" className="w-full justify-between">
+            <div className="border-t border-slate-100 p-4">
+              <Button asChild variant="outline" size="sm" className="w-full justify-between rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700">
                 <Link to={ROUTES.admin.telemetry}>
-                  <span className="inline-flex items-center gap-2">
-                    <Activity className="size-4" />
-                    View telemetry hub
+                  <span className="inline-flex items-center gap-2 text-xs font-medium">
+                    <Activity className="size-3.5 text-emerald-600" />
+                    Open raw telemetry hub
                   </span>
-                  <ArrowRight className="size-4" />
+                  <ArrowRight className="size-3.5" />
                 </Link>
               </Button>
+            </div>
+          </Card>
+
+          {/* Pending Triage Actions */}
+          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur flex flex-col">
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
+                  <ClipboardList className="size-4" />
+                </div>
+                <div>
+                  <CardTitle>Pending Triage Actions</CardTitle>
+                  <CardDescription className="mt-0.5">
+                    Actionable tasks generated from real-time trap triggers.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 divide-y divide-slate-100 p-0">
+              {computedPendingActions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                  <CheckCircle2 className="size-8 text-emerald-500 mb-2 opacity-80" />
+                  <p className="text-sm font-medium text-slate-700">
+                    No pending triage actions
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    All trap nodes are reporting normal baseline metrics.
+                  </p>
+                </div>
+              ) : (
+                computedPendingActions.slice(0, 4).map((action) => {
+                  const cfg = priorityConfig[action.priority] || priorityConfig.Low;
+                  return (
+                    <div
+                      key={action.id}
+                      className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/80"
+                    >
+                      {/* Priority badge */}
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide ${cfg.pill}`}
+                      >
+                        <span className={`size-1.5 rounded-full ${cfg.dot}`} />
+                        {action.priority}
+                      </span>
+
+                      {/* Task body */}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {action.task}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {action.meta}
+                          <span className="mx-1.5 text-slate-300">·</span>
+                          {action.status}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </CardContent>
           </Card>
         </section>
