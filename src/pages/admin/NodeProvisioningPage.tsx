@@ -231,11 +231,14 @@ export default function NodeProvisioningPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredDevices.map((device) => {
-                  const active = isDeviceActive(device);
-                  const rawStatus = device.device_statuses;
-                  const statusName = Array.isArray(rawStatus)
-                    ? (rawStatus as any)[0]?.status_name ?? "Unknown"
-                    : rawStatus?.status_name ?? "Unknown";
+                  // Real status from DB
+                  const realStatus = Array.isArray(device.device_statuses)
+                    ? (device.device_statuses as any)[0]?.status_name ?? "Unknown"
+                    : device.device_statuses?.status_name ?? "Unknown";
+
+                  // Computed status (Online / Unreachable / Offline / Maintenance)
+                  const displayStatus =
+                    (device as any).connection_status ?? realStatus;
 
                   const hasGps =
                     device.latitude != null &&
@@ -264,14 +267,16 @@ export default function NodeProvisioningPage() {
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                            active
+                            displayStatus === "Online"
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : statusName === "Maintenance"
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : "bg-slate-100 text-slate-600 border border-slate-200"
+                              : displayStatus === "Maintenance"
+                              ? "bg-amber-200 text-amber-700 border border-amber-200"
+                              : displayStatus === "Unreachable"
+                              ? "bg-rose-50 text-rose-700 border border-rose-200"
+                              : "bg-rose-500 text-white border border-slate-200"
                           }`}
                         >
-                          {statusName}
+                          {displayStatus}
                         </span>
                       </td>
 
