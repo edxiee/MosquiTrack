@@ -25,7 +25,7 @@ export const isDeviceActive = (device: OvitrapDevice | null | undefined): boolea
     }
   }
 
-  return false;
+  return true;
 };
 
 export const getDeviceStatusName = (device: OvitrapDevice | null | undefined): "Online" | "Offline" | "Maintenance" => {

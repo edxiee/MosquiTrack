@@ -13,8 +13,8 @@ import { ROUTES } from "@/utils/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fetchDevices } from "@/services/device.service";
-import { formatDeployedBy, isDeviceActive } from "@/utils/deviceHelpers";
+import { formatDeployedBy} from "@/utils/deviceHelpers";
+import { fetchDevicesForCurrentMunicipality } from "@/services/device.service";
 import type { OvitrapDevice } from "@/types/device.types";
 
 import { getErrorMessage } from "@/utils/errorHelpers";
@@ -225,19 +225,35 @@ export default function PrescriptiveAnalyticsPage() {
   );
 
   const loadData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const all = await fetchDevices();
-      const activeOnly = all.filter((d) => isDeviceActive(d));
-      setDevices(activeOnly);
+  setLoading(true);
+  setError(null);
+  try {
+    const all = await fetchDevicesForCurrentMunicipality();
+
+    // Sort: deployed first, non-deployed at the bottom
+    const sorted = [...all].sort((a, b) => {
+      // 1. Deployed devices first
+      const aDeployed = a.latitude != null && a.longitude != null ? 0 : 1;
+      const bDeployed = b.latitude != null && b.longitude != null ? 0 : 1;
+
+      if (aDeployed !== bDeployed) {
+        return aDeployed - bDeployed;
+      }
+
+      // 2. Then sort alphabetically by device_code (name)
+      const nameA = (a.device_code || "").toLowerCase();
+      const nameB = (b.device_code || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });   
+
+      setDevices(sorted);
     } catch (err: unknown) {
-      console.error("PrescriptiveAnalyticsPage load error:", err);
-      const msg = getErrorMessage(err, "Failed to load devices");
-      setError(msg);
-      setDevices([]);
+    console.error("PrescriptiveAnalyticsPage load error:", err);
+    const msg = getErrorMessage(err, "Failed to load devices");
+    setError(msg);
+    setDevices([]);
     } finally {
-      setLoading(false);
+    setLoading(false);
     }
   };
 
@@ -285,6 +301,7 @@ export default function PrescriptiveAnalyticsPage() {
       `Request submitted!\nType: ${payload.requestType}\nDevice: ${selectedDevice?.device_code}`
     );
   };
+  
 
   return (
     <div className="flex flex-col gap-6">
@@ -325,7 +342,7 @@ export default function PrescriptiveAnalyticsPage() {
         {loading ? (
           <div className="flex items-center justify-center py-20 text-slate-500 gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
-            Loading active devices…
+            Loading devices…
           </div>
         ) : error ? (
           <div className="py-16 text-center text-rose-600 text-sm">{error}</div>
@@ -400,14 +417,25 @@ export default function PrescriptiveAnalyticsPage() {
                       </td>
 
                       <td className="px-5 py-4">
-                        <Button
-                          size="sm"
-                          onClick={() => openRequestModal(device)}
-                          className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          Post Request Action
-                        </Button>
+                        {(() => {
+                          const isDeployed = device.latitude != null && device.longitude != null;
+
+                          return (
+                            <Button
+                              size="sm"
+                              disabled={!isDeployed}
+                              onClick={() => isDeployed && openRequestModal(device)}
+                              className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
+                                isDeployed
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                              }`}
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              Post Request Action
+                            </Button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

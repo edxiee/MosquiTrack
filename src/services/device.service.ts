@@ -30,7 +30,7 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
       )
     `
     )
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: true });
 
   if (devicesError) throw devicesError;
   if (!devicesData || devicesData.length === 0) return [];
@@ -290,12 +290,13 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
       ),
       barangays (
         id,
-        barangay_name
+        barangay_name,
+        municipality
       )
     `
     )
     .eq("barangay_id", targetBarangayId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: true });
 
   if (devicesError) throw devicesError;
   if (!devicesData || devicesData.length === 0) return [];
@@ -356,6 +357,144 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
       : { id: "dynamic-status", status_name: computedStatusName, description: null };
 
     const rawBarangay = d.barangays;
+    return {
+      ...d,
+      last_seen_at: latestTimestamp,
+      device_statuses: computedStatus,
+      barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
+      users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+    };
+  }) as unknown as OvitrapDevice[];
+}
+
+/** Fetch all devices that belong to the logged-in user’s municipality */
+export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevice[]> {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error("Not authenticated");
+  }
+
+  // Get user's municipality
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("municipality")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError) throw profileError;
+  if (!profile?.municipality) return [];
+
+  const userMunicipality = profile.municipality;
+
+  // Fetch all devices + their barangay (including municipality)
+  const { data: devicesData, error: devicesError } = await supabase
+    .from("ovitrap_devices")
+    .select(
+      `
+      id,
+      device_code,
+      serial_number,
+      description,
+      barangay_id,
+      latitude,
+      longitude,
+      device_status_id,
+      notes,
+      installation_date,
+      last_seen_at,
+      created_at,
+      deployed_by,
+      device_statuses (
+        id,
+        status_name,
+        description
+      ),
+      barangays (
+        id,
+        barangay_name,
+        municipality
+      )
+    `
+    )
+    .order("created_at", { ascending: false });
+
+  if (devicesError) throw devicesError;
+  if (!devicesData || devicesData.length === 0) return [];
+
+  // Filter by municipality
+  const filtered = devicesData.filter((d: any) => {
+    const brgy = Array.isArray(d.barangays) ? d.barangays[0] : d.barangays;
+    return brgy?.municipality === userMunicipality;
+  });
+
+  if (filtered.length === 0) return [];
+
+  // Hydrate users + latest readings (same logic as fetchDevices)
+  const deviceIds = filtered.map((d: any) => d.id);
+  const userIds = Array.from(
+    new Set(filtered.map((d: any) => d.deployed_by).filter(Boolean))
+  ) as string[];
+
+  const [profilesRes, readingsRes] = await Promise.all([
+    userIds.length > 0
+      ? supabase.from("profiles").select("id, first_name, last_name").in("id", userIds)
+      : Promise.resolve({ data: null }),
+    deviceIds.length > 0
+      ? supabase
+          .from("ovitrap_readings")
+          .select("device_id, captured_at, created_at")
+          .in("device_id", deviceIds)
+          .order("captured_at", { ascending: false })
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const userMap = new Map<string, any>();
+  if (profilesRes.data) {
+    for (const p of profilesRes.data) {
+      userMap.set(p.id, {
+        first_name: p.first_name,
+        last_name: p.last_name,
+      });
+    }
+  }
+
+  const latestReadingMap = new Map<string, string>();
+  if (readingsRes.data) {
+    for (const r of readingsRes.data) {
+      if (!latestReadingMap.has(r.device_id)) {
+        latestReadingMap.set(r.device_id, r.captured_at || r.created_at);
+      }
+    }
+  }
+
+  const ONLINE_THRESHOLD_MS = 16 * 60 * 1000;
+
+  return filtered.map((d: any) => {
+    const latestTimestamp = latestReadingMap.get(d.id) || d.last_seen_at || null;
+    const isOnline = latestTimestamp
+      ? Date.now() - new Date(latestTimestamp).getTime() <= ONLINE_THRESHOLD_MS
+      : false;
+
+    const rawStatus = d.device_statuses;
+    const statusObj = Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null;
+    const isMaintenance = statusObj?.status_name === "Maintenance";
+
+    const computedStatusName = isMaintenance
+      ? "Maintenance"
+      : isOnline
+      ? "Online"
+      : "Offline";
+
+    const computedStatus = statusObj
+      ? { ...statusObj, status_name: computedStatusName }
+      : { id: "dynamic-status", status_name: computedStatusName, description: null };
+
+    const rawBarangay = d.barangays;
+
     return {
       ...d,
       last_seen_at: latestTimestamp,
