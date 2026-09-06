@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -10,6 +10,7 @@ import {
   Copy,
   Check,
   CheckCircle2,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/utils/navigation";
@@ -24,6 +25,7 @@ import type { OvitrapDevice, DeviceStatus, Barangay } from "@/types/device.types
 
 import { getErrorMessage } from "@/utils/errorHelpers";
 import { supabase } from "@/lib/supabase";
+import { Input } from "@/components/ui/input";
 
 export default function NodeProvisioningPage() {
   const navigate = useNavigate();
@@ -32,6 +34,7 @@ export default function NodeProvisioningPage() {
   const [barangays, setBarangays] = useState<Barangay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
@@ -131,6 +134,25 @@ export default function NodeProvisioningPage() {
     navigate(`${ROUTES.admin.georeferencing}?viewId=${device.id}`);
   };
 
+  const filteredDevices = useMemo(() => {
+      const q = search.trim().toLowerCase();
+      if (!q) return devices;
+  
+      return devices.filter((d) => {
+        const trapId = d.device_code?.toLowerCase() ?? "";
+        const description = (d.description || d.notes || "").toLowerCase();
+        const deployedBy = formatDeployedBy(d.users).toLowerCase();
+        const status = (d.device_statuses?.status_name ?? "").toLowerCase();
+  
+        return (
+          trapId.includes(q) ||
+          description.includes(q) ||
+          deployedBy.includes(q) ||
+          status.includes(q)
+        );
+      });
+    }, [devices, search]);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -144,6 +166,16 @@ export default function NodeProvisioningPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search trap, description, status…"
+              className="pl-9 h-10 text-sm"
+            />
+          </div>
+
           <Button
             variant="outline"
             size="sm"
@@ -198,7 +230,7 @@ export default function NodeProvisioningPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {devices.map((device) => {
+                {filteredDevices.map((device) => {
                   const active = isDeviceActive(device);
                   const rawStatus = device.device_statuses;
                   const statusName = Array.isArray(rawStatus)
@@ -307,9 +339,11 @@ export default function NodeProvisioningPage() {
           </div>
         )}
 
-        {!loading && !error && devices.length === 0 && (
+        {!loading && !error && filteredDevices.length === 0 && (
           <div className="py-16 text-center text-slate-500 text-sm">
-            No devices found. Click “Create Node” to add one.
+            {search.trim()
+              ? "No active devices match your search. Click “Create Node” to add one."
+              : "No devices found. Click “Create Node” to add one."}
           </div>
         )}
       </div>
