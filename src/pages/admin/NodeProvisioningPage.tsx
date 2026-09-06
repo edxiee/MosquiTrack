@@ -20,7 +20,7 @@ import {
   fetchStatuses,
   fetchBarangays,
 } from "@/services/device.service";
-import { formatDeployedBy, isDeviceActive } from "@/utils/deviceHelpers";
+import { formatDeployedBy } from "@/utils/deviceHelpers";
 import type { OvitrapDevice, DeviceStatus, Barangay } from "@/types/device.types";
 
 import { getErrorMessage } from "@/utils/errorHelpers";
