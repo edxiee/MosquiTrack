@@ -220,6 +220,7 @@ export default function DeviceModal({
                 placeholder="e.g. TRAP-005"
                 className="h-9 text-sm"
                 autoFocus
+                required
               />
             </div>
 

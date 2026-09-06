@@ -2,6 +2,7 @@ export interface DeviceStatus {
   id: string;
   status_name: string;
   description: string | null;
+  connection_status?: "Online" | "Offline" | "Maintenance" | string;
 }
 
 export interface UserName {

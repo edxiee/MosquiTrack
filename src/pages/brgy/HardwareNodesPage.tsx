@@ -13,8 +13,9 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchDevicesForCurrentUser } from "@/services/device.service";
-import { formatDeployedBy, isDeviceActive } from "@/utils/deviceHelpers";
+import { formatDeployedBy } from "@/utils/deviceHelpers";
 import type { OvitrapDevice } from "@/types/device.types";
+import { createTrapRequest } from "@/services/trapRequest.service";
 
 import { getErrorMessage } from "@/utils/errorHelpers";
 import { supabase } from "@/lib/supabase";
@@ -93,14 +94,34 @@ export default function HardwareNodesPage() {
     };
 
   const handleRequestPickup = async (device: OvitrapDevice) => {
-    console.log("Request Pick-up for", device.device_code, device.id);
-    alert(`Pick-up request submitted for ${device.device_code}`);
-  };
+  const confirmed = window.confirm(
+    `Are you sure you want to request a pick-up for ${device.device_code}?`
+  );
+  if (!confirmed) return;
 
-  const handleRequestDeployment = async (device: OvitrapDevice) => {
-    console.log("Request Deployment for", device.device_code, device.id);
+  try {
+    await createTrapRequest(device.id, "Request Pick-up");
+    alert(`Pick-up request submitted for ${device.device_code}`);
+  } catch (err) {
+    console.error(err);
+    alert(getErrorMessage(err, "Failed to submit pick-up request"));
+  }
+};
+
+const handleRequestDeployment = async (device: OvitrapDevice) => {
+  const confirmed = window.confirm(
+    `Are you sure you want to request deployment for ${device.device_code}?`
+  );
+  if (!confirmed) return;
+
+  try {
+    await createTrapRequest(device.id, "Request Deployment");
     alert(`Deployment request submitted for ${device.device_code}`);
-  };
+  } catch (err) {
+    console.error(err);
+    alert(getErrorMessage(err, "Failed to submit deployment request"));
+  }
+};
 
   return (
     <div className="flex flex-col gap-6">
@@ -172,10 +193,10 @@ export default function HardwareNodesPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredDevices.map((device) => {
-                  const active = isDeviceActive(device);
-                  const statusName =
-                    device.device_statuses?.status_name ?? "Unknown";
-
+                  const realStatus = device.device_statuses?.status_name ?? "Unknown";
+                  const displayStatus = (device as any).connection_status ?? realStatus;
+                  const isDeployed = realStatus === "Active" || realStatus === "Online";
+                  
                   return (
                     <tr
                       key={device.id}
@@ -193,14 +214,14 @@ export default function HardwareNodesPage() {
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                            active
+                            displayStatus === "Online"
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : statusName === "Maintenance"
+                              : displayStatus === "Maintenance"
                               ? "bg-amber-50 text-amber-700 border border-amber-200"
                               : "bg-slate-100 text-slate-600 border border-slate-200"
                           }`}
                         >
-                          {statusName}
+                          {displayStatus}
                         </span>
                       </td>
 
@@ -208,10 +229,10 @@ export default function HardwareNodesPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={!active || device.latitude == null}
+                          disabled={!isDeployed || device.latitude == null}
                           onClick={() => handleViewLocation(device)}
                           className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
-                            active && device.latitude != null
+                            isDeployed && device.latitude != null
                               ? "border-slate-200 text-slate-700 hover:bg-slate-50"
                               : "opacity-50 cursor-not-allowed"
                           }`}
@@ -222,7 +243,7 @@ export default function HardwareNodesPage() {
                       </td>
 
                       <td className="px-5 py-4">
-                        {active ? (
+                        {isDeployed ? (
                           <Button
                             size="sm"
                             onClick={() => handleRequestPickup(device)}

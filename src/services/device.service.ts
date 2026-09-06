@@ -82,20 +82,31 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
 
     const rawStatus = d.device_statuses;
     const statusObj = Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null;
-    const isMaintenance = statusObj?.status_name === "Maintenance";
+    const realStatusName = statusObj?.status_name ?? "Unknown";
 
-    const computedStatusName = isMaintenance ? "Maintenance" : isOnline ? "Online" : "Offline";
-    const computedStatus = statusObj
-      ? { ...statusObj, status_name: computedStatusName }
-      : { id: "dynamic-status", status_name: computedStatusName, description: null };
+    let computedStatusName: string;
+
+    if (realStatusName === "Maintenance") {
+      computedStatusName = "Maintenance";
+    } else if (realStatusName === "Active") {
+      // Only Active devices can become Online / Unreachable
+      computedStatusName = isOnline ? "Online" : "Unreachable";
+    } else {
+      // Offline, Provisioning, or anything else → keep Offline-style
+      computedStatusName = "Offline";
+    }
 
     const rawBarangay = d.barangays;
     return {
       ...d,
       last_seen_at: latestTimestamp,
-      device_statuses: computedStatus,
-      barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
-      users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+      device_statuses: statusObj
+      ? { ...statusObj, status_name: realStatusName }
+      : { id: "unknown", status_name: "Unknown", description: null },
+    // Computed connection status (for badges / Online-Offline display)
+    connection_status: computedStatusName,
+    barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
+    users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
     };
   }) as unknown as OvitrapDevice[];
 }
@@ -349,20 +360,31 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
 
     const rawStatus = d.device_statuses;
     const statusObj = Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null;
-    const isMaintenance = statusObj?.status_name === "Maintenance";
+    const realStatusName = statusObj?.status_name ?? "Unknown";
 
-    const computedStatusName = isMaintenance ? "Maintenance" : isOnline ? "Online" : "Offline";
-    const computedStatus = statusObj
-      ? { ...statusObj, status_name: computedStatusName }
-      : { id: "dynamic-status", status_name: computedStatusName, description: null };
+    let computedStatusName: string;
+
+    if (realStatusName === "Maintenance") {
+      computedStatusName = "Maintenance";
+    } else if (realStatusName === "Active") {   
+      // Only Active devices can become Online / Unreachable
+      computedStatusName = isOnline ? "Online" : "Unreachable";
+    } else {    
+      // Offline, Provisioning, or anything else → keep Offline-style
+      computedStatusName = "Offline";
+    }
 
     const rawBarangay = d.barangays;
     return {
       ...d,
       last_seen_at: latestTimestamp,
-      device_statuses: computedStatus,
-      barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
-      users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+      device_statuses: statusObj
+      ? { ...statusObj, status_name: realStatusName }
+      : { id: "unknown", status_name: "Unknown", description: null },
+    // Computed connection status (for badges / Online-Offline display)
+    connection_status: computedStatusName,
+    barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
+    users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
     };
   }) as unknown as OvitrapDevice[];
 }
@@ -481,24 +503,27 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
 
     const rawStatus = d.device_statuses;
     const statusObj = Array.isArray(rawStatus) ? rawStatus[0] ?? null : rawStatus ?? null;
-    const isMaintenance = statusObj?.status_name === "Maintenance";
 
-    const computedStatusName = isMaintenance
-      ? "Maintenance"
-      : isOnline
-      ? "Online"
-      : "Offline";
+    const realStatusName = statusObj?.status_name ?? "Unknown";
 
-    const computedStatus = statusObj
-      ? { ...statusObj, status_name: computedStatusName }
-      : { id: "dynamic-status", status_name: computedStatusName, description: null };
+    let computedStatusName: string;
+    if (realStatusName === "Maintenance") {
+      computedStatusName = "Maintenance";
+    } else if (realStatusName === "Active") {
+      computedStatusName = isOnline ? "Online" : "Unreachable";
+    } else {
+      computedStatusName = "Offline";
+    }
 
     const rawBarangay = d.barangays;
 
     return {
       ...d,
       last_seen_at: latestTimestamp,
-      device_statuses: computedStatus,
+     device_statuses: statusObj
+        ? { ...statusObj, status_name: realStatusName }
+        : { id: "unknown", status_name: "Unknown", description: null },
+      connection_status: computedStatusName,
       barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
       users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
     };
