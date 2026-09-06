@@ -123,13 +123,36 @@ function RequestActionModal({
 
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-slate-600">
-              Device ID
+              Device ID <span className="text-rose-500">*</span>
             </Label>
             <Input
               value={device.device_code}
               readOnly
               className="h-9 text-sm bg-slate-50 text-slate-600 cursor-not-allowed"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-600">
+              Request Type <span className="text-rose-500">*</span>
+            </Label>
+            <select
+              value={requestType}
+              onChange={(e) =>
+                setRequestType(e.target.value as RequestType | "")
+              }
+              className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              required
+            >
+              <option value="" disabled>
+                Select request type…
+              </option>
+              {REQUEST_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1.5">
@@ -154,28 +177,6 @@ function RequestActionModal({
               placeholder="Additional notes (optional)"
               className="h-9 text-sm"
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-600">
-              Request Type <span className="text-rose-500">*</span>
-            </Label>
-            <select
-              value={requestType}
-              onChange={(e) =>
-                setRequestType(e.target.value as RequestType | "")
-              }
-              className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="" disabled>
-                Select request type…
-              </option>
-              {REQUEST_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">

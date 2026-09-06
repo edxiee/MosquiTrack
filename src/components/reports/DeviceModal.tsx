@@ -237,14 +237,15 @@ export default function DeviceModal({
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600">
-                Barangay
+                Barangay <span className="text-rose-500">*</span>
               </Label>
               <select
                 value={form.barangay_id}
                 onChange={(e) => handleChange("barangay_id", e.target.value)}
                 className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                required
               >
-                <option value="">Select barangay…</option>
+                <option value="" disabled selected>Select barangay…</option>
                 {barangays.map((b) => (
                   <option key={b.id} value={b.id}>
                     {formatBarangayLabel(b)}
