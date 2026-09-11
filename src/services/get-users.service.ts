@@ -3,7 +3,7 @@ import type { DatabaseUser } from "@/types/user.types";
 
 export async function getUsers(): Promise<DatabaseUser[]> {
   const { data, error } = await supabase
-    .from("profiles")
+    .from("users")
     .select("*")
     .order("created_at", { ascending: false });
 
