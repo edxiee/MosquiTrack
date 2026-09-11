@@ -8,6 +8,8 @@ export const ROUTES = {
     nodes: "/admin/nodes",
     telemetry: "/admin/telemetry",
     liveMonitoring: "/admin/live-monitoring",
+    announcements: "/admin/announcements",
+    systemControls: "/admin/system-controls",
   },
 
   lgu: {
@@ -43,6 +45,19 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
         {
           name: "Dashboard",
           path: ROUTES.admin.dashboard,
+        },
+      ],
+    },
+    {
+      title: "System Administration",
+      items: [
+        {
+          name: "Announcements",
+          path: ROUTES.admin.announcements,
+        },
+        {
+          name: "System Controls",
+          path: ROUTES.admin.systemControls,
         },
       ],
     },
