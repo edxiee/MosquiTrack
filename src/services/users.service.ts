@@ -9,7 +9,6 @@ export async function createUser(formData: CreateUserForm) {
     lastName: formData.lastName,
     email: formData.email,
     username: formData.username,
-    password: formData.password,
     phoneNumber: formData.phoneNumber,
     role: formData.role,
     municipality: formData.municipality,

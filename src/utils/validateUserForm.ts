@@ -30,23 +30,6 @@ export function validateCreateUserForm(formData: CreateUserForm): UserFormErrors
     errors.username = "Username is required.";
   }
 
-  // Password
-  if (!(formData.password ?? "").trim()) {
-    errors.password = "Password is required.";
-  }
-
-  if (!(formData.confirmPassword ?? "").trim()) {
-    errors.confirmPassword = "Please confirm your password.";
-  }
-
-  if (
-    formData.password &&
-    formData.confirmPassword &&
-    formData.password !== formData.confirmPassword
-  ) {
-    errors.confirmPassword = "Passwords do not match.";
-  }
-
   // Role
   if (!formData.role) {
     errors.role = "Please select a role.";
