@@ -22,6 +22,7 @@ export interface DatabaseUser {
   status: "PENDING" | "ACTIVE" | "INACTIVE";
   invited_at: string;
   activated_at: string | null;
+  must_change_password?: boolean;
 }
 
 export interface BaseUserForm {
@@ -36,10 +37,7 @@ export interface BaseUserForm {
   barangay: string;
 }
 
-export interface CreateUserForm extends BaseUserForm {
-  password: string;
-  confirmPassword: string;
-}
+export interface CreateUserForm extends BaseUserForm {}
 
 export interface UpdateUserForm extends BaseUserForm {
   id: string;
@@ -55,6 +53,4 @@ export interface UserFormErrors {
   role?: string;
   municipality?: string;
   barangay?: string;
-  password?: string;
-  confirmPassword?: string;
 }
