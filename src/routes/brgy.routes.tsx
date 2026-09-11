@@ -15,7 +15,7 @@ export const brgyRoutes: RouteObject[] = [
     path: "/bhw",
     element: (
       <ProtectedRoute>
-        <RoleGuard allowedRoles={[ROLES.BHW]}>
+        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.BHW]}>
           <DashboardLayout />
         </RoleGuard>
       </ProtectedRoute>

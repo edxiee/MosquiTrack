@@ -1,17 +1,25 @@
 import { Badge } from "@/components/ui/badge";
 
 interface RoleBadgeProps {
-  role: "SYS_ADMIN" | "MHO" | "BHW";
+  role: "SYS_ADMIN" | "MHO" | "BHW" | "ADMIN";
 }
 
 export default function RoleBadge({ role }: RoleBadgeProps) {
   switch (role) {
     case "SYS_ADMIN":
       return (
-        <Badge className="bg-purple-600 hover:bg-purple-700 text-white">
+        <Badge className="bg-gray-600 hover:bg-black text-white">
           System Administrator
         </Badge>
       );
+
+    case "ADMIN":
+      return (
+        <Badge className="bg-purple-600 hover:bg-purple-700 text-white">
+          Site Administrator
+        </Badge>
+      );
+
 
     case "MHO":
       return (

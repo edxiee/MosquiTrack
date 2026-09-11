@@ -38,6 +38,7 @@ export default function RoleAssignmentForm({
 
           <SelectContent>
             <SelectItem value="SYS_ADMIN">System Administrator</SelectItem>
+            <SelectItem value="ADMIN">Site Administrator</SelectItem>
             <SelectItem value="MHO">Municipal Health Officer</SelectItem>
             <SelectItem value="BHW">Barangay Health Worker</SelectItem>
           </SelectContent>

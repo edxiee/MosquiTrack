@@ -15,7 +15,7 @@ export const lguRoutes: RouteObject[] = [
     path: "/lgu",
     element: (
       <ProtectedRoute>
-        <RoleGuard allowedRoles={[ROLES.LGU_ADMIN]}>
+        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.LGU_ADMIN]}>
           <DashboardLayout />
         </RoleGuard>
       </ProtectedRoute>
