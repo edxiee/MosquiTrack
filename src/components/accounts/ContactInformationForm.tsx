@@ -19,10 +19,10 @@ export default function ContactInformationForm({
 }: ContactInformationFormProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Contact Information</h3>
+      <h3 className="text-lg font-semibold">-- Contact Information </h3>
 
       <div className="space-y-2">
-        <Label htmlFor="email">Email Address</Label>
+        <Label htmlFor="email">Email Address <span className="text-rose-500">*</span></Label>
         <Input
           id="email"
           type="email"
@@ -36,7 +36,7 @@ export default function ContactInformationForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="phoneNumber">Phone Number</Label>
+        <Label htmlFor="phoneNumber">Phone Number <span className="text-rose-500">*</span></Label>
         <Input
           id="phoneNumber"
           placeholder="09XXXXXXXXXX"

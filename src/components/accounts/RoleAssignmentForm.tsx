@@ -21,10 +21,10 @@ export default function RoleAssignmentForm({
 }: RoleAssignmentFormProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Role Assignment</h3>
+      <h3 className="text-lg font-semibold">-- Role Assignment</h3>
 
       <div className="space-y-2">
-        <Label htmlFor="role">Role *</Label>
+        <Label htmlFor="role">Role <span className="text-rose-500">*</span></Label>
 
         <Select
           value={role ?? ""}

@@ -23,11 +23,11 @@ export default function PersonalInformationForm({
 }: PersonalInformationFormProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Personal Information</h3>
+      <h3 className="text-lg font-semibold">-- Personal Information</h3>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="firstName">First Name *</Label>
+          <Label htmlFor="firstName">First Name <span className="text-rose-500">*</span></Label>
           <Input
             id="firstName"
             placeholder="Enter first name"
@@ -40,7 +40,7 @@ export default function PersonalInformationForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="middleName">Middle Name (Optional)</Label>
+          <Label htmlFor="middleName">Middle Name</Label>
           <Input
             id="middleName"
             placeholder="Enter middle name"
@@ -51,7 +51,7 @@ export default function PersonalInformationForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="lastName">Last Name *</Label>
+        <Label htmlFor="lastName">Last Name <span className="text-rose-500">*</span></Label>
         <Input
           id="lastName"
           placeholder="Enter last name"

@@ -4,9 +4,7 @@ import type {
   UserFormErrors,
 } from "@/types/user.types";
 
-export function validateCreateUserForm(
-  formData: CreateUserForm
-): UserFormErrors {
+export function validateCreateUserForm(formData: CreateUserForm): UserFormErrors {
   const errors: UserFormErrors = {};
 
   // Personal Information
@@ -37,6 +35,10 @@ export function validateCreateUserForm(
     errors.password = "Password is required.";
   }
 
+  if (!(formData.confirmPassword ?? "").trim()) {
+    errors.confirmPassword = "Please confirm your password.";
+  }
+
   if (
     formData.password &&
     formData.confirmPassword &&
@@ -51,18 +53,15 @@ export function validateCreateUserForm(
   }
 
   // Location
-  if (
-    (formData.role === "MHO" || formData.role === "BHW") &&
-    !(formData.municipality ?? "").trim()
-  ) {
-    errors.municipality = "Municipality is required.";
+  if (!formData.municipality?.trim()) {
+    errors.municipality = "Municipality is required";
   }
 
   if (
-    formData.role === "BHW" &&
-    !(formData.barangay ?? "").trim()
+    (formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
+    !formData.barangay?.trim()
   ) {
-    errors.barangay = "Barangay is required.";
+    errors.barangay = "Barangay is required";
   }
 
   return errors;
@@ -102,18 +101,15 @@ export function validateUpdateUserForm(
   }
 
   // Location
-  if (
-    (formData.role === "MHO" || formData.role === "BHW") &&
-    !(formData.municipality ?? "").trim()
-  ) {
-    errors.municipality = "Municipality is required.";
+  if (!formData.municipality?.trim()) {
+    errors.municipality = "Municipality is required";
   }
 
   if (
-    formData.role === "BHW" &&
-    !(formData.barangay ?? "").trim()
+    (formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
+    !formData.barangay?.trim()
   ) {
-    errors.barangay = "Barangay is required.";
+    errors.barangay = "Barangay is required";
   }
 
   return errors;

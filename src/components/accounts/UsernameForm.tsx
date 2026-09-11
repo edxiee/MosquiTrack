@@ -14,10 +14,10 @@ export default function UsernameForm({
 }: UsernameFormProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Username</h3>
+      <h3 className="text-lg font-semibold">-- Username</h3>
 
       <div className="space-y-2">
-        <Label htmlFor="username">Username *</Label>
+        <Label htmlFor="username">Username <span className="text-rose-500">*</span></Label>
         <Input
           id="username"
           value={username ?? ""}

@@ -20,8 +20,9 @@ export default function PasswordForm({
 }: PasswordFormProps) {
   return (
     <div className="space-y-4">
+      <h3 className="text-lg font-semibold">-- Password</h3>
       <div className="space-y-2">
-        <Label htmlFor="password">Password *</Label>
+        <Label htmlFor="password">Password <span className="text-rose-500">*</span></Label>
         <Input
           id="password"
           type="password"
@@ -34,7 +35,7 @@ export default function PasswordForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="confirmPassword">Confirm Password *</Label>
+        <Label htmlFor="confirmPassword">Confirm Password <span className="text-rose-500">*</span></Label>
         <Input
           id="confirmPassword"
           type="password"
