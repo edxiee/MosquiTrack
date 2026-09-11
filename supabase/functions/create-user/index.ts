@@ -1,45 +1,78 @@
-import "@supabase/functions-js/edge-runtime.d.ts";
-import { withSupabase } from "@supabase/server";
-
+import { createClient } from "@supabase/supabase-js";
 import { CreateUserRequest } from "./types.ts";
 import { validateCreateUser } from "./validators.ts";
 import { createUser } from "./user.service.ts";
 
-export default {
-  fetch: withSupabase({ auth: "none" }, async (req, ctx) => {
-    try {
-      const body = (await req.json()) as CreateUserRequest;
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
-      const validationError = validateCreateUser(body);
+// Ambient declaration so IDE TypeScript compilers don't complain about Deno globals
+declare const Deno: {
+  serve: (handler: (req: Request) => Promise<Response> | Response) => void;
+  env: {
+    get: (key: string) => string | undefined;
+  };
+};
 
-      if (validationError) {
-        return Response.json(
-          {
-            success: false,
-            error: validationError,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-      const result = await createUser(body, ctx.supabaseAdmin);
+  try {
+    const body = (await req.json()) as CreateUserRequest;
 
-      return Response.json({
-        success: true,
-        ...result,
-      });
-    } catch (err) {
-      return Response.json(
-        {
+    const validationError = validateCreateUser(body);
+    if (validationError) {
+      return new Response(
+        JSON.stringify({
           success: false,
-          error: err instanceof Error ? err.message : "Unknown error",
-        },
+          error: validationError,
+        }),
         {
-          status: 500,
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
-  }),
-};
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    const result = await createUser(body, supabaseAdmin);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        ...result,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: err instanceof Error ? err.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+});
