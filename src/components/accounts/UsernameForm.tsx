@@ -17,7 +17,7 @@ export default function UsernameForm({
       <h3 className="text-lg font-semibold">Username</h3>
 
       <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
+        <Label htmlFor="username">Username *</Label>
         <Input
           id="username"
           value={username ?? ""}

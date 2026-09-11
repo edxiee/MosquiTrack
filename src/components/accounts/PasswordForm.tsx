@@ -21,7 +21,7 @@ export default function PasswordForm({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password">Password *</Label>
         <Input
           id="password"
           type="password"
@@ -34,7 +34,7 @@ export default function PasswordForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="confirmPassword">Confirm Password</Label>
+        <Label htmlFor="confirmPassword">Confirm Password *</Label>
         <Input
           id="confirmPassword"
           type="password"

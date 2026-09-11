@@ -19,17 +19,23 @@ export default function LocationAssignmentForm({
   onMunicipalityChange,
   onBarangayChange,
 }: LocationAssignmentFormProps) {
-  // Only hide the form when role is empty
-  if (role === "") {
+  if (role === "SYS_ADMIN" || role === "") {
     return null;
   }
+
+  // Required for MHO/BHW per validateUserForm.ts, but optional for
+  // ADMIN — the field is shown for ADMIN too, just not enforced.
+  const isMunicipalityRequired = role === "MHO" || role === "BHW";
+  const municipalityLabel = isMunicipalityRequired
+    ? "Municipality *"
+    : "Municipality (Optional)";
 
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Location Assignment</h3>
 
       <div className="space-y-2">
-        <Label htmlFor="municipality">Municipality</Label>
+        <Label htmlFor="municipality">{municipalityLabel}</Label>
         <Input
           id="municipality"
           placeholder="Enter municipality"
@@ -41,10 +47,9 @@ export default function LocationAssignmentForm({
         )}
       </div>
 
-      {/* Show Barangay for BHW and SYS_ADMIN */}
-      {(role === "BHW" || role === "SYS_ADMIN") && (
+      {role === "BHW" && (
         <div className="space-y-2">
-          <Label htmlFor="barangay">Barangay</Label>
+          <Label htmlFor="barangay">Barangay *</Label>
           <Input
             id="barangay"
             placeholder="Enter barangay"

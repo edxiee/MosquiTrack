@@ -24,7 +24,7 @@ export default function RoleAssignmentForm({
       <h3 className="text-lg font-semibold">Role Assignment</h3>
 
       <div className="space-y-2">
-        <Label htmlFor="role">Role</Label>
+        <Label htmlFor="role">Role *</Label>
 
         <Select
           value={role ?? ""}
