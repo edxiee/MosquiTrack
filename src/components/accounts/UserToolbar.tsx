@@ -34,7 +34,7 @@ export default function UserToolbar({
       <div className="flex flex-1 flex-col gap-4 md:flex-row">
         {/* Search */}
         <Input
-          placeholder="Search by name or email..."
+          placeholder="Search by name, email, or phone..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           className="w-full md:max-w-sm"
