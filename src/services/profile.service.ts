@@ -1,3 +1,5 @@
+// src/services/profile.service.ts
+
 import { supabase } from "@/lib/supabase";
 import type {
   AuthProfile,
@@ -21,22 +23,8 @@ export async function getCurrentProfile(): Promise<AuthProfile> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select(`
-      id,
-      first_name,
-      middle_name,
-      last_name,
-      email,
-      phone_number,
-      is_active,
-      role,
-      role_id,
-      roles:role_id (
-        id,
-        role_code,
-        role_name
-      )
-    `)
+    // <--- ADDED must_change_password TO THE SELECT LIST
+    .select(`id, first_name, middle_name, last_name, email, phone_number, is_active, must_change_password, role, role_id, roles:role_id ( id, role_code, role_name )`)
     .eq("id", user.id)
     .single();
 
@@ -74,6 +62,7 @@ export async function getCurrentProfile(): Promise<AuthProfile> {
     email: data.email,
     phone_number: data.phone_number,
     is_active: data.is_active ?? false,
+    must_change_password: data.must_change_password ?? false, // <--- ADDED THIS LINE
     role: authRole,
     barangay: null,
   };

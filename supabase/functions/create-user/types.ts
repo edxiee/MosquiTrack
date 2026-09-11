@@ -4,6 +4,7 @@ export interface CreateUserRequest {
   lastName: string;
   email: string;
   username: string;
+  password: string;
   phoneNumber: string;
   role: "SYS_ADMIN" | "ADMIN" | "MHO" | "BHW";
   municipality?: string | null;

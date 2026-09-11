@@ -1,3 +1,5 @@
+// src/types/auth.types.ts
+
 import type { Session, User } from "@supabase/supabase-js";
 import type { LoginRequest } from "./login.type";
 import type { RoleCode } from "@/constants/roles";
@@ -21,6 +23,7 @@ export interface AuthProfile {
   email: string;
   phone_number: string | null;
   is_active: boolean;
+  must_change_password: boolean; // <--- ADDED THIS LINE
   role: AuthRole;
   barangay: AuthBarangay | null;
 }

@@ -1,3 +1,5 @@
+// src/routes/shared.routes.tsx
+
 import { lazy } from "react";
 import type { RouteObject } from "react-router-dom";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
@@ -8,12 +10,24 @@ const SettingsPage = lazy(() => import("@/pages/shared/SettingsPage"));
 const UnauthorizedPage = lazy(() => import("@/pages/shared/UnauthorizedPage"));
 const NotFoundPage = lazy(() => import("@/pages/shared/NotFoundPage"));
 
+// <--- ADDED LAZY IMPORT FOR CHANGE PASSWORD PAGE
+const ChangePasswordPage = lazy(() => import("@/pages/shared/ChangePasswordPage"));
+
 export const sharedRoutes: RouteObject[] = [
   {
     path: "/dashboard",
     element: (
       <ProtectedRoute>
         <Dashboard />
+      </ProtectedRoute>
+    ),
+  },
+  // <--- ADDED NEW ROUTE FOR CHANGE PASSWORD
+  {
+    path: "/change-password",
+    element: (
+      <ProtectedRoute>
+        <ChangePasswordPage />
       </ProtectedRoute>
     ),
   },

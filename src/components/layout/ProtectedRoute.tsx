@@ -1,5 +1,7 @@
+// src/components/layout/ProtectedRoute.tsx
+
 import type { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
@@ -7,7 +9,8 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { loading, isAuthenticated } = useAuth();
+  const { loading, isAuthenticated, profile } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -19,6 +22,14 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
+  }
+
+  // --- NEW LOGIC FOR FEATURE 6 ---
+  // If the user is required to change their password, redirect them to the 
+  // change password page. We check the current pathname to prevent an 
+  // infinite redirect loop when they are already on /change-password.
+  if (profile?.must_change_password && location.pathname !== "/change-password") {
+    return <Navigate to="/change-password" replace />;
   }
 
   return <>{children}</>;

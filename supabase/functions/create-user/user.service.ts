@@ -1,20 +1,11 @@
 import { CreateUserRequest } from "./types.ts";
 
-// Cryptographically random — never hardcoded, never chosen by the
-// admin. Generated fresh per account, server-side only.
-function generateTemporaryPassword(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  const base64 = btoa(String.fromCharCode(...bytes));
-  return base64.replace(/[+/=]/g, "").slice(0, 16);
-}
-
 export async function createUser(
   body: CreateUserRequest,
   supabaseAdmin: any
 ) {
-  // Validate role exists BEFORE creating the auth account, so we fail
-  // fast instead of leaving an orphaned auth user behind.
+  // Validate the role exists BEFORE creating the auth account, so we
+  // fail fast instead of leaving an orphaned auth user behind.
   const { data: roleData, error: roleError } = await supabaseAdmin
     .from("roles")
     .select("id")
@@ -25,14 +16,13 @@ export async function createUser(
     throw new Error(roleError?.message ?? "Role not found.");
   }
 
-  const temporaryPassword = generateTemporaryPassword();
-
-  // handle_new_user() (a DB trigger on auth.users) creates the matching
-  // profiles row automatically using this metadata, including setting
-  // must_change_password = true for new accounts.
+  // handle_new_user() — a trigger on auth.users — automatically creates
+  // the matching profiles row using this metadata. Do NOT also insert
+  // into users/profiles here: that's what was colliding with the
+  // trigger's own insert and causing every creation to fail.
   const { data, error } = await supabaseAdmin.auth.admin.createUser({
     email: body.email,
-    password: temporaryPassword,
+    password: body.password,
     email_confirm: true,
     user_metadata: {
       first_name: body.firstName,
@@ -54,7 +44,6 @@ export async function createUser(
 
   return {
     userId: data.user.id,
-    temporaryPassword,
     message: "User created successfully.",
   };
 }
