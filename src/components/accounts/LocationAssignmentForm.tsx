@@ -28,7 +28,9 @@ export default function LocationAssignmentForm({
       <h3 className="text-lg font-semibold">-- Location Assignment</h3>
 
       <div className="space-y-2">
-        <Label htmlFor="municipality">Municipality <span className="text-rose-500">*</span></Label>
+        <Label htmlFor="municipality">
+          Municipality <span className="text-rose-500">*</span>
+        </Label>
         <Input
           id="municipality"
           placeholder="Enter municipality"
@@ -40,12 +42,12 @@ export default function LocationAssignmentForm({
         )}
       </div>
 
-      {role === "BHW" || role === "SYS_ADMIN" && (
+      {/* FIXED: Added parentheses around the OR condition */}
+      {(role === "BHW" || role === "SYS_ADMIN") && (
         <div className="space-y-2">
           <Label htmlFor="barangay">
-            Barangay 
-            <span className="text-rose-500">*</span>
-            </Label>
+            Barangay <span className="text-rose-500">*</span>
+          </Label>
           <Input
             id="barangay"
             placeholder="Enter barangay"
