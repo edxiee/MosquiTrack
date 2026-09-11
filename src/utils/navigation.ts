@@ -47,7 +47,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       ],
     },
     {
-      title: "SYSTEM ADMINISTRATION",
+      title: "SITE ADMINISTRATION",
       items: [
         {
           name: "User Access Control",
@@ -71,6 +71,40 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
         },
       ],
     },
+    {
+      title: "LGU MONITORING",
+      items: [
+        {
+          name: "Mosquito Trap Map",
+          path: ROUTES.lgu.heatmap,
+        },
+        {
+          name: "Traps Reports & Requests",
+          path: ROUTES.lgu.analytics,
+        },
+        {
+          name: "Reports & Analytics",
+          path: ROUTES.lgu.reports,
+        },
+      ],
+    },
+    {
+      title: "BARANGAY OPERATIONS",
+      items: [
+        {
+          name: "Barangay Surveillance",
+          path: ROUTES.bhw.surveillance,
+        },
+        {
+          name: "Traps Overview",
+          path: ROUTES.bhw.hardware,
+        },
+        {
+          name: "Action Triage Log",
+          path: ROUTES.bhw.triage,
+        },
+      ],
+    },
   ],
 
   [ROLES.ADMIN]: [
@@ -84,7 +118,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       ],
     },
     {
-      title: "SYSTEM ADMINISTRATION",
+      title: "SITE ADMINISTRATION",
       items: [
         {
           name: "User Access Control",
