@@ -43,7 +43,8 @@ export default function UserAccessControlPage() {
       const matchesSearch =
         q === "" ||
         `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q);
+        u.email.toLowerCase().includes(q) ||
+        (u.phone_number ?? "").toLowerCase().includes(q);
       const matchesRole = role === "all" || u.role === role;
       const matchesStatus =
         status === "all" || u.status === status.toUpperCase();
