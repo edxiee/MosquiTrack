@@ -16,6 +16,12 @@ interface UserToolbarProps {
   onRoleChange: (value: string) => void;
   status: string;
   onStatusChange: (value: string) => void;
+  municipality: string;
+  onMunicipalityChange: (value: string) => void;
+  municipalityOptions: string[];
+  barangay: string;
+  onBarangayChange: (value: string) => void;
+  barangayOptions: string[];
   onCreateUser: () => void;
 }
 
@@ -26,12 +32,18 @@ export default function UserToolbar({
   onRoleChange,
   status,
   onStatusChange,
+  municipality,
+  onMunicipalityChange,
+  municipalityOptions,
+  barangay,
+  onBarangayChange,
+  barangayOptions,
   onCreateUser,
 }: UserToolbarProps) {
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       {/* Left Section */}
-      <div className="flex flex-1 flex-col gap-4 md:flex-row">
+      <div className="flex flex-1 flex-col gap-4 md:flex-row md:flex-wrap">
         {/* Search */}
         <Input
           placeholder="Search by name, email, or phone..."
@@ -61,6 +73,34 @@ export default function UserToolbar({
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Inactive</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
+          </SelectContent>
+        </Select>
+        {/* Municipality Filter */}
+        <Select value={municipality} onValueChange={onMunicipalityChange}>
+          <SelectTrigger className="w-full md:w-52">
+            <SelectValue placeholder="All Municipalities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Municipalities</SelectItem>
+            {municipalityOptions.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* Barangay Filter */}
+        <Select value={barangay} onValueChange={onBarangayChange}>
+          <SelectTrigger className="w-full md:w-48">
+            <SelectValue placeholder="All Barangays" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Barangays</SelectItem>
+            {barangayOptions.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

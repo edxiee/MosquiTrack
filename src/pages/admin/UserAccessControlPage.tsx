@@ -13,6 +13,8 @@ export default function UserAccessControlPage() {
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
+  const [municipality, setMunicipality] = useState("all");
+  const [barangay, setBarangay] = useState("all");
 
   const [allUsers, setAllUsers] = useState<DatabaseUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,6 +39,25 @@ export default function UserAccessControlPage() {
     loadUsers();
   }, []);
 
+  // Built from whatever values actually exist right now — there's no
+  // fixed municipality/barangay lookup table, these are free-text
+  // fields on the user record.
+  const municipalityOptions = useMemo(() => {
+    const values = new Set(
+      allUsers
+        .map((u) => u.municipality)
+        .filter((v): v is string => Boolean(v)),
+    );
+    return Array.from(values).sort();
+  }, [allUsers]);
+
+  const barangayOptions = useMemo(() => {
+    const values = new Set(
+      allUsers.map((u) => u.barangay).filter((v): v is string => Boolean(v)),
+    );
+    return Array.from(values).sort();
+  }, [allUsers]);
+
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allUsers.filter((u) => {
@@ -48,9 +69,18 @@ export default function UserAccessControlPage() {
       const matchesRole = role === "all" || u.role === role;
       const matchesStatus =
         status === "all" || u.status === status.toUpperCase();
-      return matchesSearch && matchesRole && matchesStatus;
+      const matchesMunicipality =
+        municipality === "all" || u.municipality === municipality;
+      const matchesBarangay = barangay === "all" || u.barangay === barangay;
+      return (
+        matchesSearch &&
+        matchesRole &&
+        matchesStatus &&
+        matchesMunicipality &&
+        matchesBarangay
+      );
     });
-  }, [allUsers, search, role, status]);
+  }, [allUsers, search, role, status, municipality, barangay]);
 
   const stats = useMemo(
     () => ({
@@ -125,6 +155,12 @@ export default function UserAccessControlPage() {
         onRoleChange={setRole}
         status={status}
         onStatusChange={setStatus}
+        municipality={municipality}
+        onMunicipalityChange={setMunicipality}
+        municipalityOptions={municipalityOptions}
+        barangay={barangay}
+        onBarangayChange={setBarangay}
+        barangayOptions={barangayOptions}
         onCreateUser={handleCreateUser}
       />
       <UsersTable
