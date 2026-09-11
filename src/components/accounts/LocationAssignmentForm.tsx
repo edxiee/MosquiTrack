@@ -19,7 +19,8 @@ export default function LocationAssignmentForm({
   onMunicipalityChange,
   onBarangayChange,
 }: LocationAssignmentFormProps) {
-  if (role === "SYS_ADMIN" || role === "") {
+  // Only hide the form when role is empty
+  if (role === "") {
     return null;
   }
 
@@ -40,7 +41,8 @@ export default function LocationAssignmentForm({
         )}
       </div>
 
-      {role === "BHW" && (
+      {/* Show Barangay for BHW and SYS_ADMIN */}
+      {(role === "BHW" || role === "SYS_ADMIN") && (
         <div className="space-y-2">
           <Label htmlFor="barangay">Barangay</Label>
           <Input
