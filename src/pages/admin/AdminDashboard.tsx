@@ -452,7 +452,7 @@ export default function AdminDashboard() {
                         <TableCell className="py-3.5">
                           <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
                             {reading.mosquito_count ?? reading.egg_count ?? 0}
-                            <span className="text-xs font-normal text-slate-400">pcs</span>
+                            <span className="text-xs font-normal text-slate-400">mos</span>
                           </span>
                         </TableCell>
                         <TableCell className="py-3.5">

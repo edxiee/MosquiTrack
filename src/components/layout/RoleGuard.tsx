@@ -25,6 +25,12 @@ export default function RoleGuard({ allow, allowedRoles, children }: RoleGuardPr
     return <Navigate to="/" replace />;
   }
 
+  // A deactivated account must never reach protected pages, regardless
+  // of role — this takes priority over the role check below.
+  if (!profile.is_active) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
   if (!profile.role) {
     return <Navigate to="/unauthorized" replace />;
   }
