@@ -97,52 +97,72 @@ export default function CreateUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xxl">
         {showSuccess ? (
-          <div className="flex flex-col items-center gap-6 px-2 py-6 text-center">
-            {/* Icon */}
-            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-green-100 ring-8 ring-green-50 dark:bg-green-900/30 dark:ring-green-900/10">
+          <div className="flex flex-col items-center text-center space-y-6 px-1 py-4">
+            {/* Success Icon */}
+            <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-8 ring-emerald-500/5">
               <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
+                className="w-8 h-8"
                 fill="none"
+                viewBox="0 0 24 24"
                 stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-12 w-12 text-green-600 dark:text-green-400"
+                strokeWidth="2.5"
               >
-                <circle cx="12" cy="12" r="10" />
-                <path d="m9 12 2 2 4-4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
 
-            {/* Text */}
-            <div className="space-y-3">
-              <DialogTitle className="text-2xl font-bold tracking-tight">
-                User Created Successfully!
+            {/* Header */}
+            <div className="space-y-1.5">
+              <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
+                User Created Successfully
               </DialogTitle>
-              <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
-                The account has been created with a{" "}
-                <span className="font-semibold text-amber-600 dark:text-amber-400">
-                  PENDING
-                </span>{" "}
-                status.
-                <br className="mb-1" />
-                A confirmation email with the user's temporary credentials has
-                been sent to their Gmail.
+              <DialogDescription className="text-sm text-muted-foreground">
+                Account setup complete with initial pending status.
               </DialogDescription>
             </div>
 
-            {/* Divider */}
-            <div className="w-full border-t border-border" />
+            {/* Summary Card */}
+            <div className="w-full rounded-xl bg-muted/40 border border-border/60 p-4 text-left text-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">Account Status</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  PENDING
+                </span>
+              </div>
 
-            {/* Button */}
+             <div className="border-t border-border/40 pt-2.5 flex items-start gap-2.5 text-muted-foreground">
+                <svg
+                  className="w-4 h-4 text-muted-foreground/70 shrink-0 mt-0.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+                />
+              </svg>
+              <span className="leading-relaxed">
+                A confirmation email with temporary credentials has been sent to their inbox.
+              </span>
+            </div>
+          </div>
+
+            {/* Actions */}
             <Button
-              className="h-11 min-w-48 rounded-lg bg-green-600 px-8 text-base font-semibold text-white shadow-sm hover:bg-green-700 active:bg-green-800 dark:bg-green-600 dark:hover:bg-green-700"
+              className="w-full h-10 rounded-lg text-sm font-medium shadow-sm transition-all bg-emerald-500 text-white hover:bg-emerald-600 focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"
               onClick={() => handleOpenChange(false)}
             >
-              Okay
+              Done
             </Button>
           </div>
         ) : (
