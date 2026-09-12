@@ -19,7 +19,7 @@ export default function UserForm<T extends BaseUserForm>({
   isEditing = false, // ← default false
 }: UserFormProps<T>) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PersonalInformationForm
         firstName={formData.firstName}
         middleName={formData.middleName}
