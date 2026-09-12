@@ -25,8 +25,7 @@ export default function RoleGuard({ allow, allowedRoles, children }: RoleGuardPr
     return <Navigate to="/" replace />;
   }
 
-  // A deactivated account must never reach protected pages, regardless
-  // of role — this takes priority over the role check below.
+  // Deactivated accounts never reach protected pages
   if (!profile.is_active) {
     return <Navigate to="/unauthorized" replace />;
   }
@@ -35,7 +34,19 @@ export default function RoleGuard({ allow, allowedRoles, children }: RoleGuardPr
     return <Navigate to="/unauthorized" replace />;
   }
 
-  if (!allowed.includes(profile.role.role_code)) {
+  const roleCode = profile.role.role_code;
+
+  // Not allowed for this route
+  if (!allowed.includes(roleCode)) {
+    // Special redirect for BHW and MHO
+    if (roleCode === "BHW") {
+      return <Navigate to="/bhw/dashboard" replace />;
+    }
+    if (roleCode === "MHO") {
+      return <Navigate to="/lgu/dashboard" replace />;
+    }
+
+    // Everyone else
     return <Navigate to="/unauthorized" replace />;
   }
 
