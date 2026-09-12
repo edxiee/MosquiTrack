@@ -24,6 +24,18 @@ export async function logout(): Promise<void> {
   }
 }
 
+export async function sendPasswordResetEmail(email: string): Promise<void> {
+  const redirectTo = `${window.location.origin}/change-password`;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
 // --- NEW FUNCTION FOR STEP 3 ---
 export async function changePassword(newPassword: string): Promise<void> {
   // 1. Update the actual Supabase Auth password.
