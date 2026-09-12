@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type TrapRequestType = "Request Pick-up" | "Request Deployment";
+export type TrapRequestType = string; 
 
 export interface TrapRequest {
   req_id: string;
