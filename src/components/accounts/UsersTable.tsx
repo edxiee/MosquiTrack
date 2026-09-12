@@ -11,7 +11,7 @@ import type { DatabaseUser } from "@/types/user.types";
 import RoleBadge from "./RoleBadge";
 import StatusBadge from "./StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2, UserX, UserCheck } from "lucide-react";
+import { Pencil, Trash2, UserX, UserCheck, Mail } from "lucide-react";
 
 interface UsersTableProps {
   users: DatabaseUser[];
@@ -19,6 +19,7 @@ interface UsersTableProps {
   onEdit: (user: DatabaseUser) => void;
   onDelete: (user: DatabaseUser) => void;
   onToggleStatus: (user: DatabaseUser) => void;
+  onResendConfirmation?: (user: DatabaseUser) => void;
 }
 
 export default function UsersTable({
@@ -27,6 +28,7 @@ export default function UsersTable({
   onEdit,
   onDelete,
   onToggleStatus,
+  onResendConfirmation,
 }: UsersTableProps) {
   if (isLoading) {
     return (
@@ -65,6 +67,8 @@ export default function UsersTable({
             ) : (
               users.map((user) => {
                 const isInactive = user.status === "INACTIVE";
+                const isPending = user.status === "PENDING";
+                
                 return (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium text-slate-900">
@@ -83,6 +87,17 @@ export default function UsersTable({
                       <StatusBadge status={user.status} />
                     </TableCell>
                     <TableCell className="text-right space-x-2">
+                      {isPending && onResendConfirmation && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                          onClick={() => onResendConfirmation(user)}
+                        >
+                          <Mail className="mr-2 h-4 w-4" />
+                          Resend Email
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"

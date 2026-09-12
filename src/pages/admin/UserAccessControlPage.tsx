@@ -144,6 +144,22 @@ export default function UserAccessControlPage() {
     }
   }
 
+  async function handleResendConfirmation(user: DatabaseUser) {
+    const confirmed = window.confirm(
+      `Resend confirmation email to ${user.email}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const { resendConfirmationEmail } = await import("@/services/users.service");
+      await resendConfirmationEmail(user.email);
+      window.alert(`Confirmation email resent to ${user.email}.`);
+    } catch (err) {
+      console.error("Failed to resend email:", err);
+      window.alert("Failed to resend confirmation email. Please try again.");
+    }
+  }
+
   return (
     <div className="space-y-6 p-8">
       <UserPageHeader />
@@ -169,6 +185,7 @@ export default function UserAccessControlPage() {
         onEdit={handleEditUser}
         onDelete={handleDeleteUser}
         onToggleStatus={handleToggleStatus}
+        onResendConfirmation={handleResendConfirmation}
       />
       <CreateUserDialog
         open={isCreateDialogOpen}

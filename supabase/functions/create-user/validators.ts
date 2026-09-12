@@ -8,7 +8,6 @@ export function validateCreateUser(
     !body.lastName ||
     !body.email ||
     !body.username ||
-    !body.password ||
     !body.phoneNumber ||
     !body.role
   ) {

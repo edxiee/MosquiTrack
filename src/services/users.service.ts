@@ -9,7 +9,6 @@ export async function createUser(formData: CreateUserForm) {
     lastName: formData.lastName,
     email: formData.email,
     username: formData.username,
-    password: formData.password,
     phoneNumber: formData.phoneNumber,
     role: formData.role,
     municipality: formData.municipality,
@@ -96,4 +95,16 @@ export async function markFirstLoginActive(): Promise<void> {
   } catch (err) {
     console.error("Failed to mark user active on login:", err);
   }
+}
+
+export async function resendConfirmationEmail(email: string) {
+  const { data, error } = await supabase.auth.resend({
+    type: 'signup',
+    email,
+  });
+
+  if (error) {
+    throw error;
+  }
+  return data;
 }
