@@ -97,7 +97,11 @@ export default function CreateUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xxl">
+      <DialogContent className={
+        showSuccess 
+          ? "max-h-[90vh] overflow-y-auto sm:max-w-xxl" 
+          : "max-h-[90vh] overflow-y-auto sm:max-w-xl"
+      }>
         {showSuccess ? (
           <div className="flex flex-col items-center text-center space-y-6 px-1 py-4">
             {/* Success Icon */}

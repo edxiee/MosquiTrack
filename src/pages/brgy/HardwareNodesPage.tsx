@@ -6,19 +6,32 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  X,
+  Send,
 } from "lucide-react";
 
 import { ROUTES } from "@/utils/navigation";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { fetchDevicesForCurrentUser } from "@/services/device.service";
 import { formatDeployedBy } from "@/utils/deviceHelpers";
 import type { OvitrapDevice } from "@/types/device.types";
 import { createTrapRequest } from "@/services/trapRequest.service";
 
+import { SuccessModal } from "@/components/reports/modals/SuccessModal";
+import { ErrorModal } from "@/components/reports/modals/ErrorModal";
+
 import { getErrorMessage } from "@/utils/errorHelpers";
 import { supabase } from "@/lib/supabase";
+
+type RequestType = "Request Pick-up" | "Request Deployment";
+
+const REQUEST_TYPES: RequestType[] = [
+  "Request Pick-up",
+  "Request Deployment",
+];
 
 export default function HardwareNodesPage() {
   const navigate = useNavigate();
@@ -26,6 +39,20 @@ export default function HardwareNodesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<OvitrapDevice | null>(null);
+  const [requestType, setRequestType] = useState<RequestType | "">("");
+  const [description, setDescription] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastRequestType, setLastRequestType] = useState<RequestType | "">("");
 
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
@@ -89,37 +116,56 @@ export default function HardwareNodesPage() {
   }, [devices, search]);
 
   const handleViewLocation = (device: OvitrapDevice) => {
-      if (!device.latitude || !device.longitude) return;
-      navigate(`${ROUTES.bhw.surveillance}?viewId=${device.id}`);
-    };
+    if (!device.latitude || !device.longitude) return;
+    navigate(`${ROUTES.bhw.surveillance}?viewId=${device.id}`);
+  };
 
-  const handleRequestPickup = async (device: OvitrapDevice) => {
-  const confirmed = window.confirm(
-    `Are you sure you want to request a pick-up for ${device.device_code}?`
-  );
-  if (!confirmed) return;
+  const openRequestModal = (device: OvitrapDevice, type: RequestType) => {
+    setSelectedDevice(device);
+    setRequestType(type);
+    setDescription("");
+    setNotes("");
+    setModalError(null);
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    if (saving) return;
+    setModalOpen(false);
+    setSelectedDevice(null);
+    setRequestType("");
+    setDescription("");
+    setNotes("");
+    setModalError(null);
+  };
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!selectedDevice || !requestType) return;
+
+  setSaving(true);
+  setModalError(null);
 
   try {
-    await createTrapRequest(device.id, "Request Pick-up");
-    alert(`Pick-up request submitted for ${device.device_code}`);
+    await createTrapRequest(
+      selectedDevice.id,
+      requestType,
+      description.trim() || null,
+      notes.trim() || null
+    );
+
+    setLastRequestType(requestType);
+    closeModal();           // close the form modal
+    setSuccessOpen(true);   // show success modal
+    loadData(false);
   } catch (err) {
     console.error(err);
-    alert(getErrorMessage(err, "Failed to submit pick-up request"));
-  }
-};
-
-const handleRequestDeployment = async (device: OvitrapDevice) => {
-  const confirmed = window.confirm(
-    `Are you sure you want to request deployment for ${device.device_code}?`
-  );
-  if (!confirmed) return;
-
-  try {
-    await createTrapRequest(device.id, "Request Deployment");
-    alert(`Deployment request submitted for ${device.device_code}`);
-  } catch (err) {
-    console.error(err);
-    alert(getErrorMessage(err, "Failed to submit deployment request"));
+    const msg = getErrorMessage(err, "Failed to submit request");
+    setErrorMessage(msg);
+    closeModal();
+    setErrorOpen(true);     // show error modal
+  } finally {
+    setSaving(false);
   }
 };
 
@@ -193,10 +239,13 @@ const handleRequestDeployment = async (device: OvitrapDevice) => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredDevices.map((device) => {
-                  const realStatus = device.device_statuses?.status_name ?? "Unknown";
-                  const displayStatus = (device as any).connection_status ?? realStatus;
-                  const isDeployed = realStatus === "Active" || realStatus === "Online";
-                  
+                  const realStatus =
+                    device.device_statuses?.status_name ?? "Unknown";
+                  const displayStatus =
+                    (device as any).connection_status ?? realStatus;
+                  const isDeployed =
+                    realStatus === "Active" || realStatus === "Online";
+
                   return (
                     <tr
                       key={device.id}
@@ -246,7 +295,9 @@ const handleRequestDeployment = async (device: OvitrapDevice) => {
                         {isDeployed ? (
                           <Button
                             size="sm"
-                            onClick={() => handleRequestPickup(device)}
+                            onClick={() =>
+                              openRequestModal(device, "Request Pick-up")
+                            }
                             className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
                           >
                             <Package className="w-3.5 h-3.5" />
@@ -255,7 +306,9 @@ const handleRequestDeployment = async (device: OvitrapDevice) => {
                         ) : (
                           <Button
                             size="sm"
-                            onClick={() => handleRequestDeployment(device)}
+                            onClick={() =>
+                              openRequestModal(device, "Request Deployment")
+                            }
                             className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                           >
                             <MapPin className="w-3.5 h-3.5" />
@@ -279,6 +332,169 @@ const handleRequestDeployment = async (device: OvitrapDevice) => {
           </div>
         )}
       </div>
+
+      {/* Success Modal */}
+      <SuccessModal
+        open={successOpen}
+        onClose={() => setSuccessOpen(false)}
+        title="Request Submitted Successfully"
+        description={
+          lastRequestType
+            ? `Your "${lastRequestType}" has been recorded and is now pending review.`
+            : "Your request has been recorded and is now pending review."
+        }
+        details={
+          selectedDevice ? (
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Trap ID</span>
+                <span className="font-medium text-slate-800">
+                  {selectedDevice.device_code}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Request Type</span>
+                <span className="font-medium text-slate-800">{lastRequestType}</span>
+              </div>
+            </div>
+          ) : null
+        }
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => {
+          setErrorOpen(false);
+          setErrorMessage(null);
+        }}
+        errorMessage={errorMessage}
+      />
+
+      {/* Request Action Modal */}
+      {modalOpen && selectedDevice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={closeModal}
+          />
+
+          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Submit Request Action
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Create a new entry in request_actions
+                </p>
+              </div>
+              <button
+                onClick={closeModal}
+                disabled={saving}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitRequest} className="px-6 py-5 space-y-4">
+              {modalError && (
+                <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">
+                  {modalError}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600">
+                  Device ID <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  value={selectedDevice.device_code}
+                  readOnly
+                  className="h-9 text-sm bg-slate-50 text-slate-600 cursor-not-allowed"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600">
+                  Request Type <span className="text-rose-500">*</span>
+                </Label>
+                <select
+                  value={requestType}
+                  onChange={(e) =>
+                    setRequestType(e.target.value as RequestType | "")
+                  }
+                  className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                >
+                  <option value="" disabled>
+                    Select request type…
+                  </option>
+                  {REQUEST_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600">
+                  Description
+                </Label>
+                <Input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe the situation or observation"
+                  className="h-9 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600">
+                  Notes
+                </Label>
+                <Input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Additional notes (optional)"
+                  className="h-9 text-sm"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="h-9 px-4 text-sm"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={saving || !requestType}
+                  className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium gap-1.5"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Submitting…
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Submit Request
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
