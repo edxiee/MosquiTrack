@@ -19,10 +19,14 @@ export function validateCreateUserForm(formData: CreateUserForm): UserFormErrors
   // Contact Information
   if (!(formData.email ?? "").trim()) {
     errors.email = "Email is required.";
+  } else if (!(formData.email ?? "").includes("@")) {
+    errors.email = "Email must contain @.";
   }
 
   if (!(formData.phoneNumber ?? "").trim()) {
     errors.phoneNumber = "Phone number is required.";
+  } else if ((formData.phoneNumber ?? "").length !== 11) {
+    errors.phoneNumber = "Phone number must be exactly 11 digits.";
   }
 
   // Username
@@ -72,10 +76,14 @@ export function validateUpdateUserForm(
   // Contact Information
   if (!(formData.email ?? "").trim()) {
     errors.email = "Email is required.";
+  } else if (!(formData.email ?? "").includes("@")) {
+    errors.email = "Email must contain @.";
   }
 
   if (!(formData.phoneNumber ?? "").trim()) {
     errors.phoneNumber = "Phone number is required.";
+  } else if ((formData.phoneNumber ?? "").length !== 11) {
+    errors.phoneNumber = "Phone number must be exactly 11 digits.";
   }
 
   // Username

@@ -9,12 +9,14 @@ interface UserFormProps<T extends BaseUserForm> {
   formData: T;
   errors: UserFormErrors;
   updateForm: <K extends keyof T>(field: K, value: T[K]) => void;
+  isEditing?: boolean; // ← add this
 }
 
 export default function UserForm<T extends BaseUserForm>({
   formData,
   errors,
   updateForm,
+  isEditing = false, // ← default false
 }: UserFormProps<T>) {
   return (
     <div className="space-y-6">
@@ -34,6 +36,7 @@ export default function UserForm<T extends BaseUserForm>({
         errors={errors}
         onEmailChange={(value) => updateForm("email", value)}
         onPhoneNumberChange={(value) => updateForm("phoneNumber", value)}
+        isEditing={isEditing} // ← pass it here
       />
 
       <UsernameForm

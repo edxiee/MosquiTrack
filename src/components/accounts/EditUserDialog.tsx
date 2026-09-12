@@ -119,6 +119,7 @@ export default function EditUserDialog({
           formData={formData}
           errors={errors}
           updateForm={updateForm}
+          isEditing={true}
         />
 
         <DialogFooter>
