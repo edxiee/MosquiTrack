@@ -30,18 +30,9 @@ export function validateCreateUserForm(formData: CreateUserForm): UserFormErrors
     errors.username = "Username is required.";
   }
 
-  // Password
-  if (!(formData.password ?? "").trim()) {
-    errors.password = "Password is required.";
-  }
-
-  if (
-    formData.password &&
-    formData.confirmPassword &&
-    formData.password !== formData.confirmPassword
-  ) {
-    errors.confirmPassword = "Passwords do not match.";
-  }
+  // --- REMOVED PASSWORD VALIDATION ---
+  // Per Feature 5, the admin does NOT manually enter a password.
+  // The Edge Function auto-generates a secure temporary password.
 
   // Role
   if (!formData.role) {
@@ -53,6 +44,7 @@ export function validateCreateUserForm(formData: CreateUserForm): UserFormErrors
     errors.municipality = "Municipality is required";
   }
 
+  // FIXED: Added parentheses for correct logical grouping
   if (
     (formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
     !formData.barangay?.trim()
@@ -101,6 +93,7 @@ export function validateUpdateUserForm(
     errors.municipality = "Municipality is required";
   }
 
+  // FIXED: Added parentheses for correct logical grouping
   if (
     (formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
     !formData.barangay?.trim()
