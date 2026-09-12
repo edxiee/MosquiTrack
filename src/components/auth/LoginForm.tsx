@@ -67,7 +67,7 @@ export default function LoginForm() {
       onSubmit={(event) => {
         handleSubmit(onSubmit)(event);
       }}
-      className="space-y-6"
+      className="space-y-5"
     >
       <EmailField register={register} error={errors.email} />
       <PasswordField register={register} error={errors.password} />

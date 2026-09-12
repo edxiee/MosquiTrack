@@ -1,3 +1,4 @@
+// src/components/auth/AuthHeader.tsx
 interface AuthHeaderProps {
   title: string;
   description: string;
@@ -9,10 +10,10 @@ export default function AuthHeader({
 }: AuthHeaderProps) {
   return (
     <div className="space-y-2 text-center">
-      <h1 className="text-4xl font-bold tracking-tight text-slate-950">
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">
         {title}
       </h1>
-      <p className="text-sm text-muted-foreground">{description}</p>
+      <p className="text-base text-slate-500">{description}</p>
     </div>
   );
 }

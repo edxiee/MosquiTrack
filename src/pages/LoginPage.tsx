@@ -32,7 +32,7 @@ export default function LoginPage() {
       <AuthBackground />
 
       <AuthCard>
-        <div className="space-y-8">
+        <div className="space-y-6">
           <AuthLogo />
 
           <AuthHeader

@@ -1,3 +1,4 @@
+// src/components/auth/AuthCard.tsx
 import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 
@@ -7,7 +8,7 @@ interface AuthCardProps {
 
 export default function AuthCard({ children }: AuthCardProps) {
   return (
-    <Card className="w-full max-w-md rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-2xl backdrop-blur-md">
+    <Card className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl">
       {children}
     </Card>
   );
