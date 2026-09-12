@@ -13,11 +13,13 @@ import { ROUTES } from "@/utils/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatDeployedBy} from "@/utils/deviceHelpers";
+import { formatDeployedBy } from "@/utils/deviceHelpers";
 import { fetchDevicesForCurrentMunicipality } from "@/services/device.service";
 import type { OvitrapDevice } from "@/types/device.types";
-
+import { createTrapRequest } from "@/services/trapRequest.service";
 import { getErrorMessage } from "@/utils/errorHelpers";
+import { SuccessModal } from "@/components/reports/modals/SuccessModal";
+import { ErrorModal } from "@/components/reports/modals/ErrorModal";
 
 const REQUEST_TYPES = [
   "Send Monitoring Personnel",
@@ -81,8 +83,7 @@ function RequestActionModal({
       });
       onClose();
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to submit request";
+      const msg = getErrorMessage(err, "Failed to submit request");
       setError(msg);
     } finally {
       setSaving(false);
@@ -108,7 +109,8 @@ function RequestActionModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            disabled={saving}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -191,7 +193,7 @@ function RequestActionModal({
             </Button>
             <Button
               type="submit"
-              disabled={saving}
+              disabled={saving || !requestType}
               className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium gap-1.5"
             >
               {saving ? (
@@ -221,40 +223,39 @@ export default function PrescriptiveAnalyticsPage() {
   const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState<OvitrapDevice | null>(
-    null
-  );
+  const [selectedDevice, setSelectedDevice] = useState<OvitrapDevice | null>(null);
+
+  // Success / Error modals
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastRequestType, setLastRequestType] = useState<string>("");
 
   const loadData = async () => {
-  setLoading(true);
-  setError(null);
-  try {
-    const all = await fetchDevicesForCurrentMunicipality();
+    setLoading(true);
+    setError(null);
+    try {
+      const all = await fetchDevicesForCurrentMunicipality();
 
-    // Sort: deployed first, non-deployed at the bottom
-    const sorted = [...all].sort((a, b) => {
-      // 1. Deployed devices first
-      const aDeployed = a.latitude != null && a.longitude != null ? 0 : 1;
-      const bDeployed = b.latitude != null && b.longitude != null ? 0 : 1;
+      const sorted = [...all].sort((a, b) => {
+        const aDeployed = a.latitude != null && a.longitude != null ? 0 : 1;
+        const bDeployed = b.latitude != null && b.longitude != null ? 0 : 1;
 
-      if (aDeployed !== bDeployed) {
-        return aDeployed - bDeployed;
-      }
+        if (aDeployed !== bDeployed) return aDeployed - bDeployed;
 
-      // 2. Then sort alphabetically by device_code (name)
-      const nameA = (a.device_code || "").toLowerCase();
-      const nameB = (b.device_code || "").toLowerCase();
-      return nameA.localeCompare(nameB);
-    });   
+        const nameA = (a.device_code || "").toLowerCase();
+        const nameB = (b.device_code || "").toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
 
       setDevices(sorted);
     } catch (err: unknown) {
-    console.error("PrescriptiveAnalyticsPage load error:", err);
-    const msg = getErrorMessage(err, "Failed to load devices");
-    setError(msg);
-    setDevices([]);
+      console.error("PrescriptiveAnalyticsPage load error:", err);
+      const msg = getErrorMessage(err, "Failed to load devices");
+      setError(msg);
+      setDevices([]);
     } finally {
-    setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -297,12 +298,25 @@ export default function PrescriptiveAnalyticsPage() {
     notes: string;
     requestType: RequestType;
   }) => {
-    console.log("Submitting request action:", payload);
-    alert(
-      `Request submitted!\nType: ${payload.requestType}\nDevice: ${selectedDevice?.device_code}`
-    );
+    try {
+      await createTrapRequest(
+        payload.deviceId,
+        payload.requestType,
+        payload.description || null,
+        payload.notes || null
+      );
+
+      setLastRequestType(payload.requestType);
+      setSuccessOpen(true);
+    } catch (err) {
+      console.error(err);
+      const msg = getErrorMessage(err, "Failed to submit request");
+      setErrorMessage(msg);
+      setErrorOpen(true);
+      // Re-throw so the form modal can also show the error if needed
+      throw err;
+    }
   };
-  
 
   return (
     <div className="flex flex-col gap-6">
@@ -375,6 +389,8 @@ export default function PrescriptiveAnalyticsPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredDevices.map((device) => {
                   const hasLocation = device.latitude != null;
+                  const isDeployed =
+                    device.latitude != null && device.longitude != null;
 
                   return (
                     <tr
@@ -418,25 +434,19 @@ export default function PrescriptiveAnalyticsPage() {
                       </td>
 
                       <td className="px-5 py-4">
-                        {(() => {
-                          const isDeployed = device.latitude != null && device.longitude != null;
-
-                          return (
-                            <Button
-                              size="sm"
-                              disabled={!isDeployed}
-                              onClick={() => isDeployed && openRequestModal(device)}
-                              className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
-                                isDeployed
-                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                              }`}
-                            >
-                              <Send className="w-3.5 h-3.5" />
-                              Post Request Action
-                            </Button>
-                          );
-                        })()}
+                        <Button
+                          size="sm"
+                          disabled={!isDeployed}
+                          onClick={() => isDeployed && openRequestModal(device)}
+                          className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
+                            isDeployed
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                          }`}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Post Request Action
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -455,6 +465,7 @@ export default function PrescriptiveAnalyticsPage() {
         )}
       </div>
 
+      {/* Request Form Modal */}
       <RequestActionModal
         open={modalOpen}
         device={selectedDevice}
@@ -463,6 +474,46 @@ export default function PrescriptiveAnalyticsPage() {
           setSelectedDevice(null);
         }}
         onSubmit={handleSubmitRequest}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        open={successOpen}
+        onClose={() => setSuccessOpen(false)}
+        title="Request Submitted Successfully"
+        description={
+          lastRequestType
+            ? `Your "${lastRequestType}" request has been recorded and is now pending review.`
+            : "Your request has been recorded and is now pending review."
+        }
+        details={
+          selectedDevice ? (
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Trap ID</span>
+                <span className="font-medium text-slate-800">
+                  {selectedDevice.device_code}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Request Type</span>
+                <span className="font-medium text-slate-800">
+                  {lastRequestType}
+                </span>
+              </div>
+            </div>
+          ) : null
+        }
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => {
+          setErrorOpen(false);
+          setErrorMessage(null);
+        }}
+        errorMessage={errorMessage}
       />
     </div>
   );
