@@ -2,65 +2,76 @@ import { supabase } from "@/lib/supabase";
 
 export type TrapRequestType = "Request Pick-up" | "Request Deployment";
 
-export interface TrapDeploymentRequest {
+export interface TrapRequest {
   req_id: string;
   requested_by: string | null;
   device_id: string;
   request: TrapRequestType;
-  created_at: string;
+  descriptions: string | null;
+  notes: string | null;
+  remarks: string | null;
+  created_by: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string | null;
 }
 
-/** Insert a new trap deployment / pick-up request */
+/** Insert a new request into request_actions */
 export async function createTrapRequest(
   deviceId: string,
-  requestType: TrapRequestType
-): Promise<TrapDeploymentRequest> {
+  request: TrapRequestType,
+  descriptions: string | null = null,
+  notes: string | null = null
+) {
   const {
     data: { user },
-    error: authError,
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    throw new Error("You must be logged in to submit a request.");
+  if (userError || !user) {
+    throw new Error("User not authenticated");
   }
 
   const { data, error } = await supabase
-    .from("trap_deployment_requests")
+    .from("request_actions")
     .insert({
-      requested_by: user.id,
       device_id: deviceId,
-      request: requestType,
+      request,
+      descriptions,
+      notes,
+      requested_by: user.id,
     })
     .select()
     .single();
 
   if (error) throw error;
-  return data as TrapDeploymentRequest;
+  return data as TrapRequest;
 }
 
-/** Fetch all requests (optionally filter by device or user later) */
-export async function fetchTrapRequests(): Promise<TrapDeploymentRequest[]> {
+/** Fetch all requests */
+export async function fetchTrapRequests(): Promise<TrapRequest[]> {
   const { data, error } = await supabase
-    .from("trap_deployment_requests")
+    .from("request_actions")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data as TrapDeploymentRequest[]) ?? [];
+  return (data as TrapRequest[]) ?? [];
 }
 
 /** Fetch requests for a specific device */
 export async function fetchTrapRequestsByDevice(
   deviceId: string
-): Promise<TrapDeploymentRequest[]> {
+): Promise<TrapRequest[]> {
   const { data, error } = await supabase
-    .from("trap_deployment_requests")
+    .from("request_actions")
     .select("*")
     .eq("device_id", deviceId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data as TrapDeploymentRequest[]) ?? [];
+  return (data as TrapRequest[]) ?? [];
 }
