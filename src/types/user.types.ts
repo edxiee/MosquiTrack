@@ -37,8 +37,7 @@ export interface BaseUserForm {
 }
 
 export interface CreateUserForm extends BaseUserForm {
-  password: string;
-  confirmPassword: string;
+  // Password is now generated on the server
 }
 
 export interface UpdateUserForm extends BaseUserForm {
@@ -55,6 +54,4 @@ export interface UserFormErrors {
   role?: string;
   municipality?: string;
   barangay?: string;
-  password?: string;
-  confirmPassword?: string;
 }
