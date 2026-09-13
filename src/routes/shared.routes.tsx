@@ -22,7 +22,6 @@ export const sharedRoutes: RouteObject[] = [
       </ProtectedRoute>
     ),
   },
-  // <--- ADDED NEW ROUTE FOR CHANGE PASSWORD
   {
     path: "/change-password",
     element: <ChangePasswordPage />,

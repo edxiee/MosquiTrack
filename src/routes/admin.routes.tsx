@@ -4,6 +4,7 @@ import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import RoleGuard from "@/components/layout/RoleGuard";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { ROLES } from "@/constants/roles";
+import RequestActionsOverviewPage from "@/pages/shared/RequestActionsOverviewPage";
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const UserAccessControlPage = lazy(() => import("@/pages/admin/UserAccessControlPage"));
@@ -29,6 +30,10 @@ export const adminRoutes: RouteObject[] = [
         path: "dashboard",
         element: <AdminDashboard />,
       },
+      {
+    path: "request-actions-overview",
+    element: <RequestActionsOverviewPage />,
+  },
       {
         path: "users",
         element: <UserAccessControlPage />,
