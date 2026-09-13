@@ -13,7 +13,8 @@ import {
   BarChart3, 
   Eye, 
   Boxes, 
-  FileText 
+  FileText,
+  StickyNote 
 } from "lucide-react";
 import { ROLES, type RoleCode } from "@/constants/roles";
 
@@ -27,6 +28,7 @@ export const ROUTES = {
     liveMonitoring: "/admin/live-monitoring",
     announcements: "/admin/announcements",
     systemControls: "/admin/system-controls",
+    requestActionsOverview: "/admin/request-actions-overview",
   },
   lgu: {
     dashboard: "/lgu/dashboard",
@@ -57,7 +59,10 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
   [ROLES.SYSTEM_ADMIN]: [
     {
       title: "",
-      items: [{ name: "Dashboard", path: ROUTES.admin.dashboard, icon: LayoutDashboard }],
+      items: [
+        { name: "Dashboard", path: ROUTES.admin.dashboard, icon: LayoutDashboard },
+        { name: "Request Actions Overview", path: ROUTES.admin.requestActionsOverview, icon: StickyNote },
+      ],
     },
     {
       title: "System Administration",
