@@ -27,64 +27,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLguDashboardData } from "@/hooks/useLguDashboardData";
+import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import { ROUTES } from "@/utils/navigation";
-
-const alertTierSummary = [
-  {
-    tier: "Green",
-    count: 18,
-    tone: "border-emerald-200 bg-emerald-50/80 text-emerald-700",
-  },
-  {
-    tier: "Yellow",
-    count: 7,
-    tone: "border-yellow-200 bg-yellow-50/80 text-yellow-800",
-  },
-  {
-    tier: "Orange",
-    count: 4,
-    tone: "border-orange-200 bg-orange-50/80 text-orange-700",
-  },
-  {
-    tier: "Red",
-    count: 2,
-    tone: "border-rose-200 bg-rose-50/80 text-rose-700",
-  },
-] as const;
-
-const recentEscalations = [
-  {
-    barangay: "Barangay San Miguel",
-    transition: "Yellow to Orange",
-    timestamp: "2026-07-29 08:20",
-  },
-  {
-    barangay: "Barangay Poblacion Norte",
-    transition: "Green to Yellow",
-    timestamp: "2026-07-29 06:45",
-  },
-  {
-    barangay: "Barangay Sta. Cruz",
-    transition: "Orange to Red",
-    timestamp: "2026-07-28 17:05",
-  },
-] as const;
 
 const quickLinks = [
   {
-    label: "Prescriptive Analytics",
+    label: "Traps Reports and Request",
     description: "Review municipal trend recommendations.",
     href: ROUTES.lgu.analytics,
     icon: BarChart3,
   },
   {
-    label: "Heatmap Surveillance",
+    label: "Mosquito Trap Map",
     description: "Open the barangay-level spatial view.",
     href: ROUTES.lgu.heatmap,
     icon: MapPinned,
   },
   {
-    label: "Reporting Hub",
+    label: "Reports and Analytics",
     description: "Export municipal summaries and case reports.",
     href: ROUTES.lgu.reports,
     icon: FileText,
@@ -132,12 +93,47 @@ function MetricCard({
 
 export default function LguDashboard() {
   const { profile } = useAuth();
+  const { data: metrics, isLoading: metricsLoading } = useLguDashboardData();
+  const recentEscalations = metrics?.recentEscalations ?? [];
+
+  const alertTierSummary = [
+    {
+      tier: "Green",
+      count: metricsLoading ? "..." : String(metrics?.alertTierCounts.green ?? 0),
+      tone: "border-emerald-200 bg-emerald-50/80 text-emerald-700",
+    },
+    {
+      tier: "Yellow",
+      count: metricsLoading ? "..." : String(metrics?.alertTierCounts.yellow ?? 0),
+      tone: "border-yellow-200 bg-yellow-50/80 text-yellow-800",
+    },
+    {
+      tier: "Orange",
+      count: metricsLoading ? "..." : String(metrics?.alertTierCounts.orange ?? 0),
+      tone: "border-orange-200 bg-orange-50/80 text-orange-700",
+    },
+    {
+      tier: "Red",
+      count: metricsLoading ? "..." : String(metrics?.alertTierCounts.red ?? 0),
+      tone: "border-rose-200 bg-rose-50/80 text-rose-700",
+    },
+  ] as const;
 
   const heroMetrics = {
-    dviAverage: "4.2",
-    barangaysMonitored: "23",
-    pendingApprovals: "5",
-    dohCases7Day: "12",
+    dviAverage: metricsLoading
+      ? "..."
+      : (metrics?.dviAverage3Day ?? 0).toFixed(1),
+    barangaysMonitored: metricsLoading
+      ? "..."
+      : String(metrics?.barangaysMonitored ?? 0),
+    pendingApprovals: metricsLoading
+      ? "..."
+      : String(metrics?.pendingApprovals ?? 0),
+    dohCases7Day: metricsLoading
+      ? "..."
+      : metrics?.dohCases7Day != null
+      ? String(metrics.dohCases7Day)
+      : "N/A",
   };
 
   return (
@@ -221,7 +217,7 @@ export default function LguDashboard() {
         <MetricCard
           icon={Gauge}
           label="3-day DVI"
-          value="4.2"
+          value={heroMetrics.dviAverage}
           detail="Municipal average across monitored barangays."
           accent="emerald"
         />
@@ -229,7 +225,7 @@ export default function LguDashboard() {
         <MetricCard
           icon={MapPinned}
           label="Barangays monitored"
-          value="23"
+          value={heroMetrics.barangaysMonitored}
           detail="Barangays currently included in the live coverage set."
           accent="sky"
         />
@@ -237,7 +233,7 @@ export default function LguDashboard() {
         <MetricCard
           icon={TriangleAlert}
           label="Pending approvals"
-          value="5"
+          value={heroMetrics.pendingApprovals}
           detail="Aerial spraying and chemical treatment sign-offs."
           accent="amber"
         />
@@ -245,7 +241,7 @@ export default function LguDashboard() {
         <MetricCard
           icon={FileText}
           label="DOH cases, last 7 days"
-          value="12"
+          value={heroMetrics.dohCases7Day}
           detail="Reported confirmed cases in the latest weekly window."
           accent="slate"
         />
@@ -290,17 +286,31 @@ export default function LguDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentEscalations.map((item) => (
-                  <TableRow key={`${item.barangay}-${item.timestamp}`}>
-                    <TableCell className="font-medium text-slate-950">
-                      {item.barangay}
+                {metricsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
+                      Loading escalation history...
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="destructive">{item.transition}</Badge>
-                    </TableCell>
-                    <TableCell>{item.timestamp}</TableCell>
                   </TableRow>
-                ))}
+                ) : recentEscalations.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
+                      No recent escalation transitions found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  recentEscalations.map((item) => (
+                    <TableRow key={`${item.barangay}-${item.timestamp}`}>
+                      <TableCell className="font-medium text-slate-950">
+                        {item.barangay}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="destructive">{item.transition}</Badge>
+                      </TableCell>
+                      <TableCell>{formatTelemetryTimestamp(item.timestamp)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
