@@ -138,7 +138,7 @@ export default function Announcements() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="ann-title">Title</Label>
+                <Label htmlFor="ann-title">Title <span className="text-rose-500">*</span></Label>
                 <Input
                   id="ann-title"
                   placeholder="e.g. Dengue Alert: Barangay San Jose Cluster"
@@ -149,7 +149,7 @@ export default function Announcements() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ann-level">Severity Level</Label>
+                <Label htmlFor="ann-level">Severity Level <span className="text-rose-500">*</span></Label>
                 <select
                   id="ann-level"
                   value={level}
@@ -167,7 +167,7 @@ export default function Announcements() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ann-msg">Announcement Message</Label>
+                <Label htmlFor="ann-msg">Announcement Message <span className="text-rose-500">*</span>  </Label>
                 <Textarea
                   id="ann-msg"
                   placeholder="Provide detailed instructions or updates for field officers..."
