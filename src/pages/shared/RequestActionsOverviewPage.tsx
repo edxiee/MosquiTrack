@@ -10,7 +10,6 @@ import {
 import { RequestDetailModal } from "@/components/request-actions/RequestDetailModal";
 import RoleBadge from "@/components/accounts/RoleBadge";
 
-
 function formatPersonName(first?: string | null, last?: string | null) {
   if (!first && !last) return "—";
   const initial = first ? `${first.charAt(0).toUpperCase()}.` : "";
@@ -22,6 +21,41 @@ function formatLocation(municipality?: string | null, barangay?: string | null) 
   if (!municipality && !barangay) return "—";
   if (municipality && barangay) return `${municipality}, ${barangay}`;
   return municipality || barangay || "—";
+}
+
+/** e.g. "just now", "20 mins ago", "1 hour ago", "6 hours ago", "1 day ago", "2 days ago" */
+function formatTimeAgo(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+
+  const created = new Date(dateStr).getTime();
+  if (Number.isNaN(created)) return "—";
+
+  const seconds = Math.floor((Date.now() - created) / 1000);
+
+  if (seconds < 60) return "just now";
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return minutes === 1 ? "1 min ago" : `${minutes} mins ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) {
+    return days === 1 ? "1 day ago" : `${days} days ago`;
+  }
+
+  const months = Math.floor(days / 30);
+  if (months < 12) {
+    return months === 1 ? "1 month ago" : `${months} months ago`;
+  }
+
+  const years = Math.floor(months / 12);
+  return years === 1 ? "1 year ago" : `${years} years ago`;
 }
 
 export default function RequestActionsOverviewPage() {
@@ -151,6 +185,9 @@ export default function RequestActionsOverviewPage() {
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
                     Approved by
                   </th>
+                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
+                    Posted
+                  </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
                     Actions
                   </th>
@@ -174,17 +211,16 @@ export default function RequestActionsOverviewPage() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-slate-700 max-w-xs">
-                        <div className="line-clamp-2">
-                            {formatPersonName(
-                                row.requester_first_name,
-                                row.requester_last_name
-                            )}
-                        </div>
-                        <div className="mt-0.5">
-                            <RoleBadge role={row.requester_role} />
-                        </div>
+                      <div className="line-clamp-2">
+                        {formatPersonName(
+                          row.requester_first_name,
+                          row.requester_last_name
+                        )}
+                      </div>
+                      <div className="mt-0.5">
+                        <RoleBadge role={row.requester_role} />
+                      </div>
                     </td>
-                    
                     <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
                       {formatLocation(
                         row.device_municipality,
@@ -196,6 +232,9 @@ export default function RequestActionsOverviewPage() {
                         row.approver_first_name,
                         row.approver_last_name
                       )}
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap text-xs">
+                      {formatTimeAgo(row.created_at)}
                     </td>
                     <td className="px-5 py-4">
                       <Button
