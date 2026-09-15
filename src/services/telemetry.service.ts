@@ -60,7 +60,6 @@ function flattenReading(row: any): TelemetryReading {
     created_at: row.created_at ?? row.captured_at,
     updated_at: row.updated_at ?? null,
     mosquito_count: count,
-    egg_count: count,
     image_path: row.image_path,
     ai_confidence: row.ai_confidence,
     battery_level: row.battery_level,

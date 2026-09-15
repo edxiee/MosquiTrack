@@ -139,7 +139,16 @@ export default function TelemetryTable({
           </DialogHeader>
           <div className="bg-slate-900 rounded-md p-4 overflow-x-auto mt-2">
             <pre className="text-emerald-400 font-mono text-xs leading-relaxed">
-              {selectedPayload && JSON.stringify(selectedPayload, null, 2)}
+              {selectedPayload && (() => {
+                const payload: Record<string, any> = { ...selectedPayload };
+                if ("egg_count" in payload) {
+                  if (payload.mosquito_count === undefined || payload.mosquito_count === null) {
+                    payload.mosquito_count = payload.egg_count;
+                  }
+                  delete payload.egg_count;
+                }
+                return JSON.stringify(payload, null, 2);
+              })()}
             </pre>
           </div>
         </DialogContent>
