@@ -313,7 +313,7 @@ export async function fetchBarangaySurveillanceData(
     });
   }
 
-  // 10. Process per-device telemetry and metrics
+    // 10. Process per-device telemetry and metrics
   const latestReadingsMap = new Map<string, any>();
   const todayReadingsMap = new Map<string, number>();
 
@@ -331,11 +331,10 @@ export async function fetchBarangaySurveillanceData(
     }
   }
 
-  const defaultCenter = { lat: 14.5995, lng: 120.9842 };
   const validLats: number[] = [];
   const validLngs: number[] = [];
 
-  const traps: BarangaySurveillanceDevice[] = rawDevices.map((d, index) => {
+  const traps: BarangaySurveillanceDevice[] = rawDevices.map((d) => {
     const rawStatus = Array.isArray(d.device_statuses)
       ? d.device_statuses[0]
       : d.device_statuses;
@@ -343,7 +342,8 @@ export async function fetchBarangaySurveillanceData(
 
     const latestReading = latestReadingsMap.get(d.id);
     const todayCountForDevice =
-      todayReadingsMap.get(d.id) ?? (latestReading?.mosquito_count ?? latestReading?.egg_count ?? 0);
+      todayReadingsMap.get(d.id) ??
+      (latestReading?.mosquito_count ?? latestReading?.egg_count ?? 0);
 
     const lastCommDate = latestReading?.captured_at || d.last_seen_at;
     let statusLabel: "Online" | "Delayed" | "Offline" = "Offline";
@@ -364,15 +364,22 @@ export async function fetchBarangaySurveillanceData(
       }
     }
 
+    // Use real coordinates only — no default / fake center
     let lat = Number(d.latitude);
     let lng = Number(d.longitude);
 
-    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-      lat = defaultCenter.lat + ((index % 5) * 0.0025 - 0.005);
-      lng = defaultCenter.lng + (Math.floor(index / 5) * 0.0025 - 0.005);
-    } else {
+    const hasValidCoords =
+      !isNaN(lat) &&
+      !isNaN(lng) &&
+      lat !== 0 &&
+      lng !== 0;
+
+    if (hasValidCoords) {
       validLats.push(lat);
       validLngs.push(lng);
+    } else {
+      lat = 0;
+      lng = 0;
     }
 
     let activityLevel: "Critical" | "High" | "Moderate" | "Low" = "Low";
@@ -396,19 +403,22 @@ export async function fetchBarangaySurveillanceData(
       lng,
       activityLevel,
       device_status_name: statusName,
-      deployed_by_name: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+      deployed_by_name: d.deployed_by
+        ? userMap.get(d.deployed_by) ?? null
+        : null,
       installation_date: d.installation_date ?? null,
       notes: d.notes ?? null,
     };
   });
 
+  // Barangay center = average of real device coords only
   const barangayCenter =
     validLats.length > 0 && validLngs.length > 0
       ? {
           lat: validLats.reduce((a, b) => a + b, 0) / validLats.length,
           lng: validLngs.reduce((a, b) => a + b, 0) / validLngs.length,
         }
-      : defaultCenter;
+      : { lat: 0, lng: 0 };
 
   // 11. 7-Day Trend Timeline
   const trendMap = new Map<string, number>();

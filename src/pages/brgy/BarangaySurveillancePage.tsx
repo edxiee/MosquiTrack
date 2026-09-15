@@ -54,12 +54,31 @@ import {
 
 import "leaflet/dist/leaflet.css";
 
+function hasValidCoords(trap: { lat: number; lng: number } | null | undefined): boolean {
+  if (!trap) return false;
+  const { lat, lng } = trap;
+  return (
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    !Number.isNaN(lat) &&
+    !Number.isNaN(lng) &&
+    lat !== 0 &&
+    lng !== 0
+  );
+}
+
 function MapFlyTo({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   const lastCoords = useRef<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    if (!lastCoords.current || lastCoords.current.lat !== lat || lastCoords.current.lng !== lng) {
+    if (!hasValidCoords({ lat, lng })) return;
+
+    if (
+      !lastCoords.current ||
+      lastCoords.current.lat !== lat ||
+      lastCoords.current.lng !== lng
+    ) {
       lastCoords.current = { lat, lng };
       map.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
     }
@@ -190,9 +209,12 @@ export default function BarangaySurveillancePage() {
 
       // Fallback: keep previous selection or pick first trap
       setSelectedTrap((prev) => {
-        if (!prev) return res.traps[0] ?? null;
-        const updated = res.traps.find((t) => t.id === prev.id);
-        return updated ?? res.traps[0] ?? null;
+        const next =
+          prev && res.traps.find((t) => t.id === prev.id)
+            ? res.traps.find((t) => t.id === prev.id)!
+            : res.traps.find((t) => hasValidCoords(t)) ?? null;
+
+        return next && hasValidCoords(next) ? next : null;
       });
     } catch (err) {
       console.error("Failed to load barangay surveillance data:", err);
@@ -343,10 +365,24 @@ export default function BarangaySurveillancePage() {
   const recommendation = data?.recommendation ?? "No recommendation available.";
   const traps = data?.traps ?? [];
   const trend = data?.trend ?? [];
+
+  const sortedTraps = [...traps].sort((a, b) => {
+    const aHasLoc = hasValidCoords(a) ? 0 : 1;
+    const bHasLoc = hasValidCoords(b) ? 0 : 1;
+    if (aHasLoc !== bHasLoc) return aHasLoc - bHasLoc;
+
+    const statusRank = (s: string) =>
+      s === "Online" ? 0 : s === "Delayed" ? 1 : 2;
+    const byStatus = statusRank(a.status) - statusRank(b.status);
+    if (byStatus !== 0) return byStatus;
+
+    return (b.count ?? 0) - (a.count ?? 0);
+  });
+
   const latestDetections = data?.latestDetections ?? [];
   const recentActions = data?.recentActions ?? [];
   const availableBarangays = data?.availableBarangays ?? [];
-  const barangayCenter = data?.barangayCenter ?? { lat: 14.5995, lng: 120.9842 };
+  const barangayCenter = data?.barangayCenter ?? { lat: 0, lng: 0 };
 
   const getRiskColor = (level: string) => {
     if (level.includes("Critical")) return "rose";
@@ -546,18 +582,30 @@ export default function BarangaySurveillancePage() {
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {traps.map((trap) => {
+                  {sortedTraps.map((trap) => {
                     const isSelected = selectedTrap?.id === trap.id;
                     const sColor = getStatusColor(trap.status);
+                    const canLocate = hasValidCoords(trap);
 
                     return (
                       <button
                         key={trap.id}
-                        onClick={() => setSelectedTrap(trap)}
-                        className={`w-full text-left px-5 py-4 flex flex-col gap-2 transition-all cursor-pointer ${
-                          isSelected
-                            ? `bg-${sColor}-50/60 border-l-[4px] border-l-${sColor}-500 shadow-xs`
-                            : "hover:bg-slate-50 border-l-[4px] border-l-transparent"
+                        type="button"
+                        disabled={!canLocate}
+                        onClick={() => {
+                          if (!canLocate) return; // block selection
+                          setSelectedTrap(trap);
+                          mapSectionRef.current?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
+                        }}
+                        className={`w-full text-left px-5 py-4 flex flex-col gap-2 transition-all border-l-[4px] ${
+                          !canLocate
+                            ? "opacity-50 cursor-not-allowed border-l-transparent bg-slate-50/50"
+                            : isSelected
+                            ? `cursor-pointer bg-${sColor}-50/60 border-l-${sColor}-500 shadow-xs`
+                            : "cursor-pointer hover:bg-slate-50 border-l-transparent"
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
@@ -567,7 +615,9 @@ export default function BarangaySurveillancePage() {
                                 trap.status === "Online" ? "animate-pulse" : ""
                               }`}
                             />
-                            <span className="font-bold text-slate-900 text-sm">{trap.device_code}</span>
+                            <span className="font-bold text-slate-900 text-sm">
+                              {trap.device_code}
+                            </span>
                           </div>
                           <Badge
                             className={`text-[10px] font-bold uppercase tracking-wider bg-${sColor}-100 text-${sColor}-700 border-none`}
@@ -578,25 +628,37 @@ export default function BarangaySurveillancePage() {
 
                         <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate">
                           <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          {trap.location}
+                          {canLocate ? trap.location : "No location — map access disabled"}
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 mt-1.5 pt-2 border-t border-slate-100/80 text-xs">
                           <div>
-                            <p className="text-[10px] text-slate-400 uppercase font-semibold">Today Count</p>
-                            <p className={`font-bold ${trap.count > 0 ? "text-rose-600" : "text-slate-700"}`}>
+                            <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                              Today Count
+                            </p>
+                            <p
+                              className={`font-bold ${
+                                trap.count > 0 ? "text-rose-600" : "text-slate-700"
+                              }`}
+                            >
                               {trap.count}
                             </p>
                           </div>
                           <div>
-                            <p className="text-[10px] text-slate-400 uppercase font-semibold">Battery</p>
+                            <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                              Battery
+                            </p>
                             <p className="font-semibold text-slate-700 flex items-center gap-1">
                               <Battery className="h-3 w-3 text-slate-400" /> {trap.battery}%
                             </p>
                           </div>
                           <div>
-                            <p className="text-[10px] text-slate-400 uppercase font-semibold">Status</p>
-                            <p className="font-medium text-slate-600 truncate">{trap.lastComm}</p>
+                            <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                              Status
+                            </p>
+                            <p className="font-medium text-slate-600 truncate">
+                              {trap.lastComm}
+                            </p>
                           </div>
                         </div>
                       </button>
@@ -634,9 +696,12 @@ export default function BarangaySurveillancePage() {
                   className="w-full h-full min-h-[480px]"
                 >
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  {selectedTrap && <MapFlyTo lat={selectedTrap.lat} lng={selectedTrap.lng} />}
 
-                  {traps.map((trap) => {
+                  {selectedTrap && hasValidCoords(selectedTrap) && (
+                    <MapFlyTo lat={selectedTrap.lat} lng={selectedTrap.lng} />
+                  )}
+
+                  {traps.filter(hasValidCoords).map((trap) => {
                     const sColor = getStatusColor(trap.status);
                     const aColor = getActivityColor(trap.activityLevel);
                     const hexColor = getHexColor(aColor);
@@ -667,8 +732,12 @@ export default function BarangaySurveillancePage() {
                           <Popup className="custom-popup">
                             <div className="p-2 space-y-3 min-w-[220px]">
                               <div className="flex items-center justify-between border-b pb-2">
-                                <p className="font-bold text-slate-900 text-sm">{trap.device_code}</p>
-                                <Badge className={`bg-${sColor}-100 text-${sColor}-700 border-none px-2 py-0.5 text-[10px]`}>
+                                <p className="font-bold text-slate-900 text-sm">
+                                  {trap.device_code}
+                                </p>
+                                <Badge
+                                  className={`bg-${sColor}-100 text-${sColor}-700 border-none px-2 py-0.5 text-[10px]`}
+                                >
                                   {trap.status}
                                 </Badge>
                               </div>
@@ -680,7 +749,9 @@ export default function BarangaySurveillancePage() {
                                 <p className="flex items-center gap-2">
                                   <Bug className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                                   <span>Today's Count: </span>
-                                  <span className={`font-bold text-${aColor}-600`}>{trap.count}</span>
+                                  <span className={`font-bold text-${aColor}-600`}>
+                                    {trap.count}
+                                  </span>
                                 </p>
                                 <p className="flex items-center gap-2">
                                   <Battery className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -689,7 +760,10 @@ export default function BarangaySurveillancePage() {
                                 {trap.temperature !== null && (
                                   <p className="flex items-center gap-2">
                                     <Thermometer className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                    <span>Temp / Humidity: {trap.temperature}°C / {trap.humidity}%</span>
+                                    <span>
+                                      Temp / Humidity: {trap.temperature}°C /{" "}
+                                      {trap.humidity}%
+                                    </span>
                                   </p>
                                 )}
                                 <p className="text-[10px] text-slate-400 pt-1.5 border-t">
@@ -1120,7 +1194,11 @@ export default function BarangaySurveillancePage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-medium">GPS Coordinates:</span>
-                  <span className="font-mono font-semibold text-slate-800">{selectedTrap.lat.toFixed(5)}, {selectedTrap.lng.toFixed(5)}</span>
+                  <span className="font-mono font-semibold text-slate-800">
+                    {hasValidCoords(selectedTrap)
+                      ? `${selectedTrap.lat.toFixed(5)}, ${selectedTrap.lng.toFixed(5)}`
+                      : "Not available"}
+                  </span>
                 </div>
                 {selectedTrap.temperature !== null && (
                   <div className="flex justify-between">
