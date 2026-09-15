@@ -237,7 +237,17 @@ export default function RawTelemetryHubPage() {
 
   const handleExportJSON = () => {
     if (filteredReadings.length === 0) return;
-    const jsonContent = JSON.stringify(filteredReadings, null, 2);
+    const sanitizedReadings = filteredReadings.map(r => {
+      const payload: Record<string, any> = { ...r };
+      if ("egg_count" in payload) {
+        if (payload.mosquito_count === undefined || payload.mosquito_count === null) {
+          payload.mosquito_count = payload.egg_count;
+        }
+        delete payload.egg_count;
+      }
+      return payload;
+    });
+    const jsonContent = JSON.stringify(sanitizedReadings, null, 2);
     const blob = new Blob([jsonContent], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
