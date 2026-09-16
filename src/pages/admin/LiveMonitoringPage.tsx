@@ -34,14 +34,13 @@ import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice } from "@/types/device.types";
 import { ROUTES } from "@/utils/navigation";
 import { useNavigate } from "react-router-dom";
+import { ONLINE_THRESHOLD_MINUTES } from "@/utils/deviceHelpers";
 
 import "leaflet/dist/leaflet.css";
 
 function formatTimeAgo(dateStr: string | null | undefined): string {
-  if (!dateStr) return "Never Connected";
-  const diff = Date.now() - new Date(dateStr).getTime();
-  if (isNaN(diff)) return "Never Connected";
-  const seconds = Math.floor(diff / 1000);
+  if (!dateStr) return "Never";
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
   if (seconds < 60) return `${seconds} seconds ago`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
@@ -51,17 +50,15 @@ function formatTimeAgo(dateStr: string | null | undefined): string {
   return `${days} day${days > 1 ? "s" : ""} ago`;
 }
 
-type ConnectionState = "Online" | "Delayed" | "Offline" | "Not Connected";
+type ConnectionState = "Online" | "Offline" | "Not Connected";
 
 function getConnectionStatus(lastSeenStr: string | null | undefined) {
   if (!lastSeenStr) {
     return { state: "Not Connected" as ConnectionState, bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400", ping: false, border: "border-slate-300" };
   }
   const diffMinutes = (Date.now() - new Date(lastSeenStr).getTime()) / (1000 * 60);
-  if (diffMinutes <= 16) {
+  if (diffMinutes <= ONLINE_THRESHOLD_MINUTES) {
     return { state: "Online" as ConnectionState, bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", ping: true, border: "border-emerald-300" };
-  } else if (diffMinutes < 1440) {
-    return { state: "Delayed" as ConnectionState, bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", ping: false, border: "border-amber-300" };
   } else {
     return { state: "Offline" as ConnectionState, bg: "bg-rose-50", text: "text-rose-700", dot: "bg-rose-500", ping: false, border: "border-rose-300" };
   }
@@ -78,7 +75,6 @@ function getRiskClassification(count: number | null) {
 const createCustomMarker = (status: ConnectionState) => {
   const colorMap: Record<ConnectionState, string> = {
     "Online": "emerald",
-    "Delayed": "amber",
     "Offline": "rose",
     "Not Connected": "slate",
   };
@@ -344,7 +340,6 @@ export default function LiveMonitoringPage() {
   });
 
   const onlineCount = devicesWithStatus.filter(d => d.computedStatus.state === "Online").length;
-  const delayedCount = devicesWithStatus.filter(d => d.computedStatus.state === "Delayed").length;
   const offlineCount = devicesWithStatus.filter(d => d.computedStatus.state === "Offline").length;
 
   const filtered = devicesWithStatus.filter(d => {
@@ -403,7 +398,7 @@ export default function LiveMonitoringPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border-l-4 border-l-emerald-500">
           <CardContent className="flex items-center justify-between p-5">
             <div>
@@ -412,17 +407,6 @@ export default function LiveMonitoringPage() {
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
               <Wifi className="h-6 w-6 text-emerald-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="flex items-center justify-between p-5">
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Delayed</p>
-              <h2 className="mt-1 text-3xl font-bold text-amber-600">{delayedCount}</h2>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50">
-              <Activity className="h-6 w-6 text-amber-600" />
             </div>
           </CardContent>
         </Card>
@@ -464,7 +448,7 @@ export default function LiveMonitoringPage() {
               />
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {(["All", "Online", "Delayed", "Offline", "Not Connected"] as const).map(f => (
+              {(["All", "Online", "Offline", "Not Connected"] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setStatusFilter(f)}

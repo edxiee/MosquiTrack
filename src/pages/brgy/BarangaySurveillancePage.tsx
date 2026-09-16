@@ -119,8 +119,6 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case "Online":
       return "emerald";
-    case "Delayed":
-      return "amber";
     case "Offline":
       return "rose";
     default:
@@ -371,8 +369,7 @@ export default function BarangaySurveillancePage() {
     const bHasLoc = hasValidCoords(b) ? 0 : 1;
     if (aHasLoc !== bHasLoc) return aHasLoc - bHasLoc;
 
-    const statusRank = (s: string) =>
-      s === "Online" ? 0 : s === "Delayed" ? 1 : 2;
+    const statusRank = (s: string) => (s === "Online" ? 0 : 1);
     const byStatus = statusRank(a.status) - statusRank(b.status);
     if (byStatus !== 0) return byStatus;
 

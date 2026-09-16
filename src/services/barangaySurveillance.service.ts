@@ -6,7 +6,7 @@ export interface BarangaySurveillanceDevice {
   device_code: string;
   serial_number: string | null;
   location: string;
-  status: "Online" | "Delayed" | "Offline";
+  status: "Online" | "Offline";
   count: number;
   lastComm: string;
   lastSeenAt: string | null;
@@ -346,21 +346,24 @@ export async function fetchBarangaySurveillanceData(
       (latestReading?.mosquito_count ?? latestReading?.egg_count ?? 0);
 
     const lastCommDate = latestReading?.captured_at || d.last_seen_at;
-    let statusLabel: "Online" | "Delayed" | "Offline" = "Offline";
+    let statusLabel: "Online" | "Offline" = "Offline";
     let lastCommText = "Never Connected";
 
     if (lastCommDate) {
       const diffMinutes =
         (Date.now() - new Date(lastCommDate).getTime()) / (1000 * 60);
-      if (diffMinutes < 30) {
+      if (diffMinutes <= 16) {
         statusLabel = "Online";
         lastCommText = "Active (Live)";
-      } else if (diffMinutes < 1440) {
-        statusLabel = "Delayed";
-        lastCommText = `${Math.floor(diffMinutes / 60)}h ago`;
       } else {
         statusLabel = "Offline";
-        lastCommText = `${Math.floor(diffMinutes / 1440)}d ago`;
+        if (diffMinutes < 60) {
+          lastCommText = `${Math.floor(diffMinutes)}m ago`;
+        } else if (diffMinutes < 1440) {
+          lastCommText = `${Math.floor(diffMinutes / 60)}h ago`;
+        } else {
+          lastCommText = `${Math.floor(diffMinutes / 1440)}d ago`;
+        }
       }
     }
 
