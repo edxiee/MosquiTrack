@@ -6,19 +6,51 @@ import { SIDEBAR_CONFIG } from "@/utils/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import AppLogo from "@/components/common/AppLogo";
 
-export default function Sidebar() {
+interface SidebarProps {
+  isMobile?: boolean;
+  className?: string;
+  onMobileClose?: () => void;
+}
+
+export default function Sidebar({ isMobile, className, onMobileClose }: SidebarProps = {}) {
   const { profile, logout } = useAuth();
 
   // 1. Initialize collapsed state from localStorage
-  const [isCollapsed, setIsCollapsed] = useState(() => {
+  const [isCollapsedState, setIsCollapsedState] = useState(() => {
     return localStorage.getItem("mosquitrack-sidebar-collapsed") === "true";
   });
 
+  const [isLgScreen, setIsLgScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+
+  const isCollapsed = isMobile ? false : (!isLgScreen || isCollapsedState);
+
   // 2. Persist state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("mosquitrack-sidebar-collapsed", String(isCollapsed));
-  }, [isCollapsed]);
+    if (!isMobile) {
+      localStorage.setItem("mosquitrack-sidebar-collapsed", String(isCollapsedState));
+    }
+  }, [isCollapsedState, isMobile]);
 
+  // 3. Track screen size for responsive sidebar
+  useEffect(() => {
+    if (isMobile) return;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsLgScreen(window.innerWidth >= 1024);
+      }, 50); // Small debounce for smoother resize
+    };
+
+    window.addEventListener("resize", handleResize);
+    // Initial check
+    handleResize();
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      clearTimeout(timeoutId);
+    };
+  }, [isMobile]);
   const role = profile?.role?.role_code;
   const navigationSections = role ? (SIDEBAR_CONFIG[role] ?? []) : [];
 
@@ -37,9 +69,13 @@ export default function Sidebar() {
   return (
     // Hidden on mobile (md:flex) to prevent layout breaking; mobile drawer handled in Step 4
     <aside 
-      className={`sticky top-0 hidden md:flex h-screen flex-col border-r border-slate-200 bg-white transition-[width] duration-200 ease-in-out ${
-        isCollapsed ? "w-20" : "w-[280px]"
-      }`}
+      className={
+        className !== undefined 
+          ? className 
+          : `sticky top-0 hidden md:flex h-screen flex-col border-r border-slate-200 bg-white transition-[width] duration-200 ease-in-out ${
+              isCollapsed ? "w-20" : "w-[280px]"
+            }`
+      }
     >
       {/* Branding Area */}
       <div className="relative flex flex-col items-center border-b border-slate-200 p-4">
@@ -57,13 +93,15 @@ export default function Sidebar() {
         )}
 
         {/* Collapse/Expand Control */}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute -right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-        </button>
+        {!isMobile && isLgScreen && (
+          <button
+            onClick={() => setIsCollapsedState(!isCollapsedState)}
+            className="absolute -right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -84,6 +122,11 @@ export default function Sidebar() {
                     <NavLink
                       to={item.path}
                       title={isCollapsed ? item.name : undefined} // Native tooltip when collapsed
+                      onClick={() => {
+                        if (isMobile && onMobileClose) {
+                          onMobileClose();
+                        }
+                      }}
                       className={({ isActive }) => {
                         let baseClasses = "flex items-center gap-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ";
                         
