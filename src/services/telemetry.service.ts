@@ -6,7 +6,6 @@ interface RawReadingRow {
   id: string;
   captured_at: string;
   mosquito_count?: number | null;
-  egg_count?: number | null;
   image_path: string | null;
   ai_confidence: number | null;
   battery_level: number | null;
@@ -52,7 +51,7 @@ function flattenReading(row: any): TelemetryReading {
   const rawStatus = device?.device_statuses ?? device?.device_status;
   const deviceStatus = Array.isArray(rawStatus) ? rawStatus[0] : rawStatus;
 
-  const count = row.mosquito_count ?? row.egg_count ?? null;
+  const count = row.mosquito_count ?? null;
 
   return {
     id: row.id,

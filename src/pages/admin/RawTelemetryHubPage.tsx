@@ -216,7 +216,7 @@ export default function RawTelemetryHubPage() {
       r.device_code,
       r.device_id,
       r.barangay_name ?? "",
-      r.mosquito_count ?? r.egg_count ?? 0,
+      r.mosquito_count ?? 0,
       r.temperature_c ?? "",
       r.humidity_percent ?? "",
       r.battery_level ?? "",
@@ -237,17 +237,7 @@ export default function RawTelemetryHubPage() {
 
   const handleExportJSON = () => {
     if (filteredReadings.length === 0) return;
-    const sanitizedReadings = filteredReadings.map(r => {
-      const payload: Record<string, any> = { ...r };
-      if ("egg_count" in payload) {
-        if (payload.mosquito_count === undefined || payload.mosquito_count === null) {
-          payload.mosquito_count = payload.egg_count;
-        }
-        delete payload.egg_count;
-      }
-      return payload;
-    });
-    const jsonContent = JSON.stringify(sanitizedReadings, null, 2);
+    const jsonContent = JSON.stringify(filteredReadings, null, 2);
     const blob = new Blob([jsonContent], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -260,7 +250,7 @@ export default function RawTelemetryHubPage() {
   const handleDownloadLogs = () => {
     if (filteredReadings.length === 0) return;
     const logLines = filteredReadings.map(
-      r => `[${r.captured_at}] [DEVICE:${r.device_code}] [BARANGAY:${r.barangay_name ?? "N/A"}] MOSQUITOES:${r.mosquito_count ?? r.egg_count ?? 0} TEMP:${r.temperature_c ?? "N/A"}C HUM:${r.humidity_percent ?? "N/A"}% BAT:${r.battery_level ?? "N/A"}% CONF:${r.ai_confidence ?? "N/A"}`
+      r => `[${r.captured_at}] [DEVICE:${r.device_code}] [BARANGAY:${r.barangay_name ?? "N/A"}] MOSQUITOES:${r.mosquito_count ?? 0} TEMP:${r.temperature_c ?? "N/A"}C HUM:${r.humidity_percent ?? "N/A"}% BAT:${r.battery_level ?? "N/A"}% CONF:${r.ai_confidence ?? "N/A"}`
     );
     const blob = new Blob([logLines.join("\n")], { type: "text/plain;charset=utf-8;" });
     const url = URL.createObjectURL(blob);

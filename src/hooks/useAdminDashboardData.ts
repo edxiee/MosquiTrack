@@ -13,7 +13,6 @@ type ReadingRow = {
   id: string;
   device_id: string;
   mosquito_count?: number;
-  egg_count?: number;
   battery_level: number | null;
   captured_at: string;
   created_at: string;
@@ -88,8 +87,7 @@ async function fetchRecentReadings() {
 
   return (data ?? []).map((r: any) => ({
     ...r,
-    mosquito_count: r.mosquito_count ?? r.egg_count ?? 0,
-    egg_count: r.mosquito_count ?? r.egg_count ?? 0,
+    mosquito_count: r.mosquito_count ?? 0,
   }));
 }
 
@@ -115,7 +113,7 @@ async function fetchWeeklyReadings() {
 
   const { data, error } = await supabase
     .from("ovitrap_readings")
-    .select("id, mosquito_count, egg_count, captured_at, created_at")
+    .select("id, mosquito_count, captured_at, created_at")
     .gte("captured_at", sevenDaysAgo.toISOString())
     .order("captured_at", { ascending: true });
 
@@ -125,7 +123,7 @@ async function fetchWeeklyReadings() {
 
   return (data ?? []).map((r: any) => ({
     id: r.id,
-    mosquito_count: r.mosquito_count ?? r.egg_count ?? 0,
+    mosquito_count: r.mosquito_count ?? 0,
     captured_at: r.captured_at || r.created_at,
   }));
 }

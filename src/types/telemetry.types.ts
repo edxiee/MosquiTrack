@@ -4,7 +4,6 @@ export interface TelemetryReading {
   created_at?: string;
   updated_at?: string | null;
   mosquito_count: number | null;
-  egg_count?: number | null;
   image_path: string | null;
   ai_confidence: number | null;
   battery_level: number | null;

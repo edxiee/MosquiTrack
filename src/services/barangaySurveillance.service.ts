@@ -218,7 +218,6 @@ export async function fetchBarangaySurveillanceData(
         captured_at,
         created_at,
         mosquito_count,
-        egg_count,
         battery_level,
         ai_confidence,
         temperature_c,
@@ -326,7 +325,7 @@ export async function fetchBarangaySurveillanceData(
 
     if (r.captured_at && r.captured_at.startsWith(todayStartStr)) {
       const current = todayReadingsMap.get(r.device_id) ?? 0;
-      const countVal = r.mosquito_count ?? r.egg_count ?? 0;
+      const countVal = r.mosquito_count ?? 0;
       todayReadingsMap.set(r.device_id, current + countVal);
     }
   }
@@ -343,7 +342,7 @@ export async function fetchBarangaySurveillanceData(
     const latestReading = latestReadingsMap.get(d.id);
     const todayCountForDevice =
       todayReadingsMap.get(d.id) ??
-      (latestReading?.mosquito_count ?? latestReading?.egg_count ?? 0);
+      (latestReading?.mosquito_count ?? 0);
 
     const lastCommDate = latestReading?.captured_at || d.last_seen_at;
     let statusLabel: "Online" | "Offline" = "Offline";
@@ -447,7 +446,7 @@ export async function fetchBarangaySurveillanceData(
         day: "numeric",
       });
       if (trendMap.has(dateKey)) {
-        const countVal = r.mosquito_count ?? r.egg_count ?? 0;
+        const countVal = r.mosquito_count ?? 0;
         trendMap.set(dateKey, (trendMap.get(dateKey) ?? 0) + countVal);
       }
     }
@@ -478,7 +477,7 @@ export async function fetchBarangaySurveillanceData(
         time: timeStr,
         trapId: dev?.device_code ?? "TRAP",
         location: dev?.description || dev?.notes || "Monitoring Node",
-        count: r.mosquito_count ?? r.egg_count ?? 0,
+        count: r.mosquito_count ?? 0,
         temperature: r.temperature_c ?? null,
         humidity: r.humidity_percent ?? null,
         battery: r.battery_level ?? null,
@@ -490,7 +489,7 @@ export async function fetchBarangaySurveillanceData(
   // 13. Aggregate Metrics & Risk Determination
   const todayCount = traps.reduce((sum, t) => sum + t.count, 0);
   const totalHistoricalCount = readings.reduce(
-    (sum, r) => sum + (r.mosquito_count ?? r.egg_count ?? 0),
+    (sum, r) => sum + (r.mosquito_count ?? 0),
     0
   );
 

@@ -123,7 +123,8 @@ export default function LiveMonitoringPage() {
   const [latestReading, setLatestReading] = useState<{
     battery_level: number | null;
     mosquito_count?: number | null;
-    egg_count?: number | null;
+    temperature_c?: number | null;
+    humidity_percent?: number | null;
     captured_at: string;
   } | null>(null);
   const [deviceTodayCount, setDeviceTodayCount] = useState<number | null>(null);
@@ -201,7 +202,7 @@ export default function LiveMonitoringPage() {
       try {
         const { data: latest } = await supabase
           .from("ovitrap_readings")
-          .select("battery_level, mosquito_count, egg_count, captured_at")
+          .select("battery_level, mosquito_count, temperature_c, humidity_percent, captured_at")
           .eq("device_id", selectedDevice!.id)
           .order("captured_at", { ascending: false })
           .limit(1)
@@ -215,13 +216,13 @@ export default function LiveMonitoringPage() {
 
         const { data: todayReadings } = await supabase
           .from("ovitrap_readings")
-          .select("mosquito_count, egg_count")
+          .select("mosquito_count")
           .eq("device_id", selectedDevice!.id)
           .gte("captured_at", todayStart.toISOString());
 
         if (!isMounted) return;
         if (todayReadings && todayReadings.length > 0) {
-          const sum = todayReadings.reduce((acc, r: any) => acc + (r.mosquito_count ?? r.egg_count ?? 0), 0);
+          const sum = todayReadings.reduce((acc, r: any) => acc + (r.mosquito_count ?? 0), 0);
           setDeviceTodayCount(sum);
         } else {
           setDeviceTodayCount(0);
@@ -555,6 +556,8 @@ export default function LiveMonitoringPage() {
                           ["Signal Strength", hasTelemetry ? "Excellent (-68 dBm)" : "Waiting for first telemetry"],
                           ["Firmware Version", hasTelemetry ? "v2.4.1" : "N/A"],
                           ["SIM Network", hasTelemetry ? "Smart LTE" : "N/A"],
+                          ["Temperature", latestReading?.temperature_c != null ? `${latestReading.temperature_c}°C` : "N/A"],
+                          ["Humidity", latestReading?.humidity_percent != null ? `${latestReading.humidity_percent}%` : "N/A"],
                           ["Deployment Date", selectedDevice.installation_date ? String(selectedDevice.installation_date).split("T")[0] : "N/A"],
                           ["Last Telemetry Upload", latestReading?.captured_at ? new Date(latestReading.captured_at).toLocaleString() : "Waiting for first telemetry"],
                         ].map(([label, value]) => (

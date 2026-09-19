@@ -174,7 +174,7 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
     const since3Days = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
     const { data: readingsData, error: readingsError } = await supabase
       .from("ovitrap_readings")
-      .select("mosquito_count, egg_count")
+      .select("mosquito_count")
       .in("device_id", deviceIds)
       .gte("captured_at", since3Days);
 
@@ -183,9 +183,9 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
     }
 
     const readings =
-      (readingsData as Array<{ mosquito_count?: number | null; egg_count?: number | null }>) ?? [];
+      (readingsData as Array<{ mosquito_count?: number | null }>) ?? [];
     const totalCount = readings.reduce((sum, row) => {
-      const value = row.mosquito_count ?? row.egg_count ?? 0;
+      const value = row.mosquito_count ?? 0;
       return sum + value;
     }, 0);
 

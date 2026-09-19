@@ -221,7 +221,7 @@ export default function AdminDashboard() {
     for (const device of devices) {
       const reading = latestReadingsByDevice.get(device.id);
       const code = device.device_code || `TRAP-${device.id.slice(0, 4)}`;
-      const count = reading?.mosquito_count ?? reading?.egg_count ?? 0;
+      const count = reading?.mosquito_count ?? 0;
       const battery = reading?.battery_level ?? null;
 
       if (count >= 30) {
@@ -451,7 +451,7 @@ export default function AdminDashboard() {
                         </TableCell>
                         <TableCell className="py-3.5">
                           <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
-                            {reading.mosquito_count ?? reading.egg_count ?? 0}
+                            {reading.mosquito_count ?? 0}
                             <span className="text-xs font-normal text-slate-400">mos</span>
                           </span>
                         </TableCell>

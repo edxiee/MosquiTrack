@@ -13,7 +13,6 @@ interface RawReadingRow {
   temperature_c: number | null;
   humidity_percent: number | null;
   mosquito_count?: number | null;
-  egg_count?: number | null;
   device_id: string;
   device: {
     device_code: string;
@@ -36,13 +35,12 @@ const READING_SELECT = `
 `;
 
 function flattenReading(row: RawReadingRow): RawTelemetryRow {
-  const count = row.mosquito_count ?? row.egg_count ?? null;
+  const count = row.mosquito_count ?? null;
   return {
     captured_at: row.captured_at,
     temperature_c: row.temperature_c,
     humidity_percent: row.humidity_percent,
     mosquito_count: count,
-    egg_count: count,
     device_id: row.device_id,
     device_code: row.device?.device_code ?? "Unknown",
     barangay_id: row.device?.barangay_id ?? null,

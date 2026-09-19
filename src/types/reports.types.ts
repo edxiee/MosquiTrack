@@ -11,7 +11,6 @@ export interface RawTelemetryRow {
   temperature_c: number | null;
   humidity_percent: number | null;
   mosquito_count: number | null;
-  egg_count?: number | null;
   device_id: string;
   device_code: string;
   barangay_id: string | null;
@@ -32,7 +31,6 @@ export interface TelemetryTrendPoint {
   avgTemperature: number | null;
   avgHumidity: number | null;
   avgMosquitoCount: number | null;
-  avgEggCount?: number | null;
 }
 
 export interface BarangayRankingEntry {
