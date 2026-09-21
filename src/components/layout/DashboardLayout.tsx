@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { Button } from "@/components/ui/button";
 import Sidebar from "./Sidebar";
 import AppLogo from "@/components/common/AppLogo";
+import GlobalAnnouncementPopup from "@/components/system/GlobalAnnouncementPopup";
 
 export default function DashboardLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -51,6 +52,8 @@ export default function DashboardLayout() {
           <Outlet />
         </Suspense>
       </section>
+
+      <GlobalAnnouncementPopup />
     </main>
   );
 }

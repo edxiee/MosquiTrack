@@ -9,7 +9,7 @@ import type {
 export async function getAnnouncements(): Promise<Announcement[]> {
   const { data, error } = await supabase
     .from("announcements")
-    .select("*")
+    .select("*, announcement_views(user_role)")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -25,6 +25,9 @@ export async function createAnnouncement(
       title: input.title.trim(),
       message: input.message.trim(),
       level: input.level,
+      target_audience: input.target_audience,
+      start_date: input.start_date,
+      end_date: input.end_date || null,
       posted_by: input.posted_by,
     })
     .select()
@@ -42,6 +45,9 @@ export async function updateAnnouncement(
   if (input.title !== undefined) payload.title = input.title.trim();
   if (input.message !== undefined) payload.message = input.message.trim();
   if (input.level !== undefined) payload.level = input.level;
+  if (input.target_audience !== undefined) payload.target_audience = input.target_audience;
+  if (input.start_date !== undefined) payload.start_date = input.start_date;
+  if (input.end_date !== undefined) payload.end_date = input.end_date;
 
   if (Object.keys(payload).length === 0) {
     const { data } = await supabase
@@ -86,24 +92,43 @@ export async function getAnnouncementsByLevel(
   return (data as Announcement[]) ?? [];
 }
 
-/** Announcements still active = created within the last 30 minutes */
-const ACTIVE_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
-
-export function isAnnouncementActive(createdAt: string): boolean {
-  const created = new Date(createdAt).getTime();
-  if (Number.isNaN(created)) return false;
-  return Date.now() - created <= ACTIVE_WINDOW_MS;
+/**
+ * Determines if an announcement is active based on start_date and end_date.
+ */
+export function isAnnouncementActive(startDate: string, endDate: string | null): boolean {
+  const now = Date.now();
+  const start = new Date(startDate).getTime();
+  if (Number.isNaN(start) || start > now) return false;
+  
+  if (endDate) {
+    const end = new Date(endDate).getTime();
+    if (!Number.isNaN(end) && end < now) return false;
+  }
+  
+  return true;
 }
 
 export async function getActiveAnnouncements(): Promise<Announcement[]> {
-  const fourHoursAgo = new Date(Date.now() - ACTIVE_WINDOW_MS).toISOString();
+  const now = new Date().toISOString();
 
+  // Active means: start_date <= now AND (end_date is null OR end_date >= now)
   const { data, error } = await supabase
     .from("announcements")
     .select("*")
-    .gte("created_at", fourHoursAgo) // still within 4-hour window
-    .order("created_at", { ascending: false });
+    .lte("start_date", now)
+    .or(`end_date.is.null,end_date.gte.${now}`)
+    .order("start_date", { ascending: false });
 
   if (error) throw error;
   return (data as Announcement[]) ?? [];
+}
+
+export async function logAnnouncementView(announcementId: string, userId: string, userRole: string): Promise<void> {
+  const { error } = await supabase
+    .from("announcement_views")
+    .insert({ announcement_id: announcementId, user_id: userId, user_role: userRole });
+    
+  if (error && error.code !== '23505') { // Ignore unique constraint violations
+    console.error("Failed to log announcement view:", error);
+  }
 }

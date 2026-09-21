@@ -47,6 +47,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setSession(null);
     setUser(null);
     setProfile(null);
+    localStorage.removeItem("dismissed_announcements");
   }
 
   useEffect(() => {
