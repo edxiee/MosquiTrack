@@ -153,16 +153,26 @@ export async function getDeviceStatusOptions(): Promise<string[]> {
  */
 export function subscribeToNewReadings(
   onInsert: (reading: TelemetryReading) => void,
+  onUpdate?: (reading: TelemetryReading) => void,
 ): () => void {
   const channel = supabase
     .channel("ovitrap_readings-realtime")
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "ovitrap_readings" },
+      { event: "*", schema: "public", table: "ovitrap_readings" },
       async (payload) => {
-        const newId = (payload.new as { id: string }).id;
-        const reading = await getTelemetryById(newId);
-        if (reading) onInsert(reading);
+        // Handle both INSERT and UPDATE
+        const record = payload.new as { id?: string };
+        if (!record || !record.id) return;
+        
+        const reading = await getTelemetryById(record.id);
+        if (!reading) return;
+
+        if (payload.eventType === "INSERT") {
+          onInsert(reading);
+        } else if (payload.eventType === "UPDATE" && onUpdate) {
+          onUpdate(reading);
+        }
       },
     )
     .subscribe();

@@ -14,6 +14,8 @@ import {
   getTelemetry,
   subscribeToNewReadings,
 } from "@/services/telemetry.service";
+import { getTrapWeather } from "@/services/weather.service";
+import { supabase } from "@/lib/supabase";
 
 const DEFAULT_FILTERS: TelemetryFilterValues = {
   search: "",
@@ -44,6 +46,30 @@ export default function RawTelemetryHubPage() {
           getBarangayOptions(),
         ]);
         if (!isMounted) return;
+        
+        // Background task to fix any missing weather in the loaded data
+        (async () => {
+           let updated = false;
+           const newReadings = [...readingsData];
+           for (let i = 0; i < newReadings.length; i++) {
+             const r = newReadings[i];
+             if (r.temperature_c == null && r.latitude != null && r.longitude != null) {
+               const weather = await getTrapWeather(r.latitude, r.longitude);
+               if (weather) {
+                 newReadings[i] = { ...r, temperature_c: weather.temperature, humidity_percent: weather.humidity };
+                 updated = true;
+                 supabase.from("ovitrap_readings").update({
+                   temperature_c: weather.temperature,
+                   humidity_percent: weather.humidity
+                 }).eq("id", r.id).then();
+               }
+             }
+           }
+           if (updated && isMounted) {
+             setReadings([...newReadings]);
+           }
+        })();
+
         setReadings(readingsData);
         setBarangayOptions(barangays);
       } catch (err) {
@@ -57,9 +83,37 @@ export default function RawTelemetryHubPage() {
 
     loadInitialData();
 
-    const unsubscribe = subscribeToNewReadings((newReading) => {
-      setReadings((prev) => [newReading, ...prev]);
-    });
+    const unsubscribe = subscribeToNewReadings(
+      (newReading) => {
+        setReadings((prev) => [newReading, ...prev]);
+        
+        // Auto-fetch weather for real-time inserts if missing
+        if (newReading.temperature_c == null && newReading.latitude && newReading.longitude) {
+           getTrapWeather(newReading.latitude, newReading.longitude).then(weather => {
+             if (weather) {
+               supabase.from("ovitrap_readings").update({
+                 temperature_c: weather.temperature,
+                 humidity_percent: weather.humidity
+               }).eq("id", newReading.id).then();
+               
+               // Also update the local state right away so the user sees it without waiting for the UPDATE event
+               setReadings((prev) =>
+                 prev.map((r) =>
+                   r.id === newReading.id
+                     ? { ...r, temperature_c: weather.temperature, humidity_percent: weather.humidity }
+                     : r
+                 )
+               );
+             }
+           });
+        }
+      },
+      (updatedReading) => {
+        setReadings((prev) =>
+          prev.map((r) => (r.id === updatedReading.id ? updatedReading : r))
+        );
+      }
+    );
 
     return () => {
       isMounted = false;
