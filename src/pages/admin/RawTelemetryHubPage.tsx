@@ -53,10 +53,12 @@ export default function RawTelemetryHubPage() {
            const newReadings = [...readingsData];
            for (let i = 0; i < newReadings.length; i++) {
              const r = newReadings[i];
+             if (!r) continue;
+             
              if (r.temperature_c == null && r.latitude != null && r.longitude != null) {
                const weather = await getTrapWeather(r.latitude, r.longitude);
                if (weather) {
-                 newReadings[i] = { ...r, temperature_c: weather.temperature, humidity_percent: weather.humidity };
+                 newReadings[i] = { ...r, temperature_c: weather.temperature, humidity_percent: weather.humidity } as TelemetryReading;
                  updated = true;
                  supabase.from("ovitrap_readings").update({
                    temperature_c: weather.temperature,
