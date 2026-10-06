@@ -27,43 +27,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBhwDashboardData } from "@/hooks/useBhwDashboardData";
 import { ROUTES } from "@/utils/navigation";
-
-const recentAlerts = [
-  {
-    location: "San Roque Elementary School",
-    type: "Breeding ground detected",
-    timestamp: "2026-07-29 09:12",
-  },
-  {
-    location: "Public Market North Wing",
-    type: "Low battery warning",
-    timestamp: "2026-07-29 07:40",
-  },
-  {
-    location: "Riverside Park",
-    type: "Standing water hotspot",
-    timestamp: "2026-07-28 18:25",
-  },
-] as const;
-
-const actionLog = [
-  {
-    action: "Acknowledged warning",
-    detail: "Barangay San Isidro hotspot marked for follow-up.",
-    timestamp: "2026-07-29 10:02",
-  },
-  {
-    action: "Search and Destroy",
-    detail: "Cleaning and container removal conducted near the clinic.",
-    timestamp: "2026-07-29 08:50",
-  },
-  {
-    action: "Larvicide distribution",
-    detail: "Larvicide packets issued to zone 3 household cluster.",
-    timestamp: "2026-07-28 16:15",
-  },
-] as const;
 
 const quickLinks = [
   {
@@ -127,12 +92,16 @@ function MetricCard({
 
 export default function BhwDashboard() {
   const { profile } = useAuth();
+  const { data: metrics, isLoading: metricsLoading } = useBhwDashboardData();
+
+  const recentAlerts = metrics?.recentAlerts ?? [];
+  const actionLog = metrics?.actionLog ?? [];
 
   const heroMetrics = {
-    barangayDvi: "3.8",
-    activeTrapNodes: "14",
-    lowBatteryNodes: "3",
-    openTriageActions: "6",
+    barangayDvi: metricsLoading ? "..." : (metrics?.barangayDvi ?? 0).toFixed(1),
+    activeTrapNodes: metricsLoading ? "..." : String(metrics?.activeTrapNodes ?? 0),
+    lowBatteryNodes: metricsLoading ? "..." : String(metrics?.lowBatteryNodes ?? 0),
+    openTriageActions: metricsLoading ? "..." : String(metrics?.openTriageActions ?? 0),
   };
 
   return (
@@ -216,7 +185,7 @@ export default function BhwDashboard() {
         <MetricCard
           icon={Droplets}
           label="Barangay DVI"
-          value="3.8"
+          value={heroMetrics.barangayDvi}
           detail="Current reading for the active coverage area."
           accent="emerald"
         />
@@ -224,7 +193,7 @@ export default function BhwDashboard() {
         <MetricCard
           icon={MapPinned}
           label="Active trap nodes"
-          value="14"
+          value={heroMetrics.activeTrapNodes}
           detail="Nodes currently reporting in the barangay."
           accent="sky"
         />
@@ -232,7 +201,7 @@ export default function BhwDashboard() {
         <MetricCard
           icon={BatteryLow}
           label="Low-battery alerts"
-          value="3"
+          value={heroMetrics.lowBatteryNodes}
           detail="Nodes below the safe voltage threshold."
           accent="amber"
         />
@@ -240,7 +209,7 @@ export default function BhwDashboard() {
         <MetricCard
           icon={TriangleAlert}
           label="Open triage actions"
-          value="6"
+          value={heroMetrics.openTriageActions}
           detail="Unresolved or pending log items."
           accent="slate"
         />
@@ -250,7 +219,9 @@ export default function BhwDashboard() {
         <Card className="border-emerald-200 bg-emerald-50/80 shadow-sm">
           <CardContent className="p-5 text-emerald-800">
             <p className="text-sm font-medium opacity-80">Breeding hotspot</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">11</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight">
+              {metricsLoading ? "..." : String(metrics?.hotspotCount ?? 0)}
+            </p>
             <p className="mt-1 text-sm opacity-80">Sites flagged for inspection.</p>
           </CardContent>
         </Card>
@@ -258,7 +229,9 @@ export default function BhwDashboard() {
         <Card className="border-yellow-200 bg-yellow-50/80 shadow-sm">
           <CardContent className="p-5 text-yellow-900">
             <p className="text-sm font-medium opacity-80">Queue risk</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">4</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight">
+              {metricsLoading ? "..." : String(metrics?.queueRisk ?? 0)}
+            </p>
             <p className="mt-1 text-sm opacity-80">Items needing same-day follow-up.</p>
           </CardContent>
         </Card>
@@ -266,7 +239,9 @@ export default function BhwDashboard() {
         <Card className="border-orange-200 bg-orange-50/80 shadow-sm">
           <CardContent className="p-5 text-orange-800">
             <p className="text-sm font-medium opacity-80">Field spots</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">8</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight">
+              {metricsLoading ? "..." : String(metrics?.fieldSpots ?? 0)}
+            </p>
             <p className="mt-1 text-sm opacity-80">Active hotspots under monitoring.</p>
           </CardContent>
         </Card>
@@ -274,7 +249,9 @@ export default function BhwDashboard() {
         <Card className="border-rose-200 bg-rose-50/80 shadow-sm">
           <CardContent className="p-5 text-rose-800">
             <p className="text-sm font-medium opacity-80">Critical nodes</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">2</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight">
+              {metricsLoading ? "..." : String(metrics?.criticalNodes ?? 0)}
+            </p>
             <p className="mt-1 text-sm opacity-80">Nodes requiring immediate attention.</p>
           </CardContent>
         </Card>
