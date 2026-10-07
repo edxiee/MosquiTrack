@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import UserForm from "./UserForm";
+import NoticeDialog from "./NoticeDialog";
 import { validateCreateUserForm } from "@/utils/validateUserForm";
 import type { CreateUserForm, UserFormErrors } from "@/types/user.types";
 import { createUser } from "@/services/users.service";
@@ -37,6 +38,7 @@ export default function CreateUserDialog({
   const [errors, setErrors] = useState<UserFormErrors>({});
   const [isCreating, setIsCreating] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false); // Track success state
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   function updateForm<K extends keyof CreateUserForm>(
     field: K,
@@ -85,10 +87,8 @@ export default function CreateUserDialog({
       setShowSuccess(true);
     } catch (error) {
       console.error(error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to create user."
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to create user."
       );
     } finally {
       setIsCreating(false);
@@ -96,11 +96,12 @@ export default function CreateUserDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className={
         showSuccess 
-          ? "max-h-[90vh] overflow-y-auto sm:max-w-xxl" 
-          : "max-h-[90vh] overflow-y-auto sm:max-w-xl"
+          ? "max-h-[90vh] overflow-y-auto sm:max-w-md rounded-2xl" 
+          : "max-h-[90vh] overflow-y-auto sm:max-w-lg rounded-2xl p-7 gap-6"
       }>
         {showSuccess ? (
           <div className="flex flex-col items-center text-center space-y-6 px-1 py-4">
@@ -166,14 +167,16 @@ export default function CreateUserDialog({
               className="w-full h-10 rounded-lg text-sm font-medium shadow-sm transition-all bg-emerald-500 text-white hover:bg-emerald-600 focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"
               onClick={() => handleOpenChange(false)}
             >
-              Done
+              Okay
             </Button>
           </div>
         ) : (
           <>
-            <DialogHeader>
-              <DialogTitle>Create New User</DialogTitle>
-              <DialogDescription>
+            <DialogHeader className="space-y-1">
+              <DialogTitle className="text-xl font-semibold tracking-tight">
+                Create New User
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
                 Enter the user's information below.
               </DialogDescription>
             </DialogHeader>
@@ -184,16 +187,20 @@ export default function CreateUserDialog({
               updateForm={updateForm}
             />
 
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-2">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => handleOpenChange(false)}
                 disabled={isCreating}
               >
                 Cancel
               </Button>
 
-              <Button onClick={handleCreateUser} disabled={isCreating}>
+              <Button
+                className="bg-emerald-500 text-white hover:bg-emerald-600"
+                onClick={handleCreateUser}
+                disabled={isCreating}
+              >
                 {isCreating ? "Creating..." : "Create User"}
               </Button>
             </DialogFooter>
@@ -201,5 +208,14 @@ export default function CreateUserDialog({
         )}
       </DialogContent>
     </Dialog>
+
+    <NoticeDialog
+      open={errorMessage !== null}
+      variant="error"
+      title="Couldn't Create User"
+      message={errorMessage ?? ""}
+      onClose={() => setErrorMessage(null)}
+    />
+    </>
   );
 }

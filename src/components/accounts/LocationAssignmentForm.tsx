@@ -87,7 +87,7 @@ export default function LocationAssignmentForm({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Location Assignment</h3>
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Location</h3>
 
       {/* Municipality */}
       <div className="space-y-2">
@@ -99,7 +99,7 @@ export default function LocationAssignmentForm({
           value={municipality ?? ""}
           onChange={(e) => handleMunicipalityChange(e.target.value)}
           disabled={loading}
-          className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+          className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
         >
           <option value="" disabled>
             {loading ? "Loading municipalities…" : "Select municipality"}
@@ -126,7 +126,7 @@ export default function LocationAssignmentForm({
             value={barangay ?? ""}
             onChange={(e) => onBarangayChange(e.target.value)}
             disabled={!municipality || loading}
-            className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <option value="" disabled>
               {!municipality

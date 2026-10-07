@@ -14,7 +14,7 @@ export default function UsernameForm({
 }: UsernameFormProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">-- Username</h3>
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Account</h3>
 
       <div className="space-y-2">
         <Label htmlFor="username">Username <span className="text-rose-500">*</span></Label>

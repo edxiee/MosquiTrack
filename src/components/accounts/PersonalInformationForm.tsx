@@ -23,7 +23,7 @@ export default function PersonalInformationForm({
 }: PersonalInformationFormProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">-- Personal Information</h3>
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Personal Information</h3>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">

@@ -27,7 +27,7 @@ export default function ContactInformationForm({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">-- Contact Information </h3>
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Contact Information</h3>
 
       <div className="space-y-2">
         <Label htmlFor="email">
