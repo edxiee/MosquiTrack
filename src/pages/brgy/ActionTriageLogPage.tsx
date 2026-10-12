@@ -62,7 +62,8 @@ export default function ActionTriageLogPage() {
       const matchesSearch =
         q === "" ||
         a.barangayName.toLowerCase().includes(q) ||
-        (a.deviceCode ?? "").toLowerCase().includes(q);
+        (a.deviceCode ?? "").toLowerCase().includes(q) ||
+        (a.requestedByName ?? "").toLowerCase().includes(q);
       const matchesPriority =
         filters.priority === "all" || a.priority === filters.priority;
       const matchesStatus =
@@ -103,13 +104,37 @@ export default function ActionTriageLogPage() {
     await loadActions();
   }
 
+  async function handleQuickStatus(action: TriageAction, status: TriageStatus) {
+    // optimistic update
+    setActions((prev) =>
+      prev.map((a) => (a.id === action.id ? { ...a, status } : a)),
+    );
+    try {
+      await updateActionStatus(action.id, {
+        status,
+        ...(action.remarks ? { remarks: action.remarks } : {}),
+      });
+      await loadActions();
+    } catch (err) {
+      console.error("Failed to update action:", err);
+      await loadActions();
+    }
+  }
+
   return (
-    <div className="space-y-6 p-8">
-      <div>
-        <h1 className="text-4xl font-bold">Action Triage Log</h1>
-        <p className="mt-2 text-slate-600">
-          Field response actions assigned based on surveillance findings.
-        </p>
+    <div className="space-y-6 bg-gradient-to-b from-slate-50 to-white p-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
+            Action Triage Log
+          </h1>
+          <p className="mt-2 text-slate-600">
+            Field response actions assigned based on surveillance findings.
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-600 shadow-sm ring-1 ring-slate-200">
+          Showing {filteredActions.length} of {actions.length}
+        </span>
       </div>
 
       <TriageStatistics stats={stats} />
@@ -124,6 +149,7 @@ export default function ActionTriageLogPage() {
         actions={filteredActions}
         isLoading={isLoading}
         onUpdateStatus={handleUpdateStatus}
+        onQuickStatus={handleQuickStatus}
       />
 
       <UpdateStatusDialog

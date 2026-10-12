@@ -1,8 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 
+export type AlertTier = "green" | "yellow" | "orange" | "red";
+
+export interface DailyMosquitoTrendPoint {
+  date: string; // YYYY-MM-DD
+  avg: number;
+  readings: number;
+}
+
+export interface BarangayMosquitoStatus {
+  id: string;
+  name: string;
+  tier: AlertTier | null;
+  avg3Day: number;
+  avgPrev3Day: number;
+  changePct: number | null;
+  lastReadingAt: string | null;
+}
+
 export interface LguDashboardMetrics {
   dviAverage3Day: number;
+  dviAveragePrev3Day: number;
   barangaysMonitored: number;
   pendingApprovals: number;
   dohCases7Day: number | null;
@@ -17,10 +36,13 @@ export interface LguDashboardMetrics {
     transition: string;
     timestamp: string;
   }>;
+  dailyTrend: DailyMosquitoTrendPoint[];
+  barangayStatus: BarangayMosquitoStatus[];
 }
 
 const EMPTY_METRICS: LguDashboardMetrics = {
   dviAverage3Day: 0,
+  dviAveragePrev3Day: 0,
   barangaysMonitored: 0,
   pendingApprovals: 0,
   dohCases7Day: null,
@@ -31,6 +53,8 @@ const EMPTY_METRICS: LguDashboardMetrics = {
     red: 0,
   },
   recentEscalations: [],
+  dailyTrend: [],
+  barangayStatus: [],
 };
 
 type RiskAssessmentRow = {
@@ -138,14 +162,16 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
 
   const { data: barangaysData, error: barangaysError } = await supabase
     .from("barangays")
-    .select("id")
+    .select("id, barangay_name")
     .eq("municipality", municipality);
 
   if (barangaysError) {
     throw barangaysError;
   }
 
-  const barangayIds = (barangaysData ?? []).map((b: { id: string }) => b.id);
+  const barangayRows =
+    (barangaysData as Array<{ id: string; barangay_name: string | null }>) ?? [];
+  const barangayIds = barangayRows.map((b) => b.id);
   if (barangayIds.length === 0) {
     return EMPTY_METRICS;
   }
@@ -168,29 +194,112 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
   );
 
   const deviceIds = devices.map((d) => d.id);
+  const deviceToBarangay = new Map<string, string>();
+  for (const d of devices) {
+    if (d.barangay_id) deviceToBarangay.set(d.id, d.barangay_id);
+  }
+
   let dviAverage3Day = 0;
+  let dviAveragePrev3Day = 0;
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const trendDays = 14;
+
+  // Seed the 14-day trend buckets (oldest -> newest)
+  const trendBuckets = new Map<string, { total: number; readings: number }>();
+  for (let i = trendDays - 1; i >= 0; i -= 1) {
+    trendBuckets.set(new Date(now - i * DAY_MS).toISOString().slice(0, 10), {
+      total: 0,
+      readings: 0,
+    });
+  }
+
+  const perBarangay = new Map<
+    string,
+    { recentTotal: number; recentN: number; prevTotal: number; prevN: number; last: string | null }
+  >();
 
   if (deviceIds.length > 0) {
-    const since3Days = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const sinceIso = new Date(now - trendDays * DAY_MS).toISOString();
     const { data: readingsData, error: readingsError } = await supabase
       .from("ovitrap_readings")
-      .select("mosquito_count")
+      .select("device_id, mosquito_count, captured_at")
       .in("device_id", deviceIds)
-      .gte("captured_at", since3Days);
+      .gte("captured_at", sinceIso)
+      .order("captured_at", { ascending: false })
+      .limit(5000);
 
     if (readingsError) {
       throw readingsError;
     }
 
     const readings =
-      (readingsData as Array<{ mosquito_count?: number | null }>) ?? [];
-    const totalCount = readings.reduce((sum, row) => {
-      const value = row.mosquito_count ?? 0;
-      return sum + value;
-    }, 0);
+      (readingsData as Array<{
+        device_id: string;
+        mosquito_count?: number | null;
+        captured_at: string;
+      }>) ?? [];
 
-    dviAverage3Day = readings.length > 0 ? totalCount / readings.length : 0;
+    let recentTotal = 0;
+    let recentN = 0;
+    let prevTotal = 0;
+    let prevN = 0;
+
+    for (const row of readings) {
+      const value = row.mosquito_count ?? 0;
+      const ts = Date.parse(row.captured_at);
+      if (Number.isNaN(ts)) continue;
+
+      const bucket = trendBuckets.get(new Date(ts).toISOString().slice(0, 10));
+      if (bucket) {
+        bucket.total += value;
+        bucket.readings += 1;
+      }
+
+      const isRecent = ts >= now - 3 * DAY_MS;
+      const isPrev = !isRecent && ts >= now - 6 * DAY_MS;
+
+      if (isRecent) {
+        recentTotal += value;
+        recentN += 1;
+      } else if (isPrev) {
+        prevTotal += value;
+        prevN += 1;
+      }
+
+      const brgyId = deviceToBarangay.get(row.device_id);
+      if (brgyId) {
+        const agg = perBarangay.get(brgyId) ?? {
+          recentTotal: 0,
+          recentN: 0,
+          prevTotal: 0,
+          prevN: 0,
+          last: null,
+        };
+        if (isRecent) {
+          agg.recentTotal += value;
+          agg.recentN += 1;
+        } else if (isPrev) {
+          agg.prevTotal += value;
+          agg.prevN += 1;
+        }
+        if (!agg.last || ts > Date.parse(agg.last)) agg.last = row.captured_at;
+        perBarangay.set(brgyId, agg);
+      }
+    }
+
+    dviAverage3Day = recentN > 0 ? recentTotal / recentN : 0;
+    dviAveragePrev3Day = prevN > 0 ? prevTotal / prevN : 0;
   }
+
+  const dailyTrend: DailyMosquitoTrendPoint[] = Array.from(trendBuckets.entries()).map(
+    ([date, b]) => ({
+      date,
+      avg: b.readings > 0 ? Number((b.total / b.readings).toFixed(1)) : 0,
+      readings: b.readings,
+    }),
+  );
 
   const { count: pendingCount, error: pendingError } = await supabase
     .from("action_triage_log")
@@ -277,13 +386,43 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
 
   recentEscalations.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
 
+  const barangayStatus: BarangayMosquitoStatus[] = barangayRows
+    .filter((b) => monitoredBarangayIds.has(b.id))
+    .map((b) => {
+      const agg = perBarangay.get(b.id);
+      const avg3Day = agg && agg.recentN > 0 ? agg.recentTotal / agg.recentN : 0;
+      const avgPrev3Day = agg && agg.prevN > 0 ? agg.prevTotal / agg.prevN : 0;
+      const changePct =
+        avgPrev3Day > 0 ? ((avg3Day - avgPrev3Day) / avgPrev3Day) * 100 : null;
+      const latest = latestByBarangay.get(b.id);
+
+      return {
+        id: b.id,
+        name: b.barangay_name ?? "Unknown",
+        tier: latest ? normalizeAlertTier(getRiskLevelName(latest)) : null,
+        avg3Day,
+        avgPrev3Day,
+        changePct,
+        lastReadingAt: agg?.last ?? null,
+      };
+    })
+    .sort((a, b) => {
+      const rankA = a.tier ? getAlertTierRank(a.tier) : 0;
+      const rankB = b.tier ? getAlertTierRank(b.tier) : 0;
+      if (rankA !== rankB) return rankB - rankA;
+      return b.avg3Day - a.avg3Day;
+    });
+
   return {
     dviAverage3Day,
+    dviAveragePrev3Day,
     barangaysMonitored: monitoredBarangayIds.size,
     pendingApprovals: pendingCount ?? 0,
     dohCases7Day: null,
     alertTierCounts,
     recentEscalations: recentEscalations.slice(0, 8),
+    dailyTrend,
+    barangayStatus,
   };
 }
 

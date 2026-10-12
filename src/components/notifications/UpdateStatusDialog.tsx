@@ -6,16 +6,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { TriageAction, TriageStatus } from "@/types/triage.types";
+import { DOT_STYLES, STATUS_STYLES } from "@/utils/triageHelpers";
 
 interface UpdateStatusDialogProps {
   open: boolean;
@@ -68,35 +62,44 @@ export default function UpdateStatusDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Update Action</DialogTitle>
+          <DialogTitle>Manage Action</DialogTitle>
         </DialogHeader>
 
         {action && (
-          <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              {action.barangayName}
-              {action.deviceCode ? ` — ${action.deviceCode}` : ""}
+          <div className="space-y-5">
+            <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+              <p className="font-semibold text-slate-800">{action.triggerSource}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {action.barangayName}
+                {action.deviceCode ? ` · ${action.deviceCode}` : ""} ·{" "}
+                <span className="font-medium">{action.priority}</span> priority
+              </p>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>
-              <Select
-                value={status}
-                onValueChange={(value) => setStatus(value as TriageStatus)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
+              <div className="grid grid-cols-2 gap-2">
+                {STATUSES.map((s) => {
+                  const active = status === s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setStatus(s)}
+                      className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium ring-1 ring-inset transition-all hover:-translate-y-0.5 ${
+                        active
+                          ? `${STATUS_STYLES[s]} shadow-sm ring-2`
+                          : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${DOT_STYLES[s]}`} />
                       {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="space-y-2">

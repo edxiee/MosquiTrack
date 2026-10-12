@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { formatDeployedBy } from "@/utils/deviceHelpers";
 import { fetchDevicesForCurrentMunicipality } from "@/services/device.service";
 import type { OvitrapDevice } from "@/types/device.types";
-import { createTrapRequest } from "@/services/trapRequest.service";
+import { submitTriageRequest } from "@/services/barangaySurveillance.service";
 import { getErrorMessage } from "@/utils/errorHelpers";
 import { SuccessModal } from "@/components/reports/modals/SuccessModal";
 import { ErrorModal } from "@/components/reports/modals/ErrorModal";
@@ -29,15 +29,20 @@ const REQUEST_TYPES = [
 
 type RequestType = (typeof REQUEST_TYPES)[number];
 
+const PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
+type PriorityType = (typeof PRIORITIES)[number];
+
 interface RequestActionModalProps {
   open: boolean;
   device: OvitrapDevice | null;
   onClose: () => void;
   onSubmit: (payload: {
     deviceId: string;
+    barangayId: string | null;
     description: string;
     notes: string;
     requestType: RequestType;
+    priority: PriorityType;
   }) => Promise<void>;
 }
 
@@ -50,6 +55,7 @@ function RequestActionModal({
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [requestType, setRequestType] = useState<RequestType | "">("");
+  const [priority, setPriority] = useState<PriorityType | "">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +64,7 @@ function RequestActionModal({
       setDescription(device.description || device.notes || "");
       setNotes("");
       setRequestType("");
+      setPriority("");
       setError(null);
     }
   }, [open, device]);
@@ -73,13 +80,20 @@ function RequestActionModal({
       return;
     }
 
+    if (!priority) {
+      setError("Please select a Priority.");
+      return;
+    }
+
     setSaving(true);
     try {
       await onSubmit({
         deviceId: device.id,
+        barangayId: device.barangay_id,
         description: description.trim(),
         notes: notes.trim(),
         requestType,
+        priority: priority as PriorityType,
       });
       onClose();
     } catch (err: unknown) {
@@ -152,6 +166,29 @@ function RequestActionModal({
               {REQUEST_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-600">
+              Priority <span className="text-rose-500">*</span>
+            </Label>
+            <select
+              value={priority}
+              onChange={(e) =>
+                setPriority(e.target.value as PriorityType | "")
+              }
+              className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              required
+            >
+              <option value="" disabled>
+                Select priority…
+              </option>
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
                 </option>
               ))}
             </select>
@@ -294,17 +331,24 @@ export default function PrescriptiveAnalyticsPage() {
 
   const handleSubmitRequest = async (payload: {
     deviceId: string;
+    barangayId: string | null;
     description: string;
     notes: string;
     requestType: RequestType;
+    priority: PriorityType;
   }) => {
     try {
-      await createTrapRequest(
-        payload.deviceId,
-        payload.requestType,
-        payload.description || null,
-        payload.notes || null
-      );
+      if (!payload.barangayId) {
+        throw new Error("Cannot submit triage log: device has no barangay assigned.");
+      }
+
+      await submitTriageRequest({
+        barangayId: payload.barangayId,
+        deviceId: payload.deviceId,
+        triggerSource: payload.requestType,
+        priority: payload.priority,
+        remarks: [payload.description, payload.notes].filter(Boolean).join(" | ") || "No additional remarks.",
+      });
 
       setLastRequestType(payload.requestType);
       setSuccessOpen(true);

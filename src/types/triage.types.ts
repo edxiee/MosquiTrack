@@ -12,6 +12,8 @@ export interface TriageAction {
   status: TriageStatus;
   assignedTo: string | null;
   assignedToName: string | null;
+  requestedBy: string | null;
+  requestedByName: string | null;
   assignedDate: string; // "YYYY-MM-DD"
   dueDate: string | null;
   completedAt: string | null;
@@ -38,5 +40,5 @@ export interface TriageStats {
 
 export interface UpdateActionStatusInput {
   status: TriageStatus;
-  remarks?: string;
+  remarks?: string | undefined;
 }

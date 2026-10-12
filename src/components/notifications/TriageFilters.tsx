@@ -29,7 +29,7 @@ export default function TriageFilters({
   return (
     <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center">
       <Input
-        placeholder="Search barangay or device..."
+        placeholder="Search barangay, device, or requester..."
         value={filters.search}
         onChange={(e) => update({ search: e.target.value })}
         className="w-full md:max-w-xs"

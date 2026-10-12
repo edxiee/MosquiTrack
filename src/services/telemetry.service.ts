@@ -85,6 +85,34 @@ export async function getTelemetry(limit = 200): Promise<TelemetryReading[]> {
   return ((data ?? []) as unknown as RawReadingRow[]).map(flattenReading);
 }
 
+export interface DeviceReadingSummary {
+  id: string;
+  captured_at: string;
+  mosquito_count: number | null;
+  battery_level: number | null;
+  temperature_c: number | null;
+  humidity_percent: number | null;
+  ai_confidence: number | null;
+}
+
+/** Latest readings for a single trap, newest first. */
+export async function getDeviceReadings(
+  deviceId: string,
+  limit = 14,
+): Promise<DeviceReadingSummary[]> {
+  const { data, error } = await supabase
+    .from("ovitrap_readings")
+    .select(
+      "id, captured_at, mosquito_count, battery_level, temperature_c, humidity_percent, ai_confidence",
+    )
+    .eq("device_id", deviceId)
+    .order("captured_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data ?? []) as DeviceReadingSummary[];
+}
+
 /** Fetch one reading (with joins) by id — used to hydrate realtime inserts. */
 export async function getTelemetryById(
   id: string,

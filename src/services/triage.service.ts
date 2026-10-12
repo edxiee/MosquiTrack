@@ -18,9 +18,11 @@ interface RawActionRow {
   completed_at: string | null;
   remarks: string | null;
   created_at: string;
+  created_by?: string | null;
   barangay: { barangay_name: string } | null;
   device: { device_code: string } | null;
-  assignee: { first_name: string; last_name: string } | null;
+  assignee: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
+  requester?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
 }
 
 const ACTION_SELECT = `
@@ -36,12 +38,20 @@ const ACTION_SELECT = `
   completed_at,
   remarks,
   created_at,
+  created_by,
   barangay:barangays ( barangay_name ),
   device:ovitrap_devices ( device_code ),
-  assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name )
+  assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name ),
+  requester:profiles!action_triage_log_created_by_fkey ( first_name, last_name )
 `;
 
 function flattenAction(row: RawActionRow): TriageAction {
+  const assignee = Array.isArray(row.assignee) ? row.assignee[0] : row.assignee;
+  const requester = Array.isArray(row.requester) ? row.requester[0] : row.requester;
+  const requesterName = requester
+    ? `${requester.first_name} ${requester.last_name}`.trim()
+    : null;
+
   return {
     id: row.id,
     barangayId: row.barangay_id,
@@ -52,9 +62,11 @@ function flattenAction(row: RawActionRow): TriageAction {
     priority: row.priority,
     status: row.status,
     assignedTo: row.assigned_to,
-    assignedToName: row.assignee
-      ? `${row.assignee.first_name} ${row.assignee.last_name}`
+    assignedToName: assignee
+      ? `${assignee.first_name} ${assignee.last_name}`.trim()
       : null,
+    requestedBy: row.created_by ?? null,
+    requestedByName: requesterName || null,
     assignedDate: row.assigned_date,
     dueDate: row.due_date,
     completedAt: row.completed_at,

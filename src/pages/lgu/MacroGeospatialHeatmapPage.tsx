@@ -1,20 +1,20 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   MapContainer,
   TileLayer,
   Marker,
-  Popup,
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
 import { Loader2 } from "lucide-react";
 import { fetchDevices } from "@/services/device.service";
 import type { OvitrapDevice } from "@/types/device.types";
+import TrapDetailsPanel from "@/components/map/TrapDetailsPanel";
 
 import "leaflet/dist/leaflet.css";
 
-const createCustomMarker = (status: string) => {
+const createCustomMarker = (status: string, selected = false) => {
   const colorMap = {
     Active: { bg: "emerald", ping: true },
     Maintenance: { bg: "amber", ping: false },
@@ -25,7 +25,7 @@ const createCustomMarker = (status: string) => {
   return L.divIcon({
     className: "custom-div-icon",
     html: `
-      <div class="flex items-center justify-center -translate-y-4">
+      <div class="flex items-center justify-center -translate-y-4" style="${selected ? "transform: translateY(-1rem) scale(1.3); filter: drop-shadow(0 0 6px rgba(15,23,42,0.45));" : ""}">
         <div class="relative w-10 h-10 flex items-center justify-center">
           ${ping ? `<div class="absolute inset-0 bg-${bg}-500 rounded-full opacity-40 animate-ping"></div>` : ""}
           <div class="absolute inset-2 bg-${bg}-100 rounded-full shadow-inner"></div>
@@ -52,6 +52,25 @@ function MapController({
   useEffect(() => {
     map.setView(center, zoom, { animate: true, duration: 1.2 });
   }, [center, zoom, map]);
+  return null;
+}
+
+// Re-measures the map when the side panel opens/closes and centers on the selected trap
+function MapResizer({ target }: { target: [number, number] | null }) {
+  const map = useMap();
+  const lat = target?.[0];
+  const lng = target?.[1];
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      map.invalidateSize();
+      if (lat != null && lng != null) {
+        map.panTo([lat, lng], { animate: true, duration: 0.6 });
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [lat, lng, map]);
+
   return null;
 }
 
@@ -87,8 +106,13 @@ export default function MacroGeospatialHeatmapPage() {
   const [mapZoom, setMapZoom] = useState(13);
   const [shouldFitBounds, setShouldFitBounds] = useState(true);
 
-  // Store marker refs so we can open the popup programmatically
-  const markerRefs = useRef<Record<string, L.Marker | null>>({});
+  // Currently selected trap (shown in the side panel)
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedTrap = deployedTraps.find((t) => t.id === selectedId) ?? null;
+  const selectedPos: [number, number] | null =
+    selectedTrap && !isNaN(Number(selectedTrap.latitude)) && !isNaN(Number(selectedTrap.longitude))
+      ? [Number(selectedTrap.latitude), Number(selectedTrap.longitude)]
+      : null;
 
   useEffect(() => {
     const load = async () => {
@@ -117,11 +141,7 @@ export default function MacroGeospatialHeatmapPage() {
             ]);
             setMapZoom(16);
             setShouldFitBounds(false); // don't override with fitBounds
-
-            // Open the popup after the map has moved
-            setTimeout(() => {
-              markerRefs.current[viewId]?.openPopup();
-            }, 600);
+            setSelectedId(viewId);
           }
         }
       } catch (err) {
@@ -156,7 +176,7 @@ export default function MacroGeospatialHeatmapPage() {
           </div>
         ) : null}
 
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <MapContainer
             center={mapCenter}
             zoom={mapZoom}
@@ -171,6 +191,9 @@ export default function MacroGeospatialHeatmapPage() {
             {/* Controlled pan/zoom when viewId is present */}
             <MapController center={mapCenter} zoom={mapZoom} />
 
+            {/* Keeps the map sized correctly beside the details panel */}
+            <MapResizer target={selectedPos} />
+
             {deployedTraps.map((trap) => {
               const lat = Number(trap.latitude);
               const lng = Number(trap.longitude);
@@ -178,55 +201,22 @@ export default function MacroGeospatialHeatmapPage() {
 
               return (
                 <Marker
-                  key={trap.id}
-                  ref={(r) => {
-                    markerRefs.current[trap.id] = r;
-                  }}
+                  key={`${trap.id}-${trap.id === selectedId ? "sel" : "idle"}`}
                   position={[lat, lng]}
                   icon={createCustomMarker(
-                    trap.device_statuses?.status_name ?? "Active"
+                    trap.device_statuses?.status_name ?? "Active",
+                    trap.id === selectedId
                   )}
-                >
-                  <Popup>
-                    <div className="w-48 p-1">
-                      <h3 className="font-bold text-slate-800 text-sm mb-1">
-                        {trap.device_code}
-                      </h3>
-                      {trap.description && (
-                        <p className="text-xs text-slate-600 mb-2">
-                          {trap.description}
-                        </p>
-                      )}
-
-                      <div className="space-y-1.5 text-xs text-slate-700">
-                        <div className="flex justify-between">
-                          <span className="font-semibold">Barangay:</span>
-                          <span>
-                            {trap.barangays?.barangay_name ?? "Unknown"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-semibold">Status:</span>
-                          <span>
-                            {trap.device_statuses?.status_name ?? "Unknown"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-semibold">Battery:</span>
-                          <span>89%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-semibold">Last Sync:</span>
-                          <span>2 mins ago</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
+                  eventHandlers={{ click: () => setSelectedId(trap.id) }}
+                />
               );
             })}
           </MapContainer>
         </div>
+
+        {selectedTrap && (
+          <TrapDetailsPanel trap={selectedTrap} onClose={() => setSelectedId(null)} />
+        )}
       </div>
     </div>
   );
