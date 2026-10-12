@@ -3,6 +3,9 @@ import TriageStatistics from "@/components/notifications/TriageStatistics";
 import TriageFilters from "@/components/notifications/TriageFilters";
 import TriageTable from "@/components/notifications/TriageTable";
 import UpdateStatusDialog from "@/components/notifications/UpdateStatusDialog";
+import { Button } from "@/components/ui/button";
+import { ClipboardList, Filter, RefreshCw, RotateCcw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type {
   TriageAction,
   TriageFilterValues,
@@ -70,9 +73,11 @@ export default function ActionTriageLogPage() {
         filters.status === "all" || a.status === filters.status;
       const matchesBarangay =
         filters.barangay === "all" || a.barangayName === filters.barangay;
+      const actionDate = (a.assignedDate ?? "").slice(0, 10);
       const matchesFrom =
-        !filters.dateFrom || a.assignedDate >= filters.dateFrom;
-      const matchesTo = !filters.dateTo || a.assignedDate <= filters.dateTo;
+        !filters.dateFrom || (actionDate !== "" && actionDate >= filters.dateFrom);
+      const matchesTo =
+        !filters.dateTo || (actionDate !== "" && actionDate <= filters.dateTo);
 
       return (
         matchesSearch &&
@@ -89,6 +94,14 @@ export default function ActionTriageLogPage() {
     () => computeTriageStats(filteredActions),
     [filteredActions],
   );
+
+  const hasActiveFilters =
+    filters.search.trim() !== "" ||
+    filters.priority !== "all" ||
+    filters.status !== "all" ||
+    filters.barangay !== "all" ||
+    Boolean(filters.dateFrom) ||
+    Boolean(filters.dateTo);
 
   function handleUpdateStatus(action: TriageAction) {
     setSelectedAction(action);
@@ -122,35 +135,93 @@ export default function ActionTriageLogPage() {
   }
 
   return (
-    <div className="space-y-6 bg-gradient-to-b from-slate-50 to-white p-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
-            Action Triage Log
-          </h1>
-          <p className="mt-2 text-slate-600">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+              <ClipboardList className="size-5" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Action Triage Log
+            </h1>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
             Field response actions assigned based on surveillance findings.
           </p>
         </div>
-        <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-600 shadow-sm ring-1 ring-slate-200">
-          Showing {filteredActions.length} of {actions.length}
-        </span>
+
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadActions()}
+            disabled={isLoading}
+            className="h-9 px-3 gap-1.5 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
+          >
+            <RefreshCw className={cn("size-3.5", isLoading && "animate-spin")} />
+            <span>Refresh</span>
+          </Button>
+        </div>
       </div>
 
+      {/* Overview Metric Stats */}
       <TriageStatistics stats={stats} />
 
-      <TriageFilters
-        filters={filters}
-        onFiltersChange={setFilters}
-        barangayOptions={barangayOptions}
-      />
+      {/* Main Unified Container */}
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        {/* Container Filter & Search Toolbar */}
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/60">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Filter className="size-4 text-slate-500" />
+                <span className="text-sm font-semibold text-slate-800">
+                  Filter & Search Triage Actions
+                </span>
+              </div>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFilters(DEFAULT_FILTERS)}
+                  className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 rounded-lg cursor-pointer"
+                >
+                  <RotateCcw className="size-3 mr-1.5" />
+                  Reset Filters
+                </Button>
+              )}
+            </div>
 
-      <TriageTable
-        actions={filteredActions}
-        isLoading={isLoading}
-        onUpdateStatus={handleUpdateStatus}
-        onQuickStatus={handleQuickStatus}
-      />
+            <TriageFilters
+              filters={filters}
+              onFiltersChange={setFilters}
+              barangayOptions={barangayOptions}
+            />
+          </div>
+        </div>
+
+        {/* Seamless Table Content */}
+        <TriageTable
+          actions={filteredActions}
+          isLoading={isLoading}
+          onUpdateStatus={handleUpdateStatus}
+          onQuickStatus={handleQuickStatus}
+          borderless
+        />
+
+        {/* Container Footer */}
+        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between text-xs text-slate-500">
+          <span className="text-[11px] text-slate-400">
+            MosquiTrack Field Response Operations
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-2xs ring-1 ring-slate-200">
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+            Showing {filteredActions.length} of {actions.length} Actions
+          </span>
+        </div>
+      </div>
 
       <UpdateStatusDialog
         open={isDialogOpen}

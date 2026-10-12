@@ -6,6 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Search } from "lucide-react";
+import DateRangePicker from "@/components/common/DateRangePicker";
 import type { TriageFilterValues } from "@/types/triage.types";
 
 interface TriageFiltersProps {
@@ -27,13 +29,16 @@ export default function TriageFilters({
   }
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center">
-      <Input
-        placeholder="Search barangay, device, or requester..."
-        value={filters.search}
-        onChange={(e) => update({ search: e.target.value })}
-        className="w-full md:max-w-xs"
-      />
+    <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+      <div className="relative flex-1 min-w-[220px] max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+        <Input
+          placeholder="Search barangay, device, or requester..."
+          value={filters.search}
+          onChange={(e) => update({ search: e.target.value })}
+          className="pl-9 h-9.5 text-sm bg-white"
+        />
+      </div>
 
       <Select
         value={filters.priority}
@@ -86,21 +91,13 @@ export default function TriageFilters({
         </SelectContent>
       </Select>
 
-      <div className="flex items-center gap-2">
-        <Input
-          type="date"
-          value={filters.dateFrom}
-          onChange={(e) => update({ dateFrom: e.target.value })}
-          className="w-full md:w-40"
-        />
-        <span className="text-sm text-muted-foreground">to</span>
-        <Input
-          type="date"
-          value={filters.dateTo}
-          onChange={(e) => update({ dateTo: e.target.value })}
-          className="w-full md:w-40"
-        />
-      </div>
+      <DateRangePicker
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
+        onRangeChange={(from, to) => update({ dateFrom: from, dateTo: to })}
+        className="w-full md:w-64"
+        placeholder="Select date range..."
+      />
     </div>
   );
 }

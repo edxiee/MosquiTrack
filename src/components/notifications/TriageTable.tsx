@@ -32,6 +32,7 @@ interface TriageTableProps {
   isLoading: boolean;
   onUpdateStatus: (action: TriageAction) => void;
   onQuickStatus: (action: TriageAction, status: TriageStatus) => void;
+  borderless?: boolean;
 }
 
 function Badge({
@@ -66,8 +67,18 @@ export default function TriageTable({
   isLoading,
   onUpdateStatus,
   onQuickStatus,
+  borderless = false,
 }: TriageTableProps) {
   if (isLoading) {
+    if (borderless) {
+      return (
+        <div className="space-y-3 p-6">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100" />
+          ))}
+        </div>
+      );
+    }
     return (
       <Card className="overflow-hidden rounded-2xl border-slate-200 shadow-sm">
         <CardContent className="space-y-3 p-6">
@@ -79,13 +90,11 @@ export default function TriageTable({
     );
   }
 
-  return (
-    <Card className="overflow-hidden rounded-2xl border-slate-200 shadow-sm">
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
-              <TableHead className="text-xs uppercase tracking-wide">Task</TableHead>
+  const tableElement = (
+    <Table>
+      <TableHeader>
+        <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+          <TableHead className="text-xs uppercase tracking-wide">Task</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Location</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Priority</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
@@ -208,6 +217,16 @@ export default function TriageTable({
             )}
           </TableBody>
         </Table>
+  );
+
+  if (borderless) {
+    return <div className="overflow-x-auto">{tableElement}</div>;
+  }
+
+  return (
+    <Card className="overflow-hidden rounded-2xl border-slate-200 shadow-sm">
+      <CardContent className="p-0 overflow-x-auto">
+        {tableElement}
       </CardContent>
     </Card>
   );
