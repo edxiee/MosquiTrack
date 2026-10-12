@@ -8,6 +8,8 @@ import {
   Search,
   X,
   Send,
+  Clock,
+  Boxes,
 } from "lucide-react";
 
 import { ROUTES } from "@/utils/navigation";
@@ -18,13 +20,18 @@ import { Label } from "@/components/ui/label";
 import { fetchDevicesForCurrentUser } from "@/services/device.service";
 import { formatDeployedBy } from "@/utils/deviceHelpers";
 import type { OvitrapDevice } from "@/types/device.types";
-import { createTrapRequest } from "@/services/trapRequest.service";
+import {
+  createTrapRequest,
+  fetchTrapRequests,
+  type TrapRequest,
+} from "@/services/trapRequest.service";
 
 import { SuccessModal } from "@/components/reports/modals/SuccessModal";
 import { ErrorModal } from "@/components/reports/modals/ErrorModal";
 
 import { getErrorMessage } from "@/utils/errorHelpers";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 type RequestType = "Request Pick-up" | "Request Deployment";
 
@@ -33,12 +40,18 @@ const REQUEST_TYPES: RequestType[] = [
   "Request Deployment",
 ];
 
+export type TrapOverviewTab = "deployed" | "pending" | "in_storage";
+
 export default function HardwareNodesPage() {
   const navigate = useNavigate();
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<TrapOverviewTab>("deployed");
+  const [pendingRequests, setPendingRequests] = useState<
+    Map<string, { request: string; created_at: string }>
+  >(new Map());
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -58,8 +71,26 @@ export default function HardwareNodesPage() {
     if (showSpinner) setLoading(true);
     setError(null);
     try {
-      const devs = await fetchDevicesForCurrentUser();
+      const [devs, reqs] = await Promise.all([
+        fetchDevicesForCurrentUser(),
+        fetchTrapRequests().catch(() => [] as TrapRequest[]),
+      ]);
       setDevices(devs);
+
+      // Build active pending requests map
+      const pMap = new Map<string, { request: string; created_at: string }>();
+      for (const r of reqs) {
+        const isPending =
+          r.status === "Pending" ||
+          (!r.status && !r.approved_at && !r.completed_at);
+        if (isPending && r.device_id && !pMap.has(r.device_id)) {
+          pMap.set(r.device_id, {
+            request: r.request,
+            created_at: r.created_at,
+          });
+        }
+      }
+      setPendingRequests(pMap);
     } catch (err: unknown) {
       console.error("HardwareNodesPage load error:", err);
       const msg = getErrorMessage(err, "Failed to load devices");
@@ -84,6 +115,13 @@ export default function HardwareNodesPage() {
       )
       .on(
         "postgres_changes",
+        { event: "*", schema: "public", table: "request_actions" },
+        () => {
+          loadData(false);
+        }
+      )
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "ovitrap_readings" },
         () => {
           loadData(false);
@@ -96,11 +134,78 @@ export default function HardwareNodesPage() {
     };
   }, []);
 
+  // Classify devices into Deployed, Pending, In Storage
+  const { deployedDevices, pendingDevices, inStorageDevices } = useMemo(() => {
+    const deployed: OvitrapDevice[] = [];
+    const pending: OvitrapDevice[] = [];
+    const inStorage: OvitrapDevice[] = [];
+
+    for (const d of devices) {
+      const hasPendingReq = pendingRequests.has(d.id);
+
+      // If there is an active pending request in request_actions
+      if (hasPendingReq) {
+        pending.push(d);
+        continue;
+      }
+
+      // Check operational status if set
+      const op = (d.operational_status || "").toLowerCase();
+      if (op === "pending") {
+        pending.push(d);
+        continue;
+      }
+      if (op === "deployed") {
+        deployed.push(d);
+        continue;
+      }
+      if (op === "in storage" || op === "in_storage") {
+        inStorage.push(d);
+        continue;
+      }
+
+      // Check device_statuses and geolocation
+      const statusName = (d.device_statuses?.status_name ?? "").toLowerCase();
+      if (statusName === "pending") {
+        pending.push(d);
+        continue;
+      }
+      if (statusName === "in storage" || statusName === "in_storage") {
+        inStorage.push(d);
+        continue;
+      }
+
+      // If status is Active or Online, or has coordinates and is online
+      const isDeployed =
+        statusName === "active" ||
+        statusName === "online" ||
+        (d.latitude != null && d.longitude != null && statusName !== "offline");
+
+      if (isDeployed) {
+        deployed.push(d);
+      } else {
+        inStorage.push(d);
+      }
+    }
+
+    return {
+      deployedDevices: deployed,
+      pendingDevices: pending,
+      inStorageDevices: inStorage,
+    };
+  }, [devices, pendingRequests]);
+
+  const activeTabDevices = useMemo(() => {
+    if (activeTab === "deployed") return deployedDevices;
+    if (activeTab === "pending") return pendingDevices;
+    return inStorageDevices;
+  }, [activeTab, deployedDevices, pendingDevices, inStorageDevices]);
+
   const filteredDevices = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return devices;
+    if (!q) return activeTabDevices;
 
-    return devices.filter((d) => {
+    return activeTabDevices.filter((d) => {
       const trapId = d.device_code?.toLowerCase() ?? "";
       const description = (d.description || d.notes || "").toLowerCase();
       const deployedBy = formatDeployedBy(d.users).toLowerCase();
@@ -113,7 +218,7 @@ export default function HardwareNodesPage() {
         status.includes(q)
       );
     });
-  }, [devices, search]);
+  }, [activeTabDevices, search]);
 
   const handleViewLocation = (device: OvitrapDevice) => {
     if (!device.latitude || !device.longitude) return;
@@ -140,44 +245,45 @@ export default function HardwareNodesPage() {
   };
 
   const handleSubmitRequest = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!selectedDevice || !requestType) return;
+    e.preventDefault();
+    if (!selectedDevice || !requestType) return;
 
-  setSaving(true);
-  setModalError(null);
+    setSaving(true);
+    setModalError(null);
 
-  try {
-    await createTrapRequest(
-      selectedDevice.id,
-      requestType,
-      description.trim() || null,
-      notes.trim() || null
-    );
+    try {
+      await createTrapRequest(
+        selectedDevice.id,
+        requestType,
+        description.trim() || null,
+        notes.trim() || null
+      );
 
-    setLastRequestType(requestType);
-    closeModal();           // close the form modal
-    setSuccessOpen(true);   // show success modal
-    loadData(false);
-  } catch (err) {
-    console.error(err);
-    const msg = getErrorMessage(err, "Failed to submit request");
-    setErrorMessage(msg);
-    closeModal();
-    setErrorOpen(true);     // show error modal
-  } finally {
-    setSaving(false);
-  }
-};
+      setLastRequestType(requestType);
+      closeModal(); // close the form modal
+      setSuccessOpen(true); // show success modal
+      loadData(false);
+    } catch (err) {
+      console.error(err);
+      const msg = getErrorMessage(err, "Failed to submit request");
+      setErrorMessage(msg);
+      closeModal();
+      setErrorOpen(true); // show error modal
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Trap Overview
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            View mosquito trap devices and request deployment or pick-up.
+            Monitor deployed hardware nodes, manage storage inventory, and track pending requests.
           </p>
         </div>
 
@@ -204,11 +310,88 @@ export default function HardwareNodesPage() {
         </div>
       </div>
 
+      {/* Main Content Box with Tabs */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        {/* Top 3 Tabs: Deployed, Pending, In Storage */}
+        <div className="flex border-b border-slate-200 bg-slate-50/50">
+          <button
+            type="button"
+            onClick={() => setActiveTab("deployed")}
+            className={cn(
+              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              activeTab === "deployed"
+                ? "border-emerald-600 text-emerald-700 bg-white shadow-sm"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
+            )}
+          >
+            <MapPin className="size-4 text-emerald-600" />
+            <span>Deployed</span>
+            <span
+              className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-bold transition-colors",
+                activeTab === "deployed"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-200/80 text-slate-700"
+              )}
+            >
+              {deployedDevices.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("pending")}
+            className={cn(
+              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              activeTab === "pending"
+                ? "border-amber-500 text-amber-700 bg-white shadow-sm"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
+            )}
+          >
+            <Clock className="size-4 text-amber-600" />
+            <span>Pending</span>
+            <span
+              className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-bold transition-colors",
+                activeTab === "pending"
+                  ? "bg-amber-500 text-white"
+                  : "bg-slate-200/80 text-slate-700"
+              )}
+            >
+              {pendingDevices.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("in_storage")}
+            className={cn(
+              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              activeTab === "in_storage"
+                ? "border-sky-600 text-sky-700 bg-white shadow-sm"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
+            )}
+          >
+            <Boxes className="size-4 text-sky-600" />
+            <span>In storage</span>
+            <span
+              className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-bold transition-colors",
+                activeTab === "in_storage"
+                  ? "bg-sky-600 text-white"
+                  : "bg-slate-200/80 text-slate-700"
+              )}
+            >
+              {inStorageDevices.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Table Content */}
         {loading ? (
           <div className="flex items-center justify-center py-20 text-slate-500 gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
-            Loading devices…
+            Loading {activeTab.replace("_", " ")} traps…
           </div>
         ) : error ? (
           <div className="py-16 text-center text-rose-600 text-sm">{error}</div>
@@ -227,9 +410,6 @@ export default function HardwareNodesPage() {
                     Deployed by
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
-                    Status
-                  </th>
-                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
                     Location
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
@@ -239,12 +419,9 @@ export default function HardwareNodesPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredDevices.map((device) => {
-                  const realStatus =
-                    device.device_statuses?.status_name ?? "Unknown";
-                  const displayStatus =
-                    (device as any).connection_status ?? realStatus;
-                  const isDeployed =
-                    realStatus === "Active" || realStatus === "Online";
+                  const pendingReq = pendingRequests.get(device.id);
+                  const hasLocation =
+                    device.latitude != null && device.longitude != null;
 
                   return (
                     <tr
@@ -252,7 +429,7 @@ export default function HardwareNodesPage() {
                       className="hover:bg-slate-50/60 transition-colors"
                     >
                       <td className="px-5 py-4 font-medium text-slate-900 whitespace-nowrap">
-                        {device.device_code}
+                        <span className="font-semibold">{device.device_code}</span>
                       </td>
                       <td className="px-5 py-4 text-slate-600 max-w-xs">
                         {device.description || device.notes || "—"}
@@ -260,60 +437,55 @@ export default function HardwareNodesPage() {
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
                         {formatDeployedBy(device.users)}
                       </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                            displayStatus === "Online"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : displayStatus === "Maintenance"
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : "bg-slate-100 text-slate-600 border border-slate-200"
-                          }`}
-                        >
-                          {displayStatus}
-                        </span>
+
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {hasLocation ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewLocation(device)}
+                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 border-slate-200 text-slate-700 hover:bg-slate-50"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                            View on Map
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-slate-400">
+                            {activeTab === "in_storage" ? "In Warehouse / Storage" : "No Coordinates"}
+                          </span>
+                        )}
                       </td>
 
-                      <td className="px-5 py-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!isDeployed || device.latitude == null}
-                          onClick={() => handleViewLocation(device)}
-                          className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
-                            isDeployed && device.latitude != null
-                              ? "border-slate-200 text-slate-700 hover:bg-slate-50"
-                              : "opacity-50 cursor-not-allowed"
-                          }`}
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View
-                        </Button>
-                      </td>
-
-                      <td className="px-5 py-4">
-                        {isDeployed ? (
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {pendingReq ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50/80 border border-amber-200">
+                            <Clock className="size-3.5 animate-pulse text-amber-600" />
+                            Awaiting LGU Action
+                          </span>
+                        ) : activeTab === "deployed" ? (
                           <Button
                             size="sm"
                             onClick={() =>
                               openRequestModal(device, "Request Pick-up")
                             }
-                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
+                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
                           >
                             <Package className="w-3.5 h-3.5" />
                             Request Pick-up
                           </Button>
-                        ) : (
+                        ) : activeTab === "in_storage" ? (
                           <Button
                             size="sm"
                             onClick={() =>
                               openRequestModal(device, "Request Deployment")
                             }
-                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                           >
                             <MapPin className="w-3.5 h-3.5" />
                             Request Deployment
                           </Button>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
                         )}
                       </td>
                     </tr>
@@ -326,12 +498,28 @@ export default function HardwareNodesPage() {
 
         {!loading && !error && filteredDevices.length === 0 && (
           <div className="py-16 text-center text-slate-500 text-sm">
-            {search.trim()
-              ? "No devices match your search."
-              : "No devices found for your barangay."}
+            {search.trim() ? (
+              "No traps in this tab match your search."
+            ) : activeTab === "deployed" ? (
+              <div className="space-y-1">
+                <p className="font-medium text-slate-700">No deployed traps currently in the field.</p>
+                <p className="text-xs text-slate-400">Request deployment for traps in storage to see them here.</p>
+              </div>
+            ) : activeTab === "pending" ? (
+              <div className="space-y-1">
+                <p className="font-medium text-slate-700">No pending trap requests.</p>
+                <p className="text-xs text-slate-400">All deployment and pick-up requests have been fulfilled.</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="font-medium text-slate-700">No traps currently in storage.</p>
+                <p className="text-xs text-slate-400">All traps are either deployed or pending approval.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
+
 
       {/* Success Modal */}
       <SuccessModal

@@ -1,60 +1,44 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+  Circle,
+} from "react-leaflet";
 import { MapErrorBoundary } from "@/components/system/MapErrorBoundary";
 import L from "leaflet";
 import {
-  AlertTriangle,
-  Bug,
   Battery,
-  MapPin,
-  Activity,
-  ShieldAlert,
-  Bell,
-  Flame,
-  ChevronRight,
-  RefreshCw,
+  Bug,
+  Compass,
   Loader2,
-  CheckCircle2,
+  MapPin,
+  RefreshCw,
+  Search,
+  ShieldAlert,
   Thermometer,
-  Send,
   X,
-  ListTodo,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getErrorMessage } from "@/utils/errorHelpers";
 import {
   fetchBarangaySurveillanceData,
-  submitTriageRequest,
   type BarangaySurveillanceData,
   type BarangaySurveillanceDevice,
 } from "@/services/barangaySurveillance.service";
+import { cn } from "@/lib/utils";
 
 import "leaflet/dist/leaflet.css";
 
-function hasValidCoords(trap: { lat: number; lng: number } | null | undefined): boolean {
+function hasValidCoords(
+  trap: { lat: number; lng: number } | null | undefined
+): boolean {
   if (!trap) return false;
   const { lat, lng } = trap;
   return (
@@ -80,7 +64,7 @@ function MapFlyTo({ lat, lng }: { lat: number; lng: number }) {
       lastCoords.current.lng !== lng
     ) {
       lastCoords.current = { lat, lng };
-      map.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
+      map.flyTo([lat, lng], 16, { animate: true, duration: 1.2 });
     }
   }, [lat, lng, map]);
 
@@ -115,17 +99,6 @@ const getHexColor = (colorName: string) => {
   }
 };
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "Online":
-      return "emerald";
-    case "Offline":
-      return "rose";
-    default:
-      return "slate";
-  }
-};
-
 const createCustomMarker = (activity: string) => {
   const bg = getActivityColor(activity);
   return L.divIcon({
@@ -141,6 +114,7 @@ const createCustomMarker = (activity: string) => {
     `,
     iconSize: [32, 32],
     iconAnchor: [16, 32],
+    popupAnchor: [0, -32],
   });
 };
 
@@ -150,35 +124,37 @@ export default function BarangaySurveillancePage() {
   const urlBarangayId = searchParams.get("barangayId");
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
 
-  const [selectedBarangayId, setSelectedBarangayId] = useState<string>(urlBarangayId || "");
+  const [selectedBarangayId, setSelectedBarangayId] = useState<string>(
+    urlBarangayId || ""
+  );
   const [data, setData] = useState<BarangaySurveillanceData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTrap, setSelectedTrap] = useState<BarangaySurveillanceDevice | null>(null);
+  const [selectedTrap, setSelectedTrap] =
+    useState<BarangaySurveillanceDevice | null>(null);
 
-  // Modals state
-  const [isFoggingModalOpen, setIsFoggingModalOpen] = useState(false);
-  const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
+  // Filter state for deployed traps side list
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">(
+    "all"
+  );
+
+  // Diagnostics modal
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
-  const [actionRemarks, setActionRemarks] = useState("");
-  const [actionPriority, setActionPriority] = useState<"Low" | "Medium" | "High" | "Critical">("High");
-  const [actionSubmitting, setActionSubmitting] = useState(false);
-
-  // Ref to the map card so we can scroll it into view
-  const mapSectionRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetchBarangaySurveillanceData(selectedBarangayId || undefined);
+      const res = await fetchBarangaySurveillanceData(
+        selectedBarangayId || undefined
+      );
       setData(res);
 
       if (!selectedBarangayId && res.barangayId) {
         setSelectedBarangayId(res.barangayId);
       }
 
-      // Prefer the trap coming from ?viewId=...
+      // Check URL query param ?viewId=...
       if (viewId) {
         const trapFromUrl =
           res.traps.find((t) => t.id === viewId) ||
@@ -186,26 +162,15 @@ export default function BarangaySurveillancePage() {
 
         if (trapFromUrl) {
           setSelectedTrap(trapFromUrl);
-
-          setTimeout(() => {
-            mapSectionRef.current?.scrollIntoView({
-              behavior: "smooth",
-              block: "start",
-            });
-          }, 300);
-
           setTimeout(() => {
             const marker = markerRefs.current[trapFromUrl.id];
-            if (marker) {
-              marker.openPopup();
-            }
-          }, 1600);
-
+            if (marker) marker.openPopup();
+          }, 800);
           return;
         }
       }
 
-      // Fallback: keep previous selection or pick first trap
+      // Fallback selection
       setSelectedTrap((prev) => {
         const next =
           prev && res.traps.find((t) => t.id === prev.id)
@@ -216,7 +181,9 @@ export default function BarangaySurveillancePage() {
       });
     } catch (err) {
       console.error("Failed to load barangay surveillance data:", err);
-      setError(getErrorMessage(err, "Failed to load database surveillance data."));
+      setError(
+        getErrorMessage(err, "Failed to load database surveillance data.")
+      );
     } finally {
       setLoading(false);
     }
@@ -225,15 +192,13 @@ export default function BarangaySurveillancePage() {
   useEffect(() => {
     loadData();
 
-    // Subscribe to realtime database changes for all relevant tables
+    // Subscribe to realtime database changes
     const readingsSub = supabase
       .channel("brgy-surveillance-readings-channel")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ovitrap_readings" },
-        () => {
-          loadData();
-        }
+        () => loadData()
       )
       .subscribe();
 
@@ -242,9 +207,7 @@ export default function BarangaySurveillancePage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ovitrap_devices" },
-        () => {
-          loadData();
-        }
+        () => loadData()
       )
       .subscribe();
 
@@ -252,21 +215,8 @@ export default function BarangaySurveillancePage() {
       .channel("brgy-surveillance-actions-channel")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "action_triage_log" },
-        () => {
-          loadData();
-        }
-      )
-      .subscribe();
-
-    const riskSub = supabase
-      .channel("brgy-surveillance-risk-channel")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "risk_assessments" },
-        () => {
-          loadData();
-        }
+        { event: "*", schema: "public", table: "request_actions" },
+        () => loadData()
       )
       .subscribe();
 
@@ -274,7 +224,6 @@ export default function BarangaySurveillancePage() {
       supabase.removeChannel(readingsSub);
       supabase.removeChannel(devicesSub);
       supabase.removeChannel(actionsSub);
-      supabase.removeChannel(riskSub);
     };
   }, [loadData]);
 
@@ -286,67 +235,68 @@ export default function BarangaySurveillancePage() {
     });
   };
 
-  const handleRequestFoggingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!data?.barangayId) return;
+  // Filter strictly to DEPLOYED traps
+  const deployedTraps = useMemo(() => {
+    const all = data?.traps ?? [];
+    return all.filter((t) => {
+      // 1. If operational_status is explicitly recorded
+      if (t.operational_status) {
+        return t.operational_status.toLowerCase() === "deployed";
+      }
+      // 2. Otherwise check status not in storage and has valid coordinates
+      const sName = (t.device_status_name || "").toLowerCase();
+      if (sName === "in storage" || sName === "in_storage") {
+        return false;
+      }
+      return hasValidCoords(t);
+    });
+  }, [data]);
 
-    setActionSubmitting(true);
-    try {
-      await submitTriageRequest({
-        barangayId: data.barangayId,
-        deviceId: selectedTrap?.id || null,
-        triggerSource: "BHW Fogging Request",
-        priority: "High",
-        remarks:
-          actionRemarks.trim() ||
-          `Emergency thermal fogging and misting requested by BHW for ${data.barangayName} due to elevated vector index (${data.vectorIndex}).`,
-      });
+  // Search & Status filter within deployed traps
+  const filteredDeployedTraps = useMemo(() => {
+    return deployedTraps.filter((trap) => {
+      // Status filter
+      if (statusFilter === "online" && trap.status !== "Online") return false;
+      if (statusFilter === "offline" && trap.status !== "Offline") return false;
 
-      setIsFoggingModalOpen(false);
-      setActionRemarks("");
-      setActionSuccessMsg("Fogging request successfully logged in Action Triage Log!");
-      setTimeout(() => setActionSuccessMsg(null), 5000);
-      loadData();
-    } catch (err) {
-      alert("Failed to submit request: " + getErrorMessage(err));
-    } finally {
-      setActionSubmitting(false);
-    }
-  };
+      // Search query
+      if (!search.trim()) return true;
+      const q = search.trim().toLowerCase();
+      const code = trap.device_code.toLowerCase();
+      const loc = trap.location.toLowerCase();
+      const serial = (trap.serial_number || "").toLowerCase();
+      return code.includes(q) || loc.includes(q) || serial.includes(q);
+    });
+  }, [deployedTraps, search, statusFilter]);
 
-  const handleNotifyLguSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!data?.barangayId) return;
+  const onlineCount = useMemo(
+    () => deployedTraps.filter((t) => t.status === "Online").length,
+    [deployedTraps]
+  );
+  const offlineCount = useMemo(
+    () => deployedTraps.filter((t) => t.status === "Offline").length,
+    [deployedTraps]
+  );
 
-    setActionSubmitting(true);
-    try {
-      await submitTriageRequest({
-        barangayId: data.barangayId,
-        deviceId: selectedTrap?.id || null,
-        triggerSource: "BHW Surveillance Alert",
-        priority: actionPriority,
-        remarks:
-          actionRemarks.trim() ||
-          `Surveillance alert for ${data.barangayName}: Vector risk is at ${data.riskLevel} with ${data.todayCount} mosquitoes captured today.`,
-      });
-
-      setIsNotifyModalOpen(false);
-      setActionRemarks("");
-      setActionSuccessMsg("Incident notification dispatched to LGU and logged in database!");
-      setTimeout(() => setActionSuccessMsg(null), 5000);
-      loadData();
-    } catch (err) {
-      alert("Failed to dispatch alert: " + getErrorMessage(err));
-    } finally {
-      setActionSubmitting(false);
+  const handleSelectTrap = (trap: BarangaySurveillanceDevice) => {
+    setSelectedTrap(trap);
+    if (hasValidCoords(trap)) {
+      setTimeout(() => {
+        const marker = markerRefs.current[trap.id];
+        if (marker) {
+          marker.openPopup();
+        }
+      }, 400);
     }
   };
 
   if (loading && !data) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+      <div className="flex flex-col items-center justify-center min-h-[450px] gap-3">
         <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
-        <p className="text-sm font-medium text-slate-600">Connecting to Barangay Surveillance database...</p>
+        <p className="text-sm font-medium text-slate-600">
+          Loading Barangay Surveillance GIS Map…
+        </p>
       </div>
     );
   }
@@ -354,82 +304,57 @@ export default function BarangaySurveillancePage() {
   const barangayName = data?.barangayName ?? "Barangay Surveillance";
   const municipality = data?.municipality ?? "";
   const province = data?.province ?? "";
-  const riskLevel = data?.riskLevel ?? "Low Risk";
-  const todayCount = data?.todayCount ?? 0;
-  const totalHistoricalCount = data?.totalHistoricalCount ?? 0;
-  const activeCount = data?.activeCount ?? 0;
-  const totalTrapsCount = data?.totalTrapsCount ?? 0;
-  const vectorIndex = data?.vectorIndex ?? 0;
-  const recommendation = data?.recommendation ?? "No recommendation available.";
-  const traps = data?.traps ?? [];
-  const trend = data?.trend ?? [];
-
-  const sortedTraps = [...traps].sort((a, b) => {
-    const aHasLoc = hasValidCoords(a) ? 0 : 1;
-    const bHasLoc = hasValidCoords(b) ? 0 : 1;
-    if (aHasLoc !== bHasLoc) return aHasLoc - bHasLoc;
-
-    const statusRank = (s: string) => (s === "Online" ? 0 : 1);
-    const byStatus = statusRank(a.status) - statusRank(b.status);
-    if (byStatus !== 0) return byStatus;
-
-    return (b.count ?? 0) - (a.count ?? 0);
-  });
-
-  const latestDetections = data?.latestDetections ?? [];
-  const recentActions = data?.recentActions ?? [];
   const availableBarangays = data?.availableBarangays ?? [];
-  const barangayCenter = data?.barangayCenter ?? { lat: 0, lng: 0 };
-
-  const getRiskColor = (level: string) => {
-    if (level.includes("Critical")) return "rose";
-    if (level.includes("High")) return "orange";
-    if (level.includes("Moderate")) return "amber";
-    return "emerald";
-  };
-
-  const riskColor = getRiskColor(riskLevel);
+  const barangayCenter = data?.barangayCenter ?? { lat: 14.561, lng: 121.118 };
 
   return (
-    <div className="space-y-6 p-6 max-w-[1600px] mx-auto min-h-full">
-      {/* Header & Barangay Selector */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Barangay Surveillance</h1>
-            <Badge className="bg-emerald-100 text-emerald-800 border-none font-bold px-3 py-1 text-sm">
-              {barangayName}
-            </Badge>
-            {municipality && (
-              <Badge variant="outline" className="text-slate-600 border-slate-300 font-medium">
-                {municipality}{province ? `, ${province}` : ""}
-              </Badge>
-            )}
+    <div className="flex flex-col h-[calc(100vh-4.5rem)] max-w-[1700px] mx-auto p-3 sm:p-5 gap-3.5">
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-5 py-3.5 rounded-2xl border border-slate-200/90 shadow-xs shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100/80 shadow-xs">
+            <Compass className="size-5" />
           </div>
-          <p className="text-xs text-slate-500">
-            Real-time IoT telemetry, automated mosquito index, and vector triage for field health workers.
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+                Barangay Surveillance
+              </h1>
+              <Badge className="bg-emerald-100/80 text-emerald-800 border-none font-bold px-2.5 py-0.5 text-xs">
+                {barangayName}
+              </Badge>
+              {municipality && (
+                <span className="text-xs text-slate-400 font-medium hidden md:inline">
+                  • {municipality}
+                  {province ? `, ${province}` : ""}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Live GIS field deployment map & IoT monitoring station
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* Deployed Traps Pill */}
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>{deployedTraps.length} Deployed</span>
+          </div>
+
           {availableBarangays.length > 1 && (
-            <div className="flex items-center gap-2">
-              <Label htmlFor="barangay-select" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
-                Select Barangay:
-              </Label>
-              <select
-                id="barangay-select"
-                value={selectedBarangayId}
-                onChange={(e) => handleBarangayChange(e.target.value)}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                {availableBarangays.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.barangay_name} {b.municipality ? `(${b.municipality})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedBarangayId}
+              onChange={(e) => handleBarangayChange(e.target.value)}
+              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {availableBarangays.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.barangay_name} {b.municipality ? `(${b.municipality})` : ""}
+                </option>
+              ))}
+            </select>
           )}
 
           <Button
@@ -437,760 +362,467 @@ export default function BarangaySurveillancePage() {
             size="sm"
             onClick={loadData}
             disabled={loading}
-            className="h-9 px-3.5 text-xs font-medium border-slate-200 hover:bg-slate-50"
+            className="h-9 px-3 text-xs font-medium border-slate-200 hover:bg-slate-50 gap-1.5"
+            title="Refresh database records"
           >
-            <RefreshCw className={`mr-2 h-3.5 w-3.5 text-slate-600 ${loading ? "animate-spin" : ""}`} />
-            Sync Database
+            <RefreshCw
+              className={`size-3.5 text-slate-600 ${
+                loading ? "animate-spin" : ""
+              }`}
+            />
+            <span className="hidden md:inline">Sync</span>
           </Button>
         </div>
       </div>
 
-      {actionSuccessMsg && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-sm flex items-center justify-between gap-2 shadow-sm animate-in fade-in slide-in-from-top-2">
+      {error && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-            <span className="font-semibold">{actionSuccessMsg}</span>
+            <ShieldAlert className="size-4 shrink-0 text-rose-600" />
+            <span>{error}</span>
           </div>
-          <button onClick={() => setActionSuccessMsg(null)} className="text-emerald-600 hover:text-emerald-800">
-            <X className="h-4 w-4" />
+          <button
+            onClick={() => setError(null)}
+            className="text-rose-500 hover:text-rose-700"
+          >
+            <X className="size-3.5" />
           </button>
         </div>
       )}
 
-      {error && (
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Top 4 KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className={`border-l-4 border-l-${riskColor}-500 shadow-sm bg-white`}>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Current Risk Tier</p>
-              <div className="mt-2 flex items-center gap-2">
-                <div className={`h-3 w-3 rounded-full bg-${riskColor}-500 animate-pulse`} />
-                <h2 className={`text-2xl font-bold text-${riskColor}-600`}>{riskLevel}</h2>
+      {/* Main Screen: Side Panel (Deployed Traps) + Interactive Map */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-3.5 min-h-0 overflow-hidden">
+        {/* ======================================================== */}
+        {/* SIDEBAR: Deployed Traps List                             */}
+        {/* ======================================================== */}
+        <div className="w-full lg:w-96 xl:w-[410px] flex flex-col rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden shrink-0">
+          {/* Sidebar Top: Search & Filters */}
+          <div className="p-4 border-b border-slate-100 bg-white space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MapPin className="size-4 text-emerald-600" />
+                <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Deployed Traps
+                </h2>
+                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  {deployedTraps.length}
+                </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">From real-time vector model</p>
+              <span className="text-[11px] font-medium text-slate-400">
+                Click trap to locate
+              </span>
             </div>
-            <div className={`h-12 w-12 rounded-xl bg-${riskColor}-50 flex items-center justify-center`}>
-              <ShieldAlert className={`h-6 w-6 text-${riskColor}-600`} />
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="border-l-4 border-l-rose-500 shadow-sm bg-white">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Today's Mosquitoes</p>
-              <h2 className="mt-2 text-3xl font-bold text-rose-600">{todayCount}</h2>
-              <p className="text-[11px] text-slate-400 mt-1">Historical total: {totalHistoricalCount}</p>
-            </div>
-            <div className="h-12 w-12 rounded-xl bg-rose-50 flex items-center justify-center">
-              <Bug className="h-6 w-6 text-rose-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-emerald-500 shadow-sm bg-white">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Ovi Traps</p>
-              <h2 className="mt-2 text-3xl font-bold text-emerald-600">
-                {activeCount} <span className="text-sm font-medium text-slate-400">/ {totalTrapsCount} deployed</span>
-              </h2>
-              <p className="text-[11px] text-slate-400 mt-1">Live database connectivity</p>
-            </div>
-            <div className="h-12 w-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <Activity className="h-6 w-6 text-emerald-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500 shadow-sm bg-white">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Daily Vector Index</p>
-              <h2 className="mt-2 text-3xl font-bold text-amber-600">{vectorIndex}</h2>
-              <p className="text-[11px] text-slate-400 mt-1">Mosquitoes per active trap</p>
-            </div>
-            <div className="h-12 w-12 rounded-xl bg-amber-50 flex items-center justify-center">
-              <AlertTriangle className="h-6 w-6 text-amber-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Left Column: Overview & Traps List */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          <Card className="bg-gradient-to-br from-white to-orange-50/30 border-orange-100 shadow-sm">
-            <CardHeader className="pb-3 border-b border-orange-50/50">
-              <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-orange-500" />
-                Barangay Status Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-3.5">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Barangay</span>
-                <span className="font-bold text-slate-900">{barangayName}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Assigned Traps</span>
-                <span className="font-bold text-slate-900">{traps.length} Nodes</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Risk Level</span>
-                <Badge className={`bg-${riskColor}-100 text-${riskColor}-700 hover:bg-${riskColor}-100 border-none font-bold`}>
-                  {riskLevel}
-                </Badge>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Vector Index</span>
-                <span className="font-bold text-slate-900">{vectorIndex} DVI</span>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-orange-100/60">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Prescriptive Recommendation</p>
-                <div className="bg-white p-3.5 rounded-xl border border-orange-100 shadow-xs text-xs text-slate-700 leading-relaxed font-medium">
-                  {recommendation}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="flex-1 flex flex-col min-h-[420px] shadow-sm">
-            <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Activity className="h-4 w-4 text-emerald-600" />
-                Trap Fleet ({traps.length})
-              </CardTitle>
-              <span className="text-xs font-medium text-slate-400">Click to locate</span>
-            </CardHeader>
-            <CardContent className="p-0 overflow-y-auto max-h-[500px]">
-              {traps.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500 space-y-2">
-                  <p className="font-semibold text-slate-700">No traps registered yet.</p>
-                  <p className="text-xs">Traps assigned to {barangayName} in the database will display here automatically.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {sortedTraps.map((trap) => {
-                    const isSelected = selectedTrap?.id === trap.id;
-                    const sColor = getStatusColor(trap.status);
-                    const canLocate = hasValidCoords(trap);
-
-                    return (
-                      <button
-                        key={trap.id}
-                        type="button"
-                        disabled={!canLocate}
-                        onClick={() => {
-                          if (!canLocate) return; // block selection
-                          setSelectedTrap(trap);
-                          mapSectionRef.current?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "start",
-                          });
-                        }}
-                        className={`w-full text-left px-5 py-4 flex flex-col gap-2 transition-all border-l-[4px] ${
-                          !canLocate
-                            ? "opacity-50 cursor-not-allowed border-l-transparent bg-slate-50/50"
-                            : isSelected
-                            ? `cursor-pointer bg-${sColor}-50/60 border-l-${sColor}-500 shadow-xs`
-                            : "cursor-pointer hover:bg-slate-50 border-l-transparent"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`h-2.5 w-2.5 rounded-full bg-${sColor}-500 ${
-                                trap.status === "Online" ? "animate-pulse" : ""
-                              }`}
-                            />
-                            <span className="font-bold text-slate-900 text-sm">
-                              {trap.device_code}
-                            </span>
-                          </div>
-                          <Badge
-                            className={`text-[10px] font-bold uppercase tracking-wider bg-${sColor}-100 text-${sColor}-700 border-none`}
-                          >
-                            {trap.status}
-                          </Badge>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate">
-                          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          {canLocate ? trap.location : "No location — map access disabled"}
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-2 mt-1.5 pt-2 border-t border-slate-100/80 text-xs">
-                          <div>
-                            <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                              Today Count
-                            </p>
-                            <p
-                              className={`font-bold ${
-                                trap.count > 0 ? "text-rose-600" : "text-slate-700"
-                              }`}
-                            >
-                              {trap.count}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                              Battery
-                            </p>
-                            <p className="font-semibold text-slate-700 flex items-center gap-1">
-                              <Battery className="h-3 w-3 text-slate-400" /> {trap.battery}%
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                              Status
-                            </p>
-                            <p className="font-medium text-slate-600 truncate">
-                              {trap.lastComm}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column: Interactive Leaflet Map */}
-        <div className="lg:col-span-8 flex flex-col" ref={mapSectionRef}>
-          <Card className="flex-1 flex flex-col overflow-hidden min-h-[550px] shadow-sm">
-            <CardHeader className="pb-3 border-b border-slate-100 bg-white z-10 shadow-xs relative">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-emerald-500" />
-                  Barangay Interactive GIS Map
-                </CardTitle>
-                <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
-                  <span className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-emerald-500"/> Low</span>
-                  <span className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-amber-500"/> Moderate</span>
-                  <span className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-orange-500"/> High</span>
-                  <span className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-rose-500"/> Critical</span>
-                </div>
-              </div>
-            </CardHeader>
-            <div className="flex-1 relative z-0 min-h-[480px]">
-              <MapErrorBoundary>
-                <MapContainer
-                  center={[barangayCenter.lat, barangayCenter.lng]}
-                  zoom={15}
-                  zoomControl={false}
-                  className="w-full h-full min-h-[480px]"
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search trap ID or location…"
+                className="pl-8 h-8 text-xs bg-slate-50/70 border-slate-200 rounded-lg focus-visible:ring-emerald-500"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
-                  {selectedTrap && hasValidCoords(selectedTrap) && (
-                    <MapFlyTo lat={selectedTrap.lat} lng={selectedTrap.lng} />
-                  )}
-
-                  {traps.filter(hasValidCoords).map((trap) => {
-                    const sColor = getStatusColor(trap.status);
-                    const aColor = getActivityColor(trap.activityLevel);
-                    const hexColor = getHexColor(aColor);
-
-                    return (
-                      <div key={trap.id}>
-                        <Circle
-                          center={[trap.lat, trap.lng]}
-                          radius={85}
-                          pathOptions={{
-                            color: hexColor,
-                            fillColor: hexColor,
-                            fillOpacity: 0.18,
-                            weight: 2,
-                            dashArray: "4 4",
-                          }}
-                        />
-                        <Marker
-                          ref={(r) => {
-                            markerRefs.current[trap.id] = r;
-                          }}
-                          position={[trap.lat, trap.lng]}
-                          icon={createCustomMarker(trap.activityLevel)}
-                          eventHandlers={{
-                            click: () => setSelectedTrap(trap),
-                          }}
-                        >
-                          <Popup className="custom-popup">
-                            <div className="p-2 space-y-3 min-w-[220px]">
-                              <div className="flex items-center justify-between border-b pb-2">
-                                <p className="font-bold text-slate-900 text-sm">
-                                  {trap.device_code}
-                                </p>
-                                <Badge
-                                  className={`bg-${sColor}-100 text-${sColor}-700 border-none px-2 py-0.5 text-[10px]`}
-                                >
-                                  {trap.status}
-                                </Badge>
-                              </div>
-                              <div className="space-y-2 text-xs text-slate-600">
-                                <p className="flex items-center gap-2">
-                                  <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                  <span className="font-medium">{trap.location}</span>
-                                </p>
-                                <p className="flex items-center gap-2">
-                                  <Bug className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                  <span>Today's Count: </span>
-                                  <span className={`font-bold text-${aColor}-600`}>
-                                    {trap.count}
-                                  </span>
-                                </p>
-                                <p className="flex items-center gap-2">
-                                  <Battery className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                  <span>Battery Level: {trap.battery}%</span>
-                                </p>
-                                {trap.temperature !== null && (
-                                  <p className="flex items-center gap-2">
-                                    <Thermometer className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                    <span>
-                                      Temp / Humidity: {trap.temperature}°C /{" "}
-                                      {trap.humidity}%
-                                    </span>
-                                  </p>
-                                )}
-                                <p className="text-[10px] text-slate-400 pt-1.5 border-t">
-                                  Last Communication: {trap.lastComm}
-                                </p>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setSelectedTrap(trap);
-                                  setIsDetailsModalOpen(true);
-                                }}
-                                className="w-full text-xs h-7 mt-1 border-slate-200"
-                              >
-                                View Complete Telemetry
-                              </Button>
-                            </div>
-                          </Popup>
-                        </Marker>
-                      </div>
-                    );
-                  })}
-                </MapContainer>
-              </MapErrorBoundary>
+                  <X className="size-3" />
+                </button>
+              )}
             </div>
-          </Card>
-        </div>
-      </div>
 
-      {/* Bottom Section: Trend Chart & Latest Detections */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3 border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Activity className="h-4 w-4 text-sky-600" />
-              7-Day Mosquito Oviposition Trend
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Daily aggregates calculated from database ovitrap readings.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 pb-2 pl-0 pr-6">
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    dy={10}
-                  />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "10px",
-                      border: "1px solid #e2e8f0",
-                      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.08)",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    name="Mosquitoes Count"
-                    stroke="#0ea5e9"
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: "#0ea5e9", strokeWidth: 2, stroke: "#fff" }}
-                    activeDot={{ r: 6, fill: "#0284c7", strokeWidth: 0 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            {/* Quick Status Filter Pills */}
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setStatusFilter("all")}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-semibold rounded-lg transition-all",
+                  statusFilter === "all"
+                    ? "bg-slate-900 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
+                )}
+              >
+                All ({deployedTraps.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("online")}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5",
+                  statusFilter === "online"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/70 border border-emerald-200/60"
+                )}
+              >
+                <span className="size-1.5 rounded-full bg-emerald-400" />
+                Online ({onlineCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("offline")}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-semibold rounded-lg transition-all",
+                  statusFilter === "offline"
+                    ? "bg-slate-700 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
+                )}
+              >
+                Offline ({offlineCount})
+              </button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card className="flex flex-col shadow-sm">
-          <CardHeader className="pb-3 border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Bug className="h-4 w-4 text-rose-500" />
-              Latest Ingested Telemetry Detections
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Most recent optical / acoustic telemetry readings recorded for this barangay.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 overflow-y-auto max-h-[300px]">
-            {latestDetections.length === 0 ? (
-              <div className="p-8 text-center text-sm text-slate-500">
-                No telemetry packets recorded for this barangay yet.
+          {/* Sidebar Body: Deployed Traps Scrollable List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 divide-y divide-slate-100/0">
+            {filteredDeployedTraps.length === 0 ? (
+              <div className="py-16 text-center text-slate-500 space-y-2 px-4">
+                <div className="h-10 w-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                  <MapPin className="size-5" />
+                </div>
+                <p className="text-sm font-semibold text-slate-800">
+                  {search.trim()
+                    ? "No matching deployed traps"
+                    : "No deployed traps in this barangay"}
+                </p>
+                <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                  {search.trim()
+                    ? "Try adjusting your search terms or filters."
+                    : "Traps must be deployed in Trap Overview to appear on the surveillance map."}
+                </p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50/70 hover:bg-slate-50/70">
-                    <TableHead className="text-xs font-bold text-slate-500">Captured At</TableHead>
-                    <TableHead className="text-xs font-bold text-slate-500">Trap Node</TableHead>
-                    <TableHead className="text-xs font-bold text-slate-500">Location Notes</TableHead>
-                    <TableHead className="text-xs font-bold text-slate-500 text-center">Mosquitoes</TableHead>
-                    <TableHead className="text-xs font-bold text-slate-500">AI Verified</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {latestDetections.map((det) => (
-                    <TableRow key={det.id} className="hover:bg-slate-50 transition-colors text-xs">
-                      <TableCell className="text-slate-600 font-medium whitespace-nowrap">{det.time}</TableCell>
-                      <TableCell className="font-bold text-slate-900">{det.trapId}</TableCell>
-                      <TableCell className="text-slate-600 max-w-[140px] truncate">{det.location}</TableCell>
-                      <TableCell className="text-center font-bold text-rose-600">{det.count}</TableCell>
-                      <TableCell>
+              filteredDeployedTraps.map((trap) => {
+                const isSelected = selectedTrap?.id === trap.id;
+                const canLocate = hasValidCoords(trap);
+
+                return (
+                  <div
+                    key={trap.id}
+                    onClick={() => handleSelectTrap(trap)}
+                    className={cn(
+                      "p-3.5 rounded-xl border transition-all text-left flex flex-col gap-2.5 cursor-pointer",
+                      isSelected
+                        ? "bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-500/20 shadow-xs"
+                        : "bg-white border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/60 shadow-xs"
+                    )}
+                  >
+                    {/* Top Row: Device Code & Status */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={cn(
+                            "size-2.5 rounded-full",
+                            trap.status === "Online"
+                              ? "bg-emerald-500 animate-pulse"
+                              : "bg-slate-400"
+                          )}
+                        />
+                        <span className="font-bold text-slate-900 text-sm tracking-tight">
+                          {trap.device_code}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
                         <Badge
-                          className={`text-[10px] ${
-                            det.status === "Verified"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-amber-100 text-amber-700"
-                          } border-none shadow-none`}
+                          className={cn(
+                            "text-[10px] font-bold uppercase tracking-wider border-none px-2 py-0.5",
+                            trap.status === "Online"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-slate-100 text-slate-600"
+                          )}
                         >
-                          {det.status}
-                          {det.confidence !== null ? ` (${(det.confidence * 100).toFixed(0)}%)` : ""}
+                          {trap.status}
                         </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        <Badge
+                          className={cn(
+                            "text-[10px] font-semibold border-none px-2 py-0.5",
+                            trap.activityLevel === "Critical"
+                              ? "bg-rose-100 text-rose-700"
+                              : trap.activityLevel === "High"
+                              ? "bg-orange-100 text-orange-700"
+                              : trap.activityLevel === "Moderate"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          )}
+                        >
+                          {trap.activityLevel}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Middle Row: Location */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium truncate">
+                      <MapPin className="size-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">
+                        {canLocate
+                          ? trap.location
+                          : "Location Pending Coordinates"}
+                      </span>
+                    </div>
+
+                    {/* Telemetry Stats Grid */}
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                          Today Count
+                        </p>
+                        <p
+                          className={cn(
+                            "font-bold text-sm",
+                            trap.count > 0 ? "text-rose-600" : "text-slate-700"
+                          )}
+                        >
+                          {trap.count}{" "}
+                          <span className="text-[10px] font-normal text-slate-400">
+                            mosq
+                          </span>
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                          Battery
+                        </p>
+                        <p className="font-semibold text-slate-700 flex items-center gap-1">
+                          <Battery className="size-3 text-slate-400" />
+                          <span>{trap.battery}%</span>
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                          Telemetry
+                        </p>
+                        <p className="font-medium text-slate-600 truncate text-[11px]">
+                          {trap.lastComm}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* MAIN AREA: Interactive Leaflet Map                       */}
+        {/* ======================================================== */}
+        <div className="flex-1 relative rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden min-h-[500px] flex flex-col">
+          {/* Floating Risk Tier Legend */}
+          <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200 shadow-md text-xs font-semibold text-slate-600">
+            <span className="text-slate-400 text-[11px] uppercase mr-1">
+              Risk Tier:
+            </span>
+            <span className="flex items-center gap-1 text-emerald-700">
+              <div className="size-2.5 rounded-full bg-emerald-500" /> Low
+            </span>
+            <span className="flex items-center gap-1 text-amber-700">
+              <div className="size-2.5 rounded-full bg-amber-500" /> Mod
+            </span>
+            <span className="flex items-center gap-1 text-orange-700">
+              <div className="size-2.5 rounded-full bg-orange-500" /> High
+            </span>
+            <span className="flex items-center gap-1 text-rose-700">
+              <div className="size-2.5 rounded-full bg-rose-500" /> Critical
+            </span>
+          </div>
+
+          {/* Map Component */}
+          <div className="flex-1 relative z-0 w-full h-full min-h-[500px]">
+            <MapErrorBoundary>
+              <MapContainer
+                center={[barangayCenter.lat, barangayCenter.lng]}
+                zoom={15}
+                zoomControl={false}
+                className="w-full h-full min-h-[500px]"
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+                {/* Map recenter / flyto hook */}
+                {selectedTrap && hasValidCoords(selectedTrap) && (
+                  <MapFlyTo lat={selectedTrap.lat} lng={selectedTrap.lng} />
+                )}
+
+                {/* Markers & Radars for Deployed Traps */}
+                {deployedTraps.filter(hasValidCoords).map((trap) => {
+                  const aColor = getActivityColor(trap.activityLevel);
+                  const hexColor = getHexColor(aColor);
+
+                  return (
+                    <div key={trap.id}>
+                      {/* Radar circle around trap */}
+                      <Circle
+                        center={[trap.lat, trap.lng]}
+                        radius={85}
+                        pathOptions={{
+                          color: hexColor,
+                          fillColor: hexColor,
+                          fillOpacity: 0.18,
+                          weight: 2,
+                          dashArray: "4 4",
+                        }}
+                      />
+
+                      {/* Trap Marker */}
+                      <Marker
+                        ref={(r) => {
+                          markerRefs.current[trap.id] = r;
+                        }}
+                        position={[trap.lat, trap.lng]}
+                        icon={createCustomMarker(trap.activityLevel)}
+                        eventHandlers={{
+                          click: () => setSelectedTrap(trap),
+                        }}
+                      >
+                        <Popup className="custom-popup">
+                          <div className="p-2 space-y-3 min-w-[230px]">
+                            <div className="flex items-center justify-between border-b pb-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 text-sm">
+                                  {trap.device_code}
+                                </span>
+                              </div>
+                              <Badge
+                                className={cn(
+                                  "border-none px-2 py-0.5 text-[10px]",
+                                  trap.status === "Online"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-slate-100 text-slate-600"
+                                )}
+                              >
+                                {trap.status}
+                              </Badge>
+                            </div>
+
+                            <div className="space-y-2 text-xs text-slate-600">
+                              <p className="flex items-center gap-2">
+                                <MapPin className="size-3.5 text-slate-400 shrink-0" />
+                                <span className="font-medium">
+                                  {trap.location}
+                                </span>
+                              </p>
+
+                              <p className="flex items-center gap-2">
+                                <Bug className="size-3.5 text-slate-400 shrink-0" />
+                                <span>Today's Mosquito Count: </span>
+                                <span className={`font-bold text-${aColor}-600`}>
+                                  {trap.count}
+                                </span>
+                              </p>
+
+                              <p className="flex items-center gap-2">
+                                <Battery className="size-3.5 text-slate-400 shrink-0" />
+                                <span>Battery Level: {trap.battery}%</span>
+                              </p>
+
+                              {trap.temperature !== null && (
+                                <p className="flex items-center gap-2">
+                                  <Thermometer className="size-3.5 text-slate-400 shrink-0" />
+                                  <span>
+                                    Temp: {trap.temperature}°C
+                                    {trap.humidity !== null
+                                      ? ` | Hum: ${trap.humidity}%`
+                                      : ""}
+                                  </span>
+                                </p>
+                              )}
+
+                              <p className="text-[10px] text-slate-400 pt-1.5 border-t">
+                                Last Telemetry: {trap.lastComm}
+                              </p>
+                            </div>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedTrap(trap);
+                                setIsDetailsModalOpen(true);
+                              }}
+                              className="w-full text-xs h-7 mt-1 border-slate-200"
+                            >
+                              View Complete Telemetry
+                            </Button>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    </div>
+                  );
+                })}
+              </MapContainer>
+            </MapErrorBoundary>
+          </div>
+        </div>
       </div>
 
-      {/* Recent Action Triage History */}
-      {recentActions.length > 0 && (
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <ListTodo className="h-4 w-4 text-emerald-600" />
-                Active Field Intervention Requests ({recentActions.length})
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Real-time records from `action_triage_log` for {barangayName}.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50/50">
-                  <TableHead className="text-xs font-semibold text-slate-500">Date Assigned</TableHead>
-                  <TableHead className="text-xs font-semibold text-slate-500">Trigger Source</TableHead>
-                  <TableHead className="text-xs font-semibold text-slate-500">Target Trap</TableHead>
-                  <TableHead className="text-xs font-semibold text-slate-500">Priority</TableHead>
-                  <TableHead className="text-xs font-semibold text-slate-500">Status</TableHead>
-                  <TableHead className="text-xs font-semibold text-slate-500">Remarks / Description</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentActions.map((action) => (
-                  <TableRow key={action.id} className="text-xs hover:bg-slate-50">
-                    <TableCell className="font-medium text-slate-600">{action.assignedDate}</TableCell>
-                    <TableCell className="font-bold text-slate-800">{action.triggerSource}</TableCell>
-                    <TableCell className="text-slate-600">{action.deviceCode ?? "Barangay Wide"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        className={`text-[10px] font-bold ${
-                          action.priority === "Critical"
-                            ? "bg-rose-100 text-rose-700"
-                            : action.priority === "High"
-                            ? "bg-orange-100 text-orange-700"
-                            : "bg-amber-100 text-amber-700"
-                        } border-none`}
-                      >
-                        {action.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] ${
-                          action.status === "Completed"
-                            ? "border-emerald-300 text-emerald-700 bg-emerald-50"
-                            : action.status === "In Progress"
-                            ? "border-sky-300 text-sky-700 bg-sky-50"
-                            : "border-amber-300 text-amber-700 bg-amber-50"
-                        }`}
-                      >
-                        {action.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-slate-600 max-w-xs truncate">{action.remarks || "—"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Interactive Quick Actions Bar */}
-      <Card className="bg-slate-50 border-slate-200 shadow-sm">
-        <CardContent className="p-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <ShieldAlert className="h-5 w-5 text-slate-500" />
-            <div>
-              <span className="text-sm font-bold text-slate-700 uppercase tracking-wider block">Field Operations & Triage</span>
-              <span className="text-xs text-slate-500">Dispatch live interventions directly to database action log.</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (traps.length > 0) {
-                  setIsDetailsModalOpen(true);
-                } else {
-                  alert("No deployed traps in this barangay.");
-                }
-              }}
-              className="bg-white hover:bg-slate-100 h-10 px-4 border-slate-200 text-slate-700 font-medium text-xs rounded-xl"
-            >
-              <ChevronRight className="mr-2 h-4 w-4 text-emerald-600" />
-              View Trap Telemetry Details
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsNotifyModalOpen(true)}
-              className="bg-white hover:bg-slate-100 h-10 px-4 border-slate-200 text-slate-700 font-medium text-xs rounded-xl"
-            >
-              <Bell className="mr-2 h-4 w-4 text-amber-600" />
-              Notify LGU Health Officer
-            </Button>
-            <Button
-              onClick={() => setIsFoggingModalOpen(true)}
-              className="bg-rose-600 hover:bg-rose-700 text-white shadow-sm h-10 px-5 font-semibold text-xs rounded-xl gap-2"
-            >
-              <Flame className="h-4 w-4" />
-              Request Emergency Fogging
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* MODAL 1: Request Emergency Fogging */}
-      {isFoggingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
-                  <Flame className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Request Emergency Fogging</h2>
-                  <p className="text-xs text-slate-500">Submit an urgent misting work order to Action Triage Log.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsFoggingModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRequestFoggingSubmit} className="space-y-4 mt-4">
-              <div className="bg-rose-50/60 border border-rose-100 rounded-xl p-3.5 text-xs text-rose-800 space-y-1">
-                <p className="font-bold">Barangay: {barangayName}</p>
-                <p>Current Vector Index: <span className="font-bold">{vectorIndex} DVI</span> | Today's Count: <span className="font-bold">{todayCount}</span></p>
-                <p>Target Trap: {selectedTrap?.device_code || "Barangay-wide"}</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="fogging-remarks" className="text-xs font-semibold text-slate-700">
-                  Field Notes & Justification
-                </Label>
-                <Textarea
-                  id="fogging-remarks"
-                  rows={3}
-                  value={actionRemarks}
-                  onChange={(e) => setActionRemarks(e.target.value)}
-                  placeholder="e.g. Cluster of stagnant water containers and rising mosquito counts detected near the public school..."
-                  className="text-xs"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsFoggingModalOpen(false)}
-                  disabled={actionSubmitting}
-                  className="text-xs h-9"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={actionSubmitting}
-                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs h-9 font-semibold gap-2"
-                >
-                  {actionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Submit to Action Log
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: Notify LGU Health Officer */}
-      {isNotifyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
-                  <Bell className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Notify LGU Health Officer</h2>
-                  <p className="text-xs text-slate-500">Dispatch surveillance findings to Municipal Health Office.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsNotifyModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleNotifyLguSubmit} className="space-y-4 mt-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="notify-priority" className="text-xs font-semibold text-slate-700">
-                  Priority Level
-                </Label>
-                <select
-                  id="notify-priority"
-                  value={actionPriority}
-                  onChange={(e) => setActionPriority(e.target.value as any)}
-                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
-                >
-                  <option value="Low">Low - Informational Update</option>
-                  <option value="Medium">Medium - Elevated Activity</option>
-                  <option value="High">High - Vector Proliferation Alert</option>
-                  <option value="Critical">Critical - Urgent Emergency Response</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="notify-remarks" className="text-xs font-semibold text-slate-700">
-                  Surveillance Notes & Observations
-                </Label>
-                <Textarea
-                  id="notify-remarks"
-                  rows={4}
-                  value={actionRemarks}
-                  onChange={(e) => setActionRemarks(e.target.value)}
-                  placeholder={`Describe observations for ${barangayName}...`}
-                  className="text-xs"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsNotifyModalOpen(false)}
-                  disabled={actionSubmitting}
-                  className="text-xs h-9"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={actionSubmitting}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 font-semibold gap-2"
-                >
-                  {actionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Dispatch Notification
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: Detailed Trap Telemetry Modal */}
+      {/* ======================================================== */}
+      {/* MODAL: Detailed Trap Diagnostics & Telemetry Modal       */}
+      {/* ======================================================== */}
       {isDetailsModalOpen && selectedTrap && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-slate-900">{selectedTrap.device_code}</h2>
-                  <Badge className={`bg-${getStatusColor(selectedTrap.status)}-100 text-${getStatusColor(selectedTrap.status)}-700 border-none text-[10px]`}>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    {selectedTrap.device_code}
+                  </h2>
+                  <Badge
+                    className={cn(
+                      "border-none text-[10px]",
+                      selectedTrap.status === "Online"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-100 text-slate-600"
+                    )}
+                  >
                     {selectedTrap.status}
                   </Badge>
                 </div>
-                <p className="text-xs text-slate-500">Hardware Node Diagnostics & Real-time Telemetry</p>
+                <p className="text-xs text-slate-500">
+                  Hardware Node Diagnostics & Real-time Telemetry
+                </p>
               </div>
               <button
                 onClick={() => setIsDetailsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
-                <X className="h-5 w-5" />
+                <X className="size-5" />
               </button>
             </div>
 
             <div className="space-y-4 mt-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-slate-400 uppercase font-semibold text-[10px]">Today's Mosquito Count</p>
-                  <p className="text-xl font-bold text-rose-600 mt-0.5">{selectedTrap.count}</p>
+                  <p className="text-slate-400 uppercase font-semibold text-[10px]">
+                    Today's Mosquito Count
+                  </p>
+                  <p className="text-xl font-bold text-rose-600 mt-0.5">
+                    {selectedTrap.count}
+                  </p>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-slate-400 uppercase font-semibold text-[10px]">Battery Status</p>
-                  <p className="text-xl font-bold text-emerald-600 mt-0.5">{selectedTrap.battery}%</p>
+                  <p className="text-slate-400 uppercase font-semibold text-[10px]">
+                    Battery Status
+                  </p>
+                  <p className="text-xl font-bold text-emerald-600 mt-0.5">
+                    {selectedTrap.battery}%
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-2.5 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-medium">Location:</span>
-                  <span className="font-semibold text-slate-800">{selectedTrap.location}</span>
+                  <span className="font-semibold text-slate-800">
+                    {selectedTrap.location}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">GPS Coordinates:</span>
+                  <span className="text-slate-500 font-medium">
+                    GPS Coordinates:
+                  </span>
                   <span className="font-mono font-semibold text-slate-800">
                     {hasValidCoords(selectedTrap)
                       ? `${selectedTrap.lat.toFixed(5)}, ${selectedTrap.lng.toFixed(5)}`
@@ -1199,30 +831,50 @@ export default function BarangaySurveillancePage() {
                 </div>
                 {selectedTrap.temperature !== null && (
                   <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Ambient Temperature:</span>
-                    <span className="font-semibold text-slate-800">{selectedTrap.temperature}°C</span>
+                    <span className="text-slate-500 font-medium">
+                      Ambient Temperature:
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTrap.temperature}°C
+                    </span>
                   </div>
                 )}
                 {selectedTrap.humidity !== null && (
                   <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Relative Humidity:</span>
-                    <span className="font-semibold text-slate-800">{selectedTrap.humidity}%</span>
+                    <span className="text-slate-500 font-medium">
+                      Relative Humidity:
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTrap.humidity}%
+                    </span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">Last Ingested Communication:</span>
-                  <span className="font-semibold text-slate-800">{selectedTrap.lastComm}</span>
+                  <span className="text-slate-500 font-medium">
+                    Last Ingested Communication:
+                  </span>
+                  <span className="font-semibold text-slate-800">
+                    {selectedTrap.lastComm}
+                  </span>
                 </div>
                 {selectedTrap.deployed_by_name && (
                   <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Deployed By:</span>
-                    <span className="font-semibold text-slate-800">{selectedTrap.deployed_by_name}</span>
+                    <span className="text-slate-500 font-medium">
+                      Deployed By:
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTrap.deployed_by_name}
+                    </span>
                   </div>
                 )}
                 {selectedTrap.installation_date && (
                   <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Installation Date:</span>
-                    <span className="font-semibold text-slate-800">{selectedTrap.installation_date}</span>
+                    <span className="text-slate-500 font-medium">
+                      Installation Date:
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTrap.installation_date}
+                    </span>
                   </div>
                 )}
               </div>

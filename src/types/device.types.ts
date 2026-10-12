@@ -34,6 +34,8 @@ export interface OvitrapDevice {
   device_statuses: DeviceStatus | null;
   barangays?: Barangay | null;
   users: UserName | null;
+  latest_mosquito_count?: number | null;
+  operational_status?: "Deployed" | "Pending" | "In Storage" | string;
 }
 
 export interface DeviceFormData {

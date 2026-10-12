@@ -98,6 +98,22 @@ export async function getAssignedActions(
   return ((data ?? []) as unknown as RawActionRow[]).map(flattenAction);
 }
 
+export async function getActionsByDeviceId(
+  deviceId: string,
+): Promise<TriageAction[]> {
+  const { data, error } = await supabase
+    .from("action_triage_log")
+    .select(ACTION_SELECT)
+    .eq("device_id", deviceId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Failed to fetch actions for device:", error);
+    return [];
+  }
+  return ((data ?? []) as unknown as RawActionRow[]).map(flattenAction);
+}
+
 export async function getActionById(id: string): Promise<TriageAction | null> {
   const { data, error } = await supabase
     .from("action_triage_log")

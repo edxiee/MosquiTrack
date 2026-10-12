@@ -18,8 +18,9 @@ export interface BarangaySurveillanceDevice {
   activityLevel: "Critical" | "High" | "Moderate" | "Low";
   device_status_name: string;
   deployed_by_name: string | null;
-  installation_date: string | null;
   notes: string | null;
+  operational_status?: string | null;
+  installation_date?: string | null;
 }
 
 export interface SurveillanceTrendPoint {
@@ -155,7 +156,7 @@ export async function fetchBarangaySurveillanceData(
   const barangayName = currentBarangay.barangay_name;
 
   // 5. Query ovitrap_devices for this barangay from database
-  const { data: devicesData, error: devicesError } = await supabase
+  let { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
     .select(
       `
@@ -170,6 +171,7 @@ export async function fetchBarangaySurveillanceData(
       installation_date,
       created_at,
       deployed_by,
+      operational_status,
       device_status_id,
       device_statuses ( id, status_name, description ),
       barangays ( id, barangay_name, municipality )
@@ -177,6 +179,33 @@ export async function fetchBarangaySurveillanceData(
     )
     .eq("barangay_id", barangayId)
     .order("created_at", { ascending: false });
+
+  if (devicesError && devicesError.message?.includes("operational_status")) {
+    const resFallback = await supabase
+      .from("ovitrap_devices")
+      .select(
+        `
+        id,
+        device_code,
+        serial_number,
+        description,
+        notes,
+        latitude,
+        longitude,
+        last_seen_at,
+        installation_date,
+        created_at,
+        deployed_by,
+        device_status_id,
+        device_statuses ( id, status_name, description ),
+        barangays ( id, barangay_name, municipality )
+      `
+      )
+      .eq("barangay_id", barangayId)
+      .order("created_at", { ascending: false });
+    devicesData = resFallback.data as any;
+    devicesError = resFallback.error;
+  }
 
   if (devicesError) {
     console.error("Failed to query ovitrap devices:", devicesError);
@@ -408,8 +437,9 @@ export async function fetchBarangaySurveillanceData(
       deployed_by_name: d.deployed_by
         ? userMap.get(d.deployed_by) ?? null
         : null,
-      installation_date: d.installation_date ?? null,
       notes: d.notes ?? null,
+      operational_status: d.operational_status ?? null,
+      installation_date: d.installation_date ?? null,
     };
   });
 

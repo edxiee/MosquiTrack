@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  ChevronDown,
   Eye,
   Loader2,
   RefreshCw,
@@ -20,6 +21,8 @@ import { submitTriageRequest } from "@/services/barangaySurveillance.service";
 import { getErrorMessage } from "@/utils/errorHelpers";
 import { SuccessModal } from "@/components/reports/modals/SuccessModal";
 import { ErrorModal } from "@/components/reports/modals/ErrorModal";
+import TrapReportDropdown, { getTrapDangerLevel } from "@/components/lgu/TrapReportDropdown";
+import { cn } from "@/lib/utils";
 
 const REQUEST_TYPES = [
   "Send Monitoring Personnel",
@@ -262,6 +265,21 @@ export default function PrescriptiveAnalyticsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<OvitrapDevice | null>(null);
 
+  // Expanded dropdown rows
+  const [expandedTrapIds, setExpandedTrapIds] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (deviceId: string) => {
+    setExpandedTrapIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(deviceId)) {
+        next.delete(deviceId);
+      } else {
+        next.add(deviceId);
+      }
+      return next;
+    });
+  };
+
   // Success / Error modals
   const [successOpen, setSuccessOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
@@ -370,7 +388,7 @@ export default function PrescriptiveAnalyticsPage() {
             Traps Reports & Requests
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Active Traps ready for Reports and Request actions.
+            Active Traps ready for Reports and Request actions. Click any trap to expand detailed reports.
           </p>
         </div>
 
@@ -435,64 +453,115 @@ export default function PrescriptiveAnalyticsPage() {
                   const hasLocation = device.latitude != null;
                   const isDeployed =
                     device.latitude != null && device.longitude != null;
+                  const isExpanded = expandedTrapIds.has(device.id);
+                  const danger = getTrapDangerLevel(device.latest_mosquito_count);
 
                   return (
-                    <tr
-                      key={device.id}
-                      className="hover:bg-slate-50/60 transition-colors"
-                    >
-                      <td className="px-5 py-4 font-medium text-slate-900 whitespace-nowrap">
-                        {device.device_code}
-                      </td>
-                      <td className="px-5 py-4 text-slate-600 max-w-xs">
-                        {device.description || device.notes || "—"}
-                      </td>
-                      <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
-                        {formatDeployedBy(device.users)}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                          To be added
-                        </span>
-                      </td>
+                    <Fragment key={device.id}>
+                      <tr
+                        onClick={() => toggleExpand(device.id)}
+                        className={cn(
+                          "cursor-pointer transition-colors border-b border-slate-100",
+                          isExpanded
+                            ? "bg-emerald-50/40 hover:bg-emerald-50/60"
+                            : "hover:bg-slate-50/70"
+                        )}
+                      >
+                        <td className="px-5 py-4 font-medium text-slate-900 whitespace-nowrap">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className={cn(
+                                "flex items-center justify-center size-6 rounded-md border text-slate-500 transition-all",
+                                isExpanded
+                                  ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                                  : "bg-white border-slate-200 hover:border-slate-300"
+                              )}
+                              title={isExpanded ? "Collapse trap reports" : "Click to view trap reports"}
+                            >
+                              <ChevronDown
+                                className={cn(
+                                  "size-3.5 transition-transform duration-200",
+                                  isExpanded && "rotate-180"
+                                )}
+                              />
+                            </span>
+                            <span className="font-semibold">{device.device_code}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-slate-600 max-w-xs">
+                          {device.description || device.notes || "—"}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                          {formatDeployedBy(device.users)}
+                        </td>
+                        <td className="px-5 py-4">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border",
+                              danger.badge
+                            )}
+                          >
+                            <span className={cn("size-1.5 rounded-full", danger.barColor)} />
+                            {danger.label}
+                          </span>
+                        </td>
 
-                      <td className="px-5 py-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!hasLocation}
-                          onClick={() => handleViewLocation(device)}
-                          className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 transition-all ${
-                            hasLocation
-                              ? "border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 hover:border-emerald-300"
-                              : "opacity-50 cursor-not-allowed border-slate-200 text-slate-400"
-                          }`}
-                        >
-                          {hasLocation ? (
-                            <MapPin className="w-3.5 h-3.5" />
-                          ) : (
-                            <Eye className="w-3.5 h-3.5" />
-                          )}
-                          {hasLocation ? "View on Map" : "No Location"}
-                        </Button>
-                      </td>
+                        <td className="px-5 py-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!hasLocation}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewLocation(device);
+                            }}
+                            className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 transition-all ${
+                              hasLocation
+                                ? "border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 hover:border-emerald-300"
+                                : "opacity-50 cursor-not-allowed border-slate-200 text-slate-400"
+                            }`}
+                          >
+                            {hasLocation ? (
+                              <MapPin className="w-3.5 h-3.5" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" />
+                            )}
+                            {hasLocation ? "View on Map" : "No Location"}
+                          </Button>
+                        </td>
 
-                      <td className="px-5 py-4">
-                        <Button
-                          size="sm"
-                          disabled={!isDeployed}
-                          onClick={() => isDeployed && openRequestModal(device)}
-                          className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
-                            isDeployed
-                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                              : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                          }`}
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          Post Request Action
-                        </Button>
-                      </td>
-                    </tr>
+                        <td className="px-5 py-4">
+                          <Button
+                            size="sm"
+                            disabled={!isDeployed}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              isDeployed && openRequestModal(device);
+                            }}
+                            className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
+                              isDeployed
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                            }`}
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            Post Request Action
+                          </Button>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr className="bg-slate-50/30 border-b border-slate-200">
+                          <td colSpan={6} className="p-4 sm:px-6 sm:py-5">
+                            <TrapReportDropdown
+                              device={device}
+                              onPostRequest={(d) => openRequestModal(d)}
+                              onViewLocation={(d) => handleViewLocation(d)}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>

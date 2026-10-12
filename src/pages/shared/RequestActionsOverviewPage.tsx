@@ -1,14 +1,27 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, RefreshCw, Search, MoreHorizontal } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  Clock,
+  Eye,
+  Loader2,
+  RefreshCw,
+  Search,
+  X,
+  XCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getErrorMessage } from "@/utils/errorHelpers";
+import { supabase } from "@/lib/supabase";
 import {
   fetchRequestActions,
+  updateRequestActionStatus,
   type RequestActionRow,
 } from "@/services/requestActions.service";
 import { RequestDetailModal } from "@/components/request-actions/RequestDetailModal";
 import RoleBadge from "@/components/accounts/RoleBadge";
+import { cn } from "@/lib/utils";
 
 function formatPersonName(first?: string | null, last?: string | null) {
   if (!first && !last) return "—";
@@ -58,17 +71,25 @@ function formatTimeAgo(dateStr?: string | null): string {
   return years === 1 ? "1 year ago" : `${years} years ago`;
 }
 
+export type RequestActionTab = "pending" | "history";
+
 export default function RequestActionsOverviewPage() {
   const [rows, setRows] = useState<RequestActionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<RequestActionTab>("pending");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState<RequestActionRow | null>(null);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     setError(null);
     try {
       const data = await fetchRequestActions();
@@ -78,19 +99,105 @@ export default function RequestActionsOverviewPage() {
       setError(getErrorMessage(err, "Failed to load request actions"));
       setRows([]);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(true);
+
+    const channel = supabase
+      .channel("shared_request_actions_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "request_actions" },
+        () => {
+          loadData(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
+
+  const handleUpdateStatus = async (
+    row: RequestActionRow,
+    newStatus: "Approved" | "Declined"
+  ) => {
+    setProcessingId(row.req_id);
+    try {
+      await updateRequestActionStatus(
+        row.req_id,
+        newStatus,
+        row.device_id,
+        row.request
+      );
+
+      const now = new Date().toISOString();
+
+      // Immediately remove from pending list by updating status
+      setRows((prev) =>
+        prev.map((r) =>
+          r.req_id === row.req_id
+            ? {
+                ...r,
+                status: newStatus,
+                approved_at: newStatus === "Approved" ? now : r.approved_at,
+                completed_at: newStatus === "Declined" ? now : r.completed_at,
+              }
+            : r
+        )
+      );
+
+      setFeedbackMessage({
+        text: `Request for ${row.device_code || "trap"} has been ${
+          newStatus === "Approved"
+            ? "accepted and deployed"
+            : "declined and returned to storage"
+        }. Removed from pending list.`,
+        type: "success",
+      });
+      setTimeout(() => setFeedbackMessage(null), 4000);
+    } catch (err) {
+      console.error(`Failed to update request action:`, err);
+      setFeedbackMessage({
+        text: getErrorMessage(err, `Failed to ${newStatus.toLowerCase()} request`),
+        type: "error",
+      });
+      setTimeout(() => setFeedbackMessage(null), 4000);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const { pendingRows, historyRows } = useMemo(() => {
+    const pending: RequestActionRow[] = [];
+    const history: RequestActionRow[] = [];
+
+    for (const r of rows) {
+      const isPending =
+        r.status === "Pending" ||
+        (!r.status && !r.approved_at && !r.completed_at);
+
+      if (isPending) {
+        pending.push(r);
+      } else {
+        history.push(r);
+      }
+    }
+
+    return { pendingRows: pending, historyRows: history };
+  }, [rows]);
+
+  const currentTabRows = activeTab === "pending" ? pendingRows : historyRows;
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
+    if (!q) return currentTabRows;
 
-    return rows.filter((r) => {
+    return currentTabRows.filter((r) => {
       const device = (r.device_code || "").toLowerCase();
       const desc = (r.descriptions || "").toLowerCase();
       const request = (r.request || "").toLowerCase();
@@ -113,7 +220,7 @@ export default function RequestActionsOverviewPage() {
         location.includes(q)
       );
     });
-  }, [rows, search]);
+  }, [currentTabRows, search]);
 
   const openDetail = (row: RequestActionRow) => {
     setSelectedRow(row);
@@ -129,7 +236,7 @@ export default function RequestActionsOverviewPage() {
             Request Actions Overview
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            All submitted trap request actions and their status.
+            Review submitted trap requests and take operational action.
           </p>
         </div>
 
@@ -147,13 +254,82 @@ export default function RequestActionsOverviewPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={loadData}
+            onClick={() => loadData(true)}
             disabled={loading}
             className="h-10 px-3 shrink-0"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
+      </div>
+
+      {feedbackMessage && (
+        <div
+          className={cn(
+            "p-3 rounded-xl border text-sm font-medium flex items-center gap-2 transition-all",
+            feedbackMessage.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          )}
+        >
+          {feedbackMessage.type === "success" ? (
+            <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+          ) : (
+            <XCircle className="size-4 text-rose-600 shrink-0" />
+          )}
+          <span>{feedbackMessage.text}</span>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab("pending")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all",
+            activeTab === "pending"
+              ? "bg-amber-500 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+          )}
+        >
+          <Clock className="w-4 h-4" />
+          <span>Pending Actions</span>
+          <span
+            className={cn(
+              "px-2 py-0.5 text-xs font-bold rounded-full",
+              activeTab === "pending"
+                ? "bg-amber-600 text-white"
+                : "bg-slate-200/80 text-slate-700"
+            )}
+          >
+            {pendingRows.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("history")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all",
+            activeTab === "history"
+              ? "bg-slate-800 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+          )}
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Action History</span>
+          <span
+            className={cn(
+              "px-2 py-0.5 text-xs font-bold rounded-full",
+              activeTab === "history"
+                ? "bg-slate-700 text-white"
+                : "bg-slate-200/80 text-slate-700"
+            )}
+          >
+            {historyRows.length}
+          </span>
+        </button>
       </div>
 
       {/* Table */}
@@ -174,7 +350,7 @@ export default function RequestActionsOverviewPage() {
                     Device
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
-                    Description
+                    Description & Type
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
                     Requested by
@@ -183,72 +359,146 @@ export default function RequestActionsOverviewPage() {
                     Location
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
+                    Status
+                  </th>
+                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
                     Approved by
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
                     Posted
                   </th>
-                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
+                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredRows.map((row) => (
-                  <tr
-                    key={row.req_id}
-                    className="hover:bg-slate-50/60 transition-colors"
-                  >
-                    <td className="px-5 py-4 font-medium text-slate-900 whitespace-nowrap">
-                      {row.device_code || "—"}
-                    </td>
-                    <td className="px-5 py-4 text-slate-600 max-w-xs">
-                      <div className="line-clamp-2">
-                        {row.descriptions || "—"}
-                      </div>
-                      <div className="text-xs text-slate-400 mt-0.5">
-                        {row.request}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-slate-700 max-w-xs">
-                      <div className="line-clamp-2">
-                        {formatPersonName(
-                          row.requester_first_name,
-                          row.requester_last_name
+                {filteredRows.map((row) => {
+                  const isPending =
+                    row.status === "Pending" ||
+                    (!row.status && !row.approved_at && !row.completed_at);
+                  const isApproved =
+                    row.status === "Approved" || Boolean(row.approved_at);
+                  const isDeclined =
+                    row.status === "Declined" ||
+                    (!row.approved_at && Boolean(row.completed_at));
+                  const isProcessing = processingId === row.req_id;
+
+                  return (
+                    <tr
+                      key={row.req_id}
+                      className="hover:bg-slate-50/60 transition-colors"
+                    >
+                      <td className="px-5 py-4 font-medium text-slate-900 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => openDetail(row)}
+                          className="font-semibold text-emerald-700 hover:underline text-left"
+                          title="Click to view full request details"
+                        >
+                          {row.device_code || "—"}
+                        </button>
+                      </td>
+                      <td className="px-5 py-4 text-slate-600 max-w-xs">
+                        <div className="line-clamp-2">
+                          {row.descriptions || "—"}
+                        </div>
+                        <div className="text-xs font-medium text-slate-500 mt-0.5">
+                          {row.request}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-slate-700 max-w-xs">
+                        <div className="line-clamp-2">
+                          {formatPersonName(
+                            row.requester_first_name,
+                            row.requester_last_name
+                          )}
+                        </div>
+                        <div className="mt-0.5">
+                          <RoleBadge role={row.requester_role} />
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                        {formatLocation(
+                          row.device_municipality,
+                          row.device_barangay
                         )}
-                      </div>
-                      <div className="mt-0.5">
-                        <RoleBadge role={row.requester_role} />
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
-                      {formatLocation(
-                        row.device_municipality,
-                        row.device_barangay
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-slate-700 whitespace-nowrap">
-                      {formatPersonName(
-                        row.approver_first_name,
-                        row.approver_last_name
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap text-xs">
-                      {formatTimeAgo(row.created_at)}
-                    </td>
-                    <td className="px-5 py-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDetail(row)}
-                        className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5"
-                      >
-                        <MoreHorizontal className="w-3.5 h-3.5" />
-                        More
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {isApproved ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="size-3" />
+                            Approved
+                          </span>
+                        ) : isDeclined ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                            <XCircle className="size-3" />
+                            Declined
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="size-3" />
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-slate-700 whitespace-nowrap">
+                        {formatPersonName(
+                          row.approver_first_name,
+                          row.approver_last_name
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-slate-500 whitespace-nowrap text-xs">
+                        {formatTimeAgo(row.created_at)}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {isPending ? (
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateStatus(row, "Approved")}
+                              disabled={isProcessing}
+                              className="h-8 px-2.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shadow-sm"
+                              title="Accept this request"
+                            >
+                              {isProcessing ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <Check className="size-3.5" />
+                              )}
+                              Accept
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleUpdateStatus(row, "Declined")}
+                              disabled={isProcessing}
+                              className="h-8 px-2.5 text-xs font-semibold text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 gap-1"
+                              title="Decline this request"
+                            >
+                              {isProcessing ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <X className="size-3.5" />
+                              )}
+                              Decline
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openDetail(row)}
+                            className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 gap-1"
+                          >
+                            <Eye className="size-3.5" />
+                            Details
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -256,9 +506,19 @@ export default function RequestActionsOverviewPage() {
 
         {!loading && !error && filteredRows.length === 0 && (
           <div className="py-16 text-center text-slate-500 text-sm">
-            {search.trim()
-              ? "No request actions match your search."
-              : "No request actions found."}
+            {search.trim() ? (
+              "No request actions match your search."
+            ) : activeTab === "pending" ? (
+              <div className="space-y-1">
+                <p className="font-medium text-slate-700">No pending requests.</p>
+                <p className="text-xs text-slate-400">All submitted trap requests have been processed.</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="font-medium text-slate-700">No action history.</p>
+                <p className="text-xs text-slate-400">Past accepted or declined requests will appear here.</p>
+              </div>
+            )}
           </div>
         )}
       </div>

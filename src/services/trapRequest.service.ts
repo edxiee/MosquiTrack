@@ -15,6 +15,7 @@ export interface TrapRequest {
   approved_at: string | null;
   due_date: string | null;
   completed_at: string | null;
+  status?: string | null;
   created_at: string;
   updated_at: string | null;
 }

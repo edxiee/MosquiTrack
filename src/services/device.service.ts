@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice, DeviceStatus, Barangay, UserName } from "@/types/device.types";
 
 export async function fetchDevices(): Promise<OvitrapDevice[]> {
-  const { data: devicesData, error: devicesError } = await supabase
+  let { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
     .select(
       `
@@ -19,6 +19,7 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
       last_seen_at,
       created_at,
       deployed_by,
+      operational_status,
       device_statuses (
         id,
         status_name,
@@ -31,6 +32,40 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
     `
     )
     .order("created_at", { ascending: true });
+
+  if (devicesError && devicesError.message?.includes("operational_status")) {
+    const resFallback = await supabase
+      .from("ovitrap_devices")
+      .select(
+        `
+        id,
+        device_code,
+        serial_number,
+        description,
+        barangay_id,
+        latitude,
+        longitude,
+        device_status_id,
+        notes,
+        installation_date,
+        last_seen_at,
+        created_at,
+        deployed_by,
+        device_statuses (
+          id,
+          status_name,
+          description
+        ),
+        barangays (
+          id,
+          barangay_name
+        )
+      `
+      )
+      .order("created_at", { ascending: true });
+    devicesData = resFallback.data as any;
+    devicesError = resFallback.error;
+  }
 
   if (devicesError) throw devicesError;
   if (!devicesData || devicesData.length === 0) return [];
@@ -47,7 +82,7 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
     deviceIds.length > 0
       ? supabase
           .from("ovitrap_readings")
-          .select("device_id, captured_at, created_at")
+          .select("device_id, captured_at, created_at, mosquito_count")
           .in("device_id", deviceIds)
           .order("captured_at", { ascending: false })
       : Promise.resolve({ data: null }),
@@ -64,10 +99,12 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
   }
 
   const latestReadingMap = new Map<string, string>();
+  const latestCountMap = new Map<string, number | null>();
   if (readingsRes.data) {
     for (const r of readingsRes.data) {
       if (!latestReadingMap.has(r.device_id)) {
         latestReadingMap.set(r.device_id, r.captured_at || r.created_at);
+        latestCountMap.set(r.device_id, r.mosquito_count ?? null);
       }
     }
   }
@@ -100,6 +137,7 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
     return {
       ...d,
       last_seen_at: latestTimestamp,
+      latest_mosquito_count: latestCountMap.get(d.id) ?? null,
       device_statuses: statusObj
       ? { ...statusObj, status_name: realStatusName }
       : { id: "unknown", status_name: "Unknown", description: null },
@@ -276,8 +314,7 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     return [];
   }
 
-  // 4. Fetch devices that belong to this barangay
-  const { data: devicesData, error: devicesError } = await supabase
+  let { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
     .select(
       `
@@ -294,6 +331,7 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
       last_seen_at,
       created_at,
       deployed_by,
+      operational_status,
       device_statuses (
         id,
         status_name,
@@ -308,6 +346,42 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     )
     .eq("barangay_id", targetBarangayId)
     .order("created_at", { ascending: true });
+
+  if (devicesError && devicesError.message?.includes("operational_status")) {
+    const resFallback = await supabase
+      .from("ovitrap_devices")
+      .select(
+        `
+        id,
+        device_code,
+        serial_number,
+        description,
+        barangay_id,
+        latitude,
+        longitude,
+        device_status_id,
+        notes,
+        installation_date,
+        last_seen_at,
+        created_at,
+        deployed_by,
+        device_statuses (
+          id,
+          status_name,
+          description
+        ),
+        barangays (
+          id,
+          barangay_name,
+          municipality
+        )
+      `
+      )
+      .eq("barangay_id", targetBarangayId)
+      .order("created_at", { ascending: true });
+    devicesData = resFallback.data as any;
+    devicesError = resFallback.error;
+  }
 
   if (devicesError) throw devicesError;
   if (!devicesData || devicesData.length === 0) return [];
@@ -468,7 +542,7 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
     deviceIds.length > 0
       ? supabase
           .from("ovitrap_readings")
-          .select("device_id, captured_at, created_at")
+          .select("device_id, captured_at, created_at, mosquito_count")
           .in("device_id", deviceIds)
           .order("captured_at", { ascending: false })
       : Promise.resolve({ data: null }),
@@ -485,10 +559,12 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
   }
 
   const latestReadingMap = new Map<string, string>();
+  const latestCountMap = new Map<string, number | null>();
   if (readingsRes.data) {
     for (const r of readingsRes.data) {
       if (!latestReadingMap.has(r.device_id)) {
         latestReadingMap.set(r.device_id, r.captured_at || r.created_at);
+        latestCountMap.set(r.device_id, r.mosquito_count ?? null);
       }
     }
   }
@@ -520,7 +596,8 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
     return {
       ...d,
       last_seen_at: latestTimestamp,
-     device_statuses: statusObj
+      latest_mosquito_count: latestCountMap.get(d.id) ?? null,
+      device_statuses: statusObj
         ? { ...statusObj, status_name: realStatusName }
         : { id: "unknown", status_name: "Unknown", description: null },
       connection_status: computedStatusName,

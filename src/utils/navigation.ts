@@ -1,20 +1,20 @@
-import { 
-  type LucideIcon, 
-  LayoutDashboard, 
-  Megaphone, 
-  Settings, 
-  Users, 
-  MapPin, 
-  Router, 
-  Activity, 
-  Monitor, 
-  Map, 
-  ClipboardList, 
-  BarChart3, 
-  Eye, 
-  Boxes, 
+import {
+  type LucideIcon,
+  LayoutDashboard,
+  Megaphone,
+  Settings,
+  Users,
+  MapPin,
+  Router,
+  Activity,
+  Monitor,
+  Map,
+  ClipboardList,
+  BarChart3,
+  Eye,
+  Boxes,
   FileText,
-  StickyNote 
+  StickyNote
 } from "lucide-react";
 import { ROLES, type RoleCode } from "@/constants/roles";
 
