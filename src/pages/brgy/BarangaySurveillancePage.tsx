@@ -568,7 +568,7 @@ export default function BarangaySurveillancePage() {
                       </span>
                     </div>
 
-                    {/* Telemetry Stats Grid */}
+                    {/* Status Stats Grid */}
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs">
                       <div>
                         <p className="text-[10px] text-slate-400 uppercase font-semibold">
@@ -599,7 +599,7 @@ export default function BarangaySurveillancePage() {
 
                       <div>
                         <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                          Telemetry
+                          Current Status
                         </p>
                         <p className="font-medium text-slate-600 truncate text-[11px]">
                           {trap.lastComm}
@@ -737,7 +737,7 @@ export default function BarangaySurveillancePage() {
                               )}
 
                               <p className="text-[10px] text-slate-400 pt-1.5 border-t">
-                                Last Telemetry: {trap.lastComm}
+                                Current Status: {trap.lastComm}
                               </p>
                             </div>
 
@@ -750,7 +750,7 @@ export default function BarangaySurveillancePage() {
                               }}
                               className="w-full text-xs h-7 mt-1 border-slate-200"
                             >
-                              View Complete Telemetry
+                              View Current Status Data
                             </Button>
                           </div>
                         </Popup>
@@ -765,7 +765,7 @@ export default function BarangaySurveillancePage() {
       </div>
 
       {/* ======================================================== */}
-      {/* MODAL: Detailed Trap Diagnostics & Telemetry Modal       */}
+      {/* MODAL: Detailed Trap Diagnostics & Status Modal       */}
       {/* ======================================================== */}
       {isDetailsModalOpen && selectedTrap && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -788,7 +788,7 @@ export default function BarangaySurveillancePage() {
                   </Badge>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Hardware Node Diagnostics & Real-time Telemetry
+                  Hardware Node Diagnostics & Real-time Status Data
                 </p>
               </div>
               <button

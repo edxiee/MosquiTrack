@@ -158,7 +158,7 @@ export default function MacroGeospatialHeatmapPage() {
   // Filter state for deployed traps side list
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">(
-    "all"
+    "online"
   );
 
   // Diagnostics modal
@@ -617,7 +617,7 @@ export default function MacroGeospatialHeatmapPage() {
                       </span>
                     </div>
 
-                    {/* Telemetry Stats Grid */}
+                    {/* Current Status Stats Grid */}
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs">
                       <div>
                         <p className="text-[10px] text-slate-400 uppercase font-semibold">
@@ -648,7 +648,7 @@ export default function MacroGeospatialHeatmapPage() {
 
                       <div>
                         <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                          Telemetry
+                          Current Status
                         </p>
                         <p className="font-medium text-slate-600 truncate text-[11px]">
                           {trap.lastComm}
@@ -795,7 +795,7 @@ export default function MacroGeospatialHeatmapPage() {
                               )}
 
                               <p className="text-[10px] text-slate-400 pt-1.5 border-t">
-                                Last Telemetry: {trap.lastComm}
+                                Current Status: {trap.lastComm}
                               </p>
                             </div>
 
@@ -808,7 +808,7 @@ export default function MacroGeospatialHeatmapPage() {
                               }}
                               className="w-full text-xs h-7 mt-1 border-slate-200"
                             >
-                              View Complete Telemetry
+                              View Current Status Data
                             </Button>
                           </div>
                         </Popup>
@@ -846,7 +846,7 @@ export default function MacroGeospatialHeatmapPage() {
                   </Badge>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Hardware Node Diagnostics & Real-time Telemetry
+                  Hardware Node Diagnostics & Real-time Status Data
                 </p>
               </div>
               <button

@@ -137,7 +137,7 @@ export default function StaticGeoreferencingPage() {
   useEffect(() => {
     loadTraps(true);
 
-    // Supabase realtime subscription for automatic GPS updates and telemetry from hardware
+    // Supabase realtime subscription for automatic GPS updates and current status from hardware
     const channel = supabase
       .channel("ovitrap_devices_gps_realtime")
       .on(
@@ -274,7 +274,7 @@ export default function StaticGeoreferencingPage() {
             Trap Location
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Realtime GPS tracking and spatial telemetry for smart ovitrap devices.
+            Realtime GPS tracking and current spatial status data for smart ovitrap devices.
           </p>
         </div>
 
@@ -572,7 +572,7 @@ export default function StaticGeoreferencingPage() {
                           }}
                         >
                           <Activity className="w-3 h-3" />
-                          Telemetry
+                           Trap Data
                         </Button>
                       </div>
                     </div>
