@@ -376,6 +376,7 @@ export default function NodeProvisioningPage() {
         device={editingDevice}
         statuses={statuses}
         barangays={barangays}
+        existingDevices={devices}
         onClose={() => setModalOpen(false)}
         onSuccess={loadData}
       />

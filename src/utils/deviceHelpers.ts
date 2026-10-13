@@ -39,3 +39,23 @@ export const formatBarangayLabel = (b: Barangay) => {
   return parts.join(" – ");
 };
 
+/** Returns the next Trap ID based on existing device codes (e.g. TRAP-001 → TRAP-002) */
+export function getNextDeviceCode(devices: { device_code?: string | null }[]): string {
+  let maxNum = 0;
+
+  for (const d of devices) {
+    const code = d.device_code?.trim() ?? "";
+    // Matches TRAP-001, TRAP-12, trap-003, etc.
+    const match = code.match(/^TRAP-(\d+)$/i);
+
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  }
+
+  const next = maxNum + 1;
+  return `TRAP-${String(next).padStart(3, "0")}`;
+}

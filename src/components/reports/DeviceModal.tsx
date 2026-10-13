@@ -23,12 +23,15 @@ import type {
   DeviceFormData,
 } from "@/types/device.types";
 
+import { getNextDeviceCode } from "@/utils/deviceHelpers";
+
 interface DeviceModalProps {
   open: boolean;
   mode: "create" | "edit";
   device?: OvitrapDevice | null;
   statuses: DeviceStatus[];
   barangays: Barangay[];
+  existingDevices?: OvitrapDevice[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -39,6 +42,7 @@ export default function DeviceModal({
   device,
   statuses,
   barangays,
+  existingDevices = [],
   onClose,
   onSuccess,
 }: DeviceModalProps) {
@@ -71,14 +75,18 @@ export default function DeviceModal({
           device_status_id: device.device_status_id ?? offlineStatus?.id ?? "",
         });
       } else {
+        // Auto-generate next Trap ID
+        const nextCode = getNextDeviceCode(existingDevices);
+
         setForm({
           ...emptyDeviceForm,
+          device_code: nextCode,
           device_status_id: offlineStatus?.id ?? "",
         });
       }
     }
     prevOpenRef.current = open;
-  }, [open, mode, device, statuses]);
+  }, [open, mode, device, statuses, existingDevices]);
 
   if (!open) return null;
 
@@ -218,8 +226,8 @@ export default function DeviceModal({
                 value={form.device_code}
                 onChange={(e) => handleChange("device_code", e.target.value)}
                 placeholder="e.g. TRAP-005"
-                className="h-9 text-sm"
-                autoFocus
+                readOnly
+                className="h-9 text-sm grey-500 bg-slate-100 cursor-not-allowed"
                 required
               />
             </div>
@@ -232,6 +240,7 @@ export default function DeviceModal({
                 value={form.serial_number}
                 onChange={(e) => handleChange("serial_number", e.target.value)}
                 placeholder="Optional"
+                autoFocus
                 className="h-9 text-sm"
               />
             </div>
