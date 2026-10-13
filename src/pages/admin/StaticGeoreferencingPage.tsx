@@ -88,7 +88,7 @@ export default function StaticGeoreferencingPage() {
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("Online");
   const [selectedTrapId, setSelectedTrapId] = useState<string | null>(viewId);
 
   const [mapCenter, setMapCenter] = useState<[number, number]>(defaultCenter);

@@ -136,7 +136,7 @@ export default function BarangaySurveillancePage() {
   // Filter state for deployed traps side list
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">(
-    "all"
+    "online"
   );
 
   // Diagnostics modal
