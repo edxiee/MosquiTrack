@@ -9,23 +9,7 @@ export const ONLINE_THRESHOLD_MINUTES = 16;
 export const ONLINE_THRESHOLD_MS = ONLINE_THRESHOLD_MINUTES * 60 * 1000;
 
 export const isDeviceActive = (device: OvitrapDevice | null | undefined): boolean => {
-  if (!device) return false;
-
-  const rawStatus = Array.isArray(device.device_statuses)
-    ? (device.device_statuses as any)[0]?.status_name
-    : device.device_statuses?.status_name;
-
-  if (rawStatus === "Maintenance") return false;
-
-  if (device.last_seen_at) {
-    const lastSeenTime = new Date(device.last_seen_at).getTime();
-    if (!isNaN(lastSeenTime)) {
-      const diff = Date.now() - lastSeenTime;
-      return diff >= 0 && diff <= ONLINE_THRESHOLD_MS;
-    }
-  }
-
-  return true;
+  return getDeviceStatusName(device) === "Online";
 };
 
 export const getDeviceStatusName = (device: OvitrapDevice | null | undefined): "Online" | "Offline" | "Maintenance" => {

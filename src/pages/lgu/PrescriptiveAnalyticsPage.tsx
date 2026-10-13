@@ -383,30 +383,16 @@ export default function PrescriptiveAnalyticsPage() {
         throw new Error("Cannot submit triage log: device has no barangay assigned.");
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // 1. Insert into request_actions with device_id
-      const { error: reqError } = await supabase.from("request_actions").insert({
-        device_id: payload.deviceId,
-        request: payload.requestType,
-        descriptions: payload.description || null,
-        notes: payload.notes || null,
-        requested_by: user?.id || null,
-        status: "Pending",
-      });
-
-      if (reqError) {
-        console.warn("Could not insert to request_actions:", reqError);
-      }
-
-      // 2. Also record in action_triage_log for broader triage visibility
-      const devLabel = selectedDevice?.device_code ? `Trap: ${selectedDevice.device_code}` : null;
+      // Record exclusively in action_triage_log (not request_actions)
+      const targetDevice = selectedDevice || devices.find((d) => d.id === payload.deviceId);
+      const devLabel = targetDevice?.device_code ? `Trap: ${targetDevice.device_code}` : null;
       const combinedRemarks =
         [devLabel, payload.description, payload.notes].filter(Boolean).join(" | ") ||
         "No additional remarks.";
 
       await submitTriageRequest({
         barangayId: payload.barangayId,
+        deviceId: payload.deviceId,
         triggerSource: payload.requestType,
         priority: payload.priority,
         remarks: combinedRemarks,
