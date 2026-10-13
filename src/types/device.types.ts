@@ -35,6 +35,7 @@ export interface OvitrapDevice {
   barangays?: Barangay | null;
   users: UserName | null;
   latest_mosquito_count?: number | null;
+  today_mosquito_count?: number | null;
   operational_status?: "Deployed" | "Pending" | "In Storage" | string;
 }
 

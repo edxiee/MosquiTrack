@@ -87,30 +87,40 @@ export async function getTelemetry(limit = 200): Promise<TelemetryReading[]> {
 
 export interface DeviceReadingSummary {
   id: string;
+  device_id?: string;
   captured_at: string;
+  created_at?: string;
+  updated_at?: string | null;
   mosquito_count: number | null;
   battery_level: number | null;
   temperature_c: number | null;
   humidity_percent: number | null;
   ai_confidence: number | null;
+  image_path?: string | null;
+  device_code?: string;
+  barangay_name?: string | null;
+  status_name?: string | null;
 }
 
 /** Latest readings for a single trap, newest first. */
 export async function getDeviceReadings(
   deviceId: string,
-  limit = 14,
+  limit = 100,
 ): Promise<DeviceReadingSummary[]> {
   const { data, error } = await supabase
     .from("ovitrap_readings")
     .select(
-      "id, captured_at, mosquito_count, battery_level, temperature_c, humidity_percent, ai_confidence",
+      "id, device_id, captured_at, created_at, updated_at, mosquito_count, battery_level, temperature_c, humidity_percent, ai_confidence, image_path",
     )
     .eq("device_id", deviceId)
-    .order("captured_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
-  return (data ?? []) as DeviceReadingSummary[];
+  return ((data ?? []) as any[]).map((r) => ({
+    ...r,
+    captured_at: r.captured_at || r.created_at,
+  })) as DeviceReadingSummary[];
 }
 
 /** Fetch one reading (with joins) by id — used to hydrate realtime inserts. */

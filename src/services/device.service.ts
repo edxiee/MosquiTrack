@@ -84,7 +84,7 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
           .from("ovitrap_readings")
           .select("device_id, captured_at, created_at, mosquito_count")
           .in("device_id", deviceIds)
-          .order("captured_at", { ascending: false })
+          .order("created_at", { ascending: false })
       : Promise.resolve({ data: null }),
   ]);
 
@@ -100,11 +100,22 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
 
   const latestReadingMap = new Map<string, string>();
   const latestCountMap = new Map<string, number | null>();
+  const todayStartStr = new Date().toISOString().split("T")[0];
+  const todayCountMap = new Map<string, number>();
+
   if (readingsRes.data) {
     for (const r of readingsRes.data) {
-      if (!latestReadingMap.has(r.device_id)) {
-        latestReadingMap.set(r.device_id, r.captured_at || r.created_at);
+      const time = r.captured_at || r.created_at;
+      if (!time) continue;
+      const existing = latestReadingMap.get(r.device_id);
+      if (!existing || new Date(time).getTime() > new Date(existing).getTime()) {
+        latestReadingMap.set(r.device_id, time);
         latestCountMap.set(r.device_id, r.mosquito_count ?? null);
+      }
+
+      if (time.startsWith(todayStartStr)) {
+        const cur = todayCountMap.get(r.device_id) ?? 0;
+        todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
       }
     }
   }
@@ -125,26 +136,28 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
 
     if (realStatusName === "Maintenance") {
       computedStatusName = "Maintenance";
-    } else if (realStatusName === "Active") {
-      // Only Active devices can become Online / Unreachable
-      computedStatusName = isOnline ? "Online" : "Unreachable";
+    } else if (isOnline) {
+      computedStatusName = "Online";
     } else {
-      // Offline, Provisioning, or anything else → keep Offline-style
       computedStatusName = "Offline";
     }
+
+    const todayCount = todayCountMap.get(d.id);
+    const displayCount = todayCount != null && todayCount > 0 ? todayCount : latestCountMap.get(d.id) ?? 0;
 
     const rawBarangay = d.barangays;
     return {
       ...d,
       last_seen_at: latestTimestamp,
-      latest_mosquito_count: latestCountMap.get(d.id) ?? null,
+      latest_mosquito_count: displayCount,
+      today_mosquito_count: todayCount ?? 0,
       device_statuses: statusObj
-      ? { ...statusObj, status_name: realStatusName }
-      : { id: "unknown", status_name: "Unknown", description: null },
-    // Computed connection status (for badges / Online-Offline display)
-    connection_status: computedStatusName,
-    barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
-    users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+        ? { ...statusObj, status_name: computedStatusName }
+        : { id: "unknown", status_name: computedStatusName, description: null },
+      // Computed connection status (for badges / Online-Offline display)
+      connection_status: computedStatusName,
+      barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
+      users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
     };
   }) as unknown as OvitrapDevice[];
 }
@@ -399,9 +412,9 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     deviceIds.length > 0
       ? supabase
           .from("ovitrap_readings")
-          .select("device_id, captured_at, created_at")
+          .select("device_id, captured_at, created_at, mosquito_count")
           .in("device_id", deviceIds)
-          .order("captured_at", { ascending: false })
+          .order("created_at", { ascending: false })
       : Promise.resolve({ data: null }),
   ]);
 
@@ -416,10 +429,15 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
   }
 
   const latestReadingMap = new Map<string, string>();
+  const latestCountMap = new Map<string, number | null>();
   if (readingsRes.data) {
     for (const r of readingsRes.data) {
-      if (!latestReadingMap.has(r.device_id)) {
-        latestReadingMap.set(r.device_id, r.captured_at || r.created_at);
+      const time = r.captured_at || r.created_at;
+      if (!time) continue;
+      const existing = latestReadingMap.get(r.device_id);
+      if (!existing || new Date(time).getTime() > new Date(existing).getTime()) {
+        latestReadingMap.set(r.device_id, time);
+        latestCountMap.set(r.device_id, r.mosquito_count ?? null);
       }
     }
   }
@@ -440,11 +458,9 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
 
     if (realStatusName === "Maintenance") {
       computedStatusName = "Maintenance";
-    } else if (realStatusName === "Active") {   
-      // Only Active devices can become Online / Unreachable
-      computedStatusName = isOnline ? "Online" : "Unreachable";
-    } else {    
-      // Offline, Provisioning, or anything else → keep Offline-style
+    } else if (isOnline) {
+      computedStatusName = "Online";
+    } else {
       computedStatusName = "Offline";
     }
 
@@ -452,13 +468,14 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     return {
       ...d,
       last_seen_at: latestTimestamp,
+      latest_mosquito_count: latestCountMap.get(d.id) ?? null,
       device_statuses: statusObj
-      ? { ...statusObj, status_name: realStatusName }
-      : { id: "unknown", status_name: "Unknown", description: null },
-    // Computed connection status (for badges / Online-Offline display)
-    connection_status: computedStatusName,
-    barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
-    users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
+        ? { ...statusObj, status_name: computedStatusName }
+        : { id: "unknown", status_name: computedStatusName, description: null },
+      // Computed connection status (for badges / Online-Offline display)
+      connection_status: computedStatusName,
+      barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
+      users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,
     };
   }) as unknown as OvitrapDevice[];
 }
@@ -544,7 +561,7 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
           .from("ovitrap_readings")
           .select("device_id, captured_at, created_at, mosquito_count")
           .in("device_id", deviceIds)
-          .order("captured_at", { ascending: false })
+          .order("created_at", { ascending: false })
       : Promise.resolve({ data: null }),
   ]);
 
@@ -560,11 +577,22 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
 
   const latestReadingMap = new Map<string, string>();
   const latestCountMap = new Map<string, number | null>();
+  const todayStartStr = new Date().toISOString().split("T")[0];
+  const todayCountMap = new Map<string, number>();
+
   if (readingsRes.data) {
     for (const r of readingsRes.data) {
-      if (!latestReadingMap.has(r.device_id)) {
-        latestReadingMap.set(r.device_id, r.captured_at || r.created_at);
+      const time = r.captured_at || r.created_at;
+      if (!time) continue;
+      const existing = latestReadingMap.get(r.device_id);
+      if (!existing || new Date(time).getTime() > new Date(existing).getTime()) {
+        latestReadingMap.set(r.device_id, time);
         latestCountMap.set(r.device_id, r.mosquito_count ?? null);
+      }
+
+      if (time.startsWith(todayStartStr)) {
+        const cur = todayCountMap.get(r.device_id) ?? 0;
+        todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
       }
     }
   }
@@ -585,21 +613,25 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
     let computedStatusName: string;
     if (realStatusName === "Maintenance") {
       computedStatusName = "Maintenance";
-    } else if (realStatusName === "Active") {
-      computedStatusName = isOnline ? "Online" : "Unreachable";
+    } else if (isOnline) {
+      computedStatusName = "Online";
     } else {
       computedStatusName = "Offline";
     }
+
+    const todayCount = todayCountMap.get(d.id);
+    const displayCount = todayCount != null && todayCount > 0 ? todayCount : latestCountMap.get(d.id) ?? 0;
 
     const rawBarangay = d.barangays;
 
     return {
       ...d,
       last_seen_at: latestTimestamp,
-      latest_mosquito_count: latestCountMap.get(d.id) ?? null,
+      latest_mosquito_count: displayCount,
+      today_mosquito_count: todayCount ?? 0,
       device_statuses: statusObj
-        ? { ...statusObj, status_name: realStatusName }
-        : { id: "unknown", status_name: "Unknown", description: null },
+        ? { ...statusObj, status_name: computedStatusName }
+        : { id: "unknown", status_name: computedStatusName, description: null },
       connection_status: computedStatusName,
       barangays: Array.isArray(rawBarangay) ? rawBarangay[0] ?? null : rawBarangay ?? null,
       users: d.deployed_by ? userMap.get(d.deployed_by) ?? null : null,

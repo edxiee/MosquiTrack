@@ -8,7 +8,6 @@ import type {
 interface RawActionRow {
   id: string;
   barangay_id: string;
-  device_id: string | null;
   trigger_source: string;
   priority: TriageAction["priority"];
   status: TriageAction["status"];
@@ -20,7 +19,6 @@ interface RawActionRow {
   created_at: string;
   created_by?: string | null;
   barangay: { barangay_name: string } | null;
-  device: { device_code: string } | null;
   assignee: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
   requester?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
 }
@@ -28,7 +26,6 @@ interface RawActionRow {
 const ACTION_SELECT = `
   id,
   barangay_id,
-  device_id,
   trigger_source,
   priority,
   status,
@@ -40,7 +37,6 @@ const ACTION_SELECT = `
   created_at,
   created_by,
   barangay:barangays ( barangay_name ),
-  device:ovitrap_devices ( device_code ),
   assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name ),
   requester:profiles!action_triage_log_created_by_fkey ( first_name, last_name )
 `;
@@ -56,8 +52,8 @@ function flattenAction(row: RawActionRow): TriageAction {
     id: row.id,
     barangayId: row.barangay_id,
     barangayName: row.barangay?.barangay_name ?? "Unknown",
-    deviceId: row.device_id,
-    deviceCode: row.device?.device_code ?? null,
+    deviceId: null,
+    deviceCode: null,
     triggerSource: row.trigger_source,
     priority: row.priority,
     status: row.status,
@@ -99,19 +95,10 @@ export async function getAssignedActions(
 }
 
 export async function getActionsByDeviceId(
-  deviceId: string,
+  _deviceId: string,
 ): Promise<TriageAction[]> {
-  const { data, error } = await supabase
-    .from("action_triage_log")
-    .select(ACTION_SELECT)
-    .eq("device_id", deviceId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Failed to fetch actions for device:", error);
-    return [];
-  }
-  return ((data ?? []) as unknown as RawActionRow[]).map(flattenAction);
+  // device_id column has been removed from action_triage_log
+  return [];
 }
 
 export async function getActionById(id: string): Promise<TriageAction | null> {

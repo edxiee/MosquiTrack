@@ -23,6 +23,7 @@ import { SuccessModal } from "@/components/reports/modals/SuccessModal";
 import { ErrorModal } from "@/components/reports/modals/ErrorModal";
 import TrapReportDropdown, { getTrapDangerLevel } from "@/components/lgu/TrapReportDropdown";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 const REQUEST_TYPES = [
   "Send Monitoring Personnel",
@@ -316,6 +317,28 @@ export default function PrescriptiveAnalyticsPage() {
 
   useEffect(() => {
     loadData();
+
+    const channel = supabase
+      .channel("prescriptive_analytics_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_readings" },
+        () => {
+          loadData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_devices" },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredDevices = useMemo(() => {
@@ -360,16 +383,38 @@ export default function PrescriptiveAnalyticsPage() {
         throw new Error("Cannot submit triage log: device has no barangay assigned.");
       }
 
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // 1. Insert into request_actions with device_id
+      const { error: reqError } = await supabase.from("request_actions").insert({
+        device_id: payload.deviceId,
+        request: payload.requestType,
+        descriptions: payload.description || null,
+        notes: payload.notes || null,
+        requested_by: user?.id || null,
+        status: "Pending",
+      });
+
+      if (reqError) {
+        console.warn("Could not insert to request_actions:", reqError);
+      }
+
+      // 2. Also record in action_triage_log for broader triage visibility
+      const devLabel = selectedDevice?.device_code ? `Trap: ${selectedDevice.device_code}` : null;
+      const combinedRemarks =
+        [devLabel, payload.description, payload.notes].filter(Boolean).join(" | ") ||
+        "No additional remarks.";
+
       await submitTriageRequest({
         barangayId: payload.barangayId,
-        deviceId: payload.deviceId,
         triggerSource: payload.requestType,
         priority: payload.priority,
-        remarks: [payload.description, payload.notes].filter(Boolean).join(" | ") || "No additional remarks.",
+        remarks: combinedRemarks,
       });
 
       setLastRequestType(payload.requestType);
       setSuccessOpen(true);
+      loadData();
     } catch (err) {
       console.error(err);
       const msg = getErrorMessage(err, "Failed to submit request");

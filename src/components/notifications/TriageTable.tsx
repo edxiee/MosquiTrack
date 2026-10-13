@@ -149,10 +149,12 @@ export default function TriageTable({
                         <MapPin className="h-3.5 w-3.5 text-slate-400" />
                         {action.barangayName}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                        <Cpu className="h-3.5 w-3.5 text-slate-400" />
-                        {action.deviceCode ?? "No device"}
-                      </p>
+                      {action.deviceCode && (
+                        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                          <Cpu className="h-3.5 w-3.5 text-slate-400" />
+                          {action.deviceCode}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge label={action.priority} styles={PRIORITY_STYLES} />

@@ -359,8 +359,7 @@ export async function fetchBarangaySurveillanceData(
       status,
       assigned_date,
       remarks,
-      created_at,
-      device:ovitrap_devices ( device_code )
+      created_at
     `
     )
     .order("created_at", { ascending: false })
@@ -376,7 +375,6 @@ export async function fetchBarangaySurveillanceData(
 
   if (actionsData) {
     recentActions = (actionsData as any[]).map((a) => {
-      const dev = Array.isArray(a.device) ? a.device[0] : a.device;
       return {
         id: a.id,
         triggerSource: a.trigger_source || "Triage Action",
@@ -384,7 +382,7 @@ export async function fetchBarangaySurveillanceData(
         status: a.status || "Pending",
         assignedDate: a.assigned_date,
         remarks: a.remarks,
-        deviceCode: dev?.device_code ?? null,
+        deviceCode: null,
       };
     });
   }
@@ -669,7 +667,6 @@ export async function submitTriageRequest(payload: {
 
   const { error } = await supabase.from("action_triage_log").insert({
     barangay_id: payload.barangayId,
-    device_id: payload.deviceId || null,
     trigger_source: payload.triggerSource,
     priority: payload.priority,
     status: "Pending",

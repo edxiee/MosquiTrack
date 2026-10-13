@@ -148,7 +148,7 @@ async function fetchTriageActions(): Promise<TriageActionRow[]> {
     const { data, error } = await supabase
       .from("action_triage_log")
       .select(
-        "id, barangay_id, device_id, trigger_source, priority, status, assigned_to, assigned_date, due_date, completed_at, remarks, created_at, device:ovitrap_devices ( device_code )"
+        "id, barangay_id, trigger_source, priority, status, assigned_to, assigned_date, due_date, completed_at, remarks, created_at"
       )
       .order("created_at", { ascending: false })
       .limit(10);

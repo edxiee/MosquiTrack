@@ -11,17 +11,56 @@ import {
   ShieldAlert,
   ShieldCheck,
   Thermometer,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { OvitrapDevice } from "@/types/device.types";
 import {
   getDeviceReadings,
   type DeviceReadingSummary,
 } from "@/services/telemetry.service";
-import { getActionsByDeviceId } from "@/services/triage.service";
-import type { TriageAction } from "@/types/triage.types";
+import {
+  fetchTrapRequestsByDevice,
+  type TrapRequest,
+} from "@/services/trapRequest.service";
 import { formatRelativeTime, formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+
+function StatusBadge({ status }: { status: string | null }) {
+  const isOk = status === "Active" || status === "Online";
+  return (
+    <Badge
+      className={`border-none shadow-none font-medium text-xs ${
+        isOk
+          ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+          : "bg-slate-100 text-slate-700 hover:bg-slate-100"
+      }`}
+    >
+      <span
+        className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${
+          isOk ? "bg-emerald-500" : "bg-slate-400"
+        }`}
+      />
+      {status ?? "Unknown"}
+    </Badge>
+  );
+}
 
 interface TrapReportDropdownProps {
   device: OvitrapDevice;
@@ -37,15 +76,15 @@ interface StatusMeta {
 
 const DEFAULT_STATUS_META: StatusMeta = {
   label: "Offline",
-  badge: "bg-rose-50 text-rose-700 border-rose-200",
-  dot: "bg-rose-500",
+  badge: "bg-slate-100 text-slate-700 border-slate-200",
+  dot: "bg-slate-400",
 };
 
 const STATUS_STYLES: Record<string, StatusMeta> = {
   Online: {
     label: "Online",
     badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    dot: "bg-emerald-500",
+    dot: "bg-emerald-500 animate-pulse",
   },
   Active: {
     label: "Active",
@@ -65,18 +104,13 @@ const STATUS_STYLES: Record<string, StatusMeta> = {
   Offline: DEFAULT_STATUS_META,
 };
 
-const PRIORITY_BADGES: Record<string, string> = {
-  Low: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Medium: "bg-amber-50 text-amber-700 border-amber-200",
-  High: "bg-orange-50 text-orange-700 border-orange-200",
-  Critical: "bg-rose-50 text-rose-700 border-rose-200",
-};
-
 const ACTION_STATUS_BADGES: Record<string, string> = {
   Pending: "bg-amber-50 text-amber-700 border-amber-200",
-  "In Progress": "bg-sky-50 text-sky-700 border-sky-200",
+  Approved: "bg-sky-50 text-sky-700 border-sky-200",
+  "In Progress": "bg-indigo-50 text-indigo-700 border-indigo-200",
   Completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Dismissed: "bg-slate-100 text-slate-600 border-slate-200",
+  Declined: "bg-rose-50 text-rose-700 border-rose-200",
+  Cancelled: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 export function getTrapDangerLevel(count: number | null | undefined): {
@@ -131,21 +165,22 @@ export default function TrapReportDropdown({
   onViewLocation,
 }: TrapReportDropdownProps) {
   const [readings, setReadings] = useState<DeviceReadingSummary[]>([]);
-  const [actions, setActions] = useState<TriageAction[]>([]);
+  const [requests, setRequests] = useState<TrapRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"reports" | "actions" | "specs">("reports");
   const [error, setError] = useState<string | null>(null);
+  const [selectedPayload, setSelectedPayload] = useState<any | null>(null);
 
   const loadTrapData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [readingsData, actionsData] = await Promise.all([
-        getDeviceReadings(device.id, 14),
-        getActionsByDeviceId(device.id),
+      const [readingsData, requestsData] = await Promise.all([
+        getDeviceReadings(device.id, 50),
+        fetchTrapRequestsByDevice(device.id),
       ]);
       setReadings(readingsData);
-      setActions(actionsData);
+      setRequests(requestsData);
     } catch (err) {
       console.error(`Failed to load reports for trap ${device.device_code}:`, err);
       setError("Failed to load telemetry reports for this trap.");
@@ -156,20 +191,111 @@ export default function TrapReportDropdown({
 
   useEffect(() => {
     loadTrapData();
+
+    // Subscribe to realtime updates on readings and requests for this specific trap
+    const channel = supabase
+      .channel(`trap_dropdown_realtime_${device.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ovitrap_readings",
+          filter: `device_id=eq.${device.id}`,
+        },
+        () => {
+          loadTrapData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "request_actions",
+          filter: `device_id=eq.${device.id}`,
+        },
+        () => {
+          loadTrapData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [device.id]);
 
   const latestReading = readings[0] ?? null;
-  const mosquitoCount = latestReading?.mosquito_count ?? device.latest_mosquito_count;
-  const danger = getTrapDangerLevel(mosquitoCount);
 
-  const connectionStatus =
-    (device as any).connection_status ||
-    device.device_statuses?.status_name ||
-    "Offline";
+  // Calculate Today's Cumulative Mosquito Count from readings
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const todayReadings = readings.filter((r) =>
+    Boolean(r.captured_at?.startsWith(todayDateStr) || r.created_at?.startsWith(todayDateStr))
+  );
+  const todaySum = todayReadings.reduce(
+    (acc, r) => acc + (r.mosquito_count ?? 0),
+    0
+  );
+  const allTimeSum = readings.reduce(
+    (acc, r) => acc + (r.mosquito_count ?? 0),
+    0
+  );
+
+  // The primary count to display: today's sum (or all-time sum / device count fallback)
+  const displayMosquitoCount =
+    todaySum > 0
+      ? todaySum
+      : (device.today_mosquito_count ?? device.latest_mosquito_count ?? (allTimeSum > 0 ? allTimeSum : latestReading?.mosquito_count ?? 0));
+
+  const danger = getTrapDangerLevel(displayMosquitoCount);
+
+  // Compute live connection status
+  const latestTimestamp =
+    latestReading?.captured_at || latestReading?.created_at || device.last_seen_at;
+  const isOnline = latestTimestamp
+    ? Date.now() - new Date(latestTimestamp).getTime() <= 16 * 60 * 1000
+    : false;
+
+  const realStatus = Array.isArray(device.device_statuses)
+    ? (device.device_statuses as any)[0]?.status_name
+    : device.device_statuses?.status_name;
+
+  let computedConnection = "Offline";
+  if (realStatus === "Maintenance") {
+    computedConnection = "Maintenance";
+  } else if (isOnline) {
+    computedConnection = "Online";
+  } else {
+    computedConnection = "Offline";
+  }
+
   const statusMeta: StatusMeta =
-    (connectionStatus && STATUS_STYLES[connectionStatus]) ?? DEFAULT_STATUS_META;
+    STATUS_STYLES[computedConnection] ?? DEFAULT_STATUS_META;
 
-  // Sparkline calculation
+  // Best available sensor values across readings (in case single ping has sparse fields)
+  const latestTemp =
+    readings.find((r) => r.temperature_c != null)?.temperature_c ??
+    latestReading?.temperature_c ??
+    null;
+  const latestHumidity =
+    readings.find((r) => r.humidity_percent != null)?.humidity_percent ??
+    latestReading?.humidity_percent ??
+    null;
+  const latestBattery =
+    readings.find((r) => r.battery_level != null)?.battery_level ??
+    latestReading?.battery_level ??
+    null;
+  const latestConfidence =
+    readings.find((r) => r.ai_confidence != null)?.ai_confidence ??
+    latestReading?.ai_confidence ??
+    null;
+  const latestImage =
+    readings.find((r) => !!r.image_path)?.image_path ??
+    latestReading?.image_path ??
+    null;
+
+  // Activity trend (oldest to newest)
   const reversedReadings = useMemo(() => [...readings].reverse(), [readings]);
   const maxMosquitoCount = useMemo(() => {
     const counts = readings.map((r) => r.mosquito_count ?? 0);
@@ -187,7 +313,7 @@ export default function TrapReportDropdown({
             <span className="font-bold text-base text-slate-900 tracking-tight">
               Trap Telemetry & Field Reports
             </span>
-            <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+            <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold border border-slate-200">
               {device.device_code}
             </span>
           </div>
@@ -205,7 +331,7 @@ export default function TrapReportDropdown({
 
             <span
               className={cn(
-                "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border",
+                "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border",
                 danger.badge
               )}
             >
@@ -216,6 +342,12 @@ export default function TrapReportDropdown({
               )}
               {danger.label}
             </span>
+
+            {latestTimestamp && (
+              <span className="text-[11px] text-slate-400 font-medium">
+                Last Ping: {formatRelativeTime(latestTimestamp)}
+              </span>
+            )}
           </div>
         </div>
 
@@ -268,7 +400,7 @@ export default function TrapReportDropdown({
           )}
         >
           <Activity className="size-3.5" />
-          <span>Telemetry Reports</span>
+          <span>Telemetry Readings</span>
           <span className="rounded-full bg-slate-200/70 px-1.5 py-0.2 text-[10px] text-slate-700 font-bold">
             {readings.length}
           </span>
@@ -285,9 +417,9 @@ export default function TrapReportDropdown({
           )}
         >
           <Send className="size-3.5" />
-          <span>Request Actions Log</span>
+          <span>Trap Request Log</span>
           <span className="rounded-full bg-slate-200/70 px-1.5 py-0.2 text-[10px] text-slate-700 font-bold">
-            {actions.length}
+            {requests.length}
           </span>
         </button>
 
@@ -309,7 +441,7 @@ export default function TrapReportDropdown({
       {/* Tab 1: Telemetry Reports */}
       {activeTab === "reports" && (
         <div className="space-y-4">
-          {loading ? (
+          {loading && readings.length === 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[0, 1, 2, 3].map((i) => (
                 <div
@@ -328,19 +460,19 @@ export default function TrapReportDropdown({
                 No telemetry readings recorded for this trap yet.
               </p>
               <p className="text-xs text-slate-400 mt-1">
-                Once the sensor reports telemetry via IoT, readings and trends will appear here.
+                Once the IoT device transmits data to ovitrap_readings, live metrics and trends will appear here.
               </p>
             </div>
           ) : (
             <>
-              {/* Stat Cards */}
+              {/* Stat Cards from Real IoT Telemetry */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {/* Mosquito Count Card */}
                 <div className="rounded-xl bg-slate-50/80 p-3.5 border border-slate-200/80">
                   <div className="flex items-center justify-between text-slate-500">
                     <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
                       <Bug className="size-3.5 text-emerald-600" />
-                      Mosquito Count
+                      Today Count
                     </div>
                     <span
                       className={cn(
@@ -352,12 +484,15 @@ export default function TrapReportDropdown({
                     </span>
                   </div>
                   <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
-                    {latestReading.mosquito_count != null
-                      ? latestReading.mosquito_count
-                      : "—"}
+                    {displayMosquitoCount}{" "}
+                    <span className="text-sm font-semibold text-slate-500">mosq</span>
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Captured {formatRelativeTime(latestReading.captured_at)}
+                    {todayReadings.length > 0
+                      ? `${todayReadings.length} pings today (Latest: ${latestReading?.mosquito_count ?? 0})`
+                      : latestReading
+                      ? `Captured ${formatRelativeTime(latestReading.captured_at)}`
+                      : "No readings"}
                   </p>
                 </div>
 
@@ -368,22 +503,20 @@ export default function TrapReportDropdown({
                     Battery Health
                   </div>
                   <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
-                    {latestReading.battery_level != null
-                      ? `${latestReading.battery_level}%`
-                      : "—"}
+                    {latestBattery != null ? `${latestBattery}%` : "—"}
                   </p>
                   <div className="mt-2 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all",
-                        (latestReading.battery_level ?? 100) > 40
+                        (latestBattery ?? 100) > 40
                           ? "bg-emerald-500"
-                          : (latestReading.battery_level ?? 100) > 20
+                          : (latestBattery ?? 100) > 20
                           ? "bg-amber-500"
                           : "bg-rose-500"
                       )}
                       style={{
-                        width: `${Math.min(100, Math.max(0, latestReading.battery_level ?? 0))}%`,
+                        width: `${Math.min(100, Math.max(0, latestBattery ?? 0))}%`,
                       }}
                     />
                   </div>
@@ -396,11 +529,17 @@ export default function TrapReportDropdown({
                     Ambient Temp
                   </div>
                   <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
-                    {latestReading.temperature_c != null
-                      ? `${latestReading.temperature_c}°C`
-                      : "—"}
+                    {latestTemp != null ? `${latestTemp}°C` : "—"}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-1">Thermal condition</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {latestTemp != null
+                      ? latestTemp >= 32
+                        ? "High ambient heat"
+                        : latestTemp >= 24
+                        ? "Optimal range"
+                        : "Cool condition"
+                      : "Thermal sensor"}
+                  </p>
                 </div>
 
                 {/* Humidity Card */}
@@ -410,26 +549,51 @@ export default function TrapReportDropdown({
                     Humidity
                   </div>
                   <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
-                    {latestReading.humidity_percent != null
-                      ? `${latestReading.humidity_percent}%`
-                      : "—"}
+                    {latestHumidity != null ? `${latestHumidity}%` : "—"}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    {latestReading.ai_confidence != null
-                      ? `AI Conf: ${(latestReading.ai_confidence * 100).toFixed(0)}%`
+                    {latestConfidence != null
+                      ? `AI Conf: ${(latestConfidence <= 1 ? latestConfidence * 100 : latestConfidence).toFixed(0)}%`
                       : "Relative moisture"}
                   </p>
                 </div>
               </div>
 
-              {/* Sparkline Visualisation */}
+              {/* Optional Camera Capture Preview if image_path exists */}
+              {latestImage && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="size-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <Camera className="size-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">
+                        Camera Snapshot Available
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        High-resolution mosquito optical capture stored on server
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={latestImage}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs"
+                  >
+                    View Snapshot
+                  </a>
+                </div>
+              )}
+
+              {/* Sparkline / Bar Trend Visualisation */}
               {reversedReadings.length > 1 && (
                 <div className="rounded-xl bg-slate-50/60 p-4 border border-slate-200/80">
                   <div className="flex items-center justify-between mb-2.5">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                      Catch Activity Trend (Last {reversedReadings.length} Reports)
+                      Telemetry Catch Trend (Last {reversedReadings.length} Pings)
                     </span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-400 font-mono">
                       Max: {maxMosquitoCount} mosquitoes
                     </span>
                   </div>
@@ -437,7 +601,7 @@ export default function TrapReportDropdown({
                   <div className="flex h-20 items-end gap-1.5 pt-2">
                     {reversedReadings.map((r) => {
                       const count = r.mosquito_count ?? 0;
-                      const heightPct = Math.max(8, (count / maxMosquitoCount) * 100);
+                      const heightPct = Math.max(10, (count / maxMosquitoCount) * 100);
                       const isHigh = count >= 15;
                       const isMed = count >= 5;
 
@@ -447,9 +611,9 @@ export default function TrapReportDropdown({
                           className="group relative flex-1 flex flex-col items-center h-full justify-end"
                         >
                           {/* Tooltip on Hover */}
-                          <div className="pointer-events-none absolute -top-8 z-10 hidden group-hover:flex flex-col items-center whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-[10px] text-white shadow-lg">
-                            <span>{count} mosquitoes</span>
-                            <span className="text-slate-400">
+                          <div className="pointer-events-none absolute -top-9 z-10 hidden group-hover:flex flex-col items-center whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-[10px] text-white shadow-lg">
+                            <span className="font-bold">{count} mosquitoes</span>
+                            <span className="text-slate-400 text-[9px]">
                               {formatRelativeTime(r.captured_at)}
                             </span>
                           </div>
@@ -472,50 +636,113 @@ export default function TrapReportDropdown({
                 </div>
               )}
 
-              {/* Recent Readings Table */}
-              <div className="rounded-xl border border-slate-200/80 overflow-hidden">
-                <div className="bg-slate-50/80 px-4 py-2 border-b border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-600">
-                  Recent Reading Log
+              {/* Recent Telemetry Readings Table (Based on ovitrap_readings, styled like Trap Data Overview TelemetryTable) */}
+              <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
+                <div className="bg-slate-50/80 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Recent Reading Log
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-200/70 text-slate-600 font-medium">
+                      {readings.length} {readings.length === 1 ? "packet" : "packets"}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-normal text-slate-500">
+                    Real data from ovitrap_readings • Click row to inspect raw payload
+                  </span>
                 </div>
-                <div className="max-h-52 overflow-y-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-50 sticky top-0 border-b border-slate-100 text-slate-500">
-                      <tr>
-                        <th className="text-left font-semibold px-4 py-2">Timestamp</th>
-                        <th className="text-left font-semibold px-4 py-2">Mosquito Count</th>
-                        <th className="text-left font-semibold px-4 py-2">Temp</th>
-                        <th className="text-left font-semibold px-4 py-2">Humidity</th>
-                        <th className="text-left font-semibold px-4 py-2">Battery</th>
-                        <th className="text-left font-semibold px-4 py-2">AI Conf</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {readings.map((r) => (
-                        <tr key={r.id} className="hover:bg-slate-50/80">
-                          <td className="px-4 py-2 font-mono text-slate-600 whitespace-nowrap">
-                            {formatTelemetryTimestamp(r.captured_at)}
-                          </td>
-                          <td className="px-4 py-2 font-bold text-slate-800">
-                            {r.mosquito_count ?? 0}
-                          </td>
-                          <td className="px-4 py-2 text-slate-600">
-                            {r.temperature_c != null ? `${r.temperature_c}°C` : "—"}
-                          </td>
-                          <td className="px-4 py-2 text-slate-600">
-                            {r.humidity_percent != null ? `${r.humidity_percent}%` : "—"}
-                          </td>
-                          <td className="px-4 py-2 text-slate-600">
-                            {r.battery_level != null ? `${r.battery_level}%` : "—"}
-                          </td>
-                          <td className="px-4 py-2 text-slate-600">
-                            {r.ai_confidence != null
-                              ? `${(r.ai_confidence * 100).toFixed(0)}%`
-                              : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="max-h-72 overflow-y-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200 shadow-xs">
+                      <TableRow className="hover:bg-transparent border-slate-100">
+                        <TableHead className="font-semibold text-slate-600 text-xs">Timestamp</TableHead>
+                        <TableHead className="font-semibold text-slate-600 text-xs">Trap ID</TableHead>
+                        <TableHead className="font-semibold text-slate-600 text-xs">Barangay</TableHead>
+                        <TableHead className="font-semibold text-slate-600 text-xs">Mosquito Count</TableHead>
+                        <TableHead className="font-semibold text-slate-600 text-xs">Temp (°C)</TableHead>
+                        <TableHead className="font-semibold text-slate-600 text-xs">Humidity (%)</TableHead>
+                        <TableHead className="font-semibold text-slate-600 text-xs">Battery (%)</TableHead>
+                        <TableHead className="font-semibold text-slate-600 text-xs">AI Confidence</TableHead>
+                        <TableHead className="font-semibold text-slate-600 text-xs">Device Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {readings.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={9}
+                            className="py-12 text-center text-slate-500"
+                          >
+                            <div className="max-w-md mx-auto space-y-2">
+                              <p className="font-semibold text-slate-700">
+                                No telemetry packets have been received yet.
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Power on this Smart Ovi Trap to transmit readings to ovitrap_readings.
+                              </p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        readings.map((r) => {
+                          const payloadRecord = {
+                            id: r.id,
+                            device_id: r.device_id ?? device.id,
+                            device_code: device.device_code,
+                            barangay_name: device.barangays?.barangay_name ?? null,
+                            captured_at: r.captured_at,
+                            created_at: r.created_at ?? r.captured_at,
+                            updated_at: r.updated_at ?? null,
+                            mosquito_count: r.mosquito_count ?? 0,
+                            temperature_c: r.temperature_c,
+                            humidity_percent: r.humidity_percent,
+                            battery_level: r.battery_level,
+                            ai_confidence: r.ai_confidence,
+                            image_path: r.image_path ?? null,
+                            status_name: computedConnection,
+                          };
+
+                          return (
+                            <TableRow
+                              key={r.id}
+                              className="cursor-pointer hover:bg-slate-50 border-slate-100 transition-colors"
+                              onClick={() => setSelectedPayload(payloadRecord)}
+                            >
+                              <TableCell className="font-mono text-slate-600 font-medium whitespace-nowrap text-xs">
+                                {formatTelemetryTimestamp(r.created_at || r.captured_at)}
+                              </TableCell>
+                              <TableCell className="font-bold text-slate-800 text-xs">
+                                {device.device_code}
+                              </TableCell>
+                              <TableCell className="text-slate-600 text-xs">
+                                {device.barangays?.barangay_name ?? "—"}
+                              </TableCell>
+                              <TableCell className="font-semibold text-slate-800 text-xs">
+                                {r.mosquito_count ?? 0}
+                              </TableCell>
+                              <TableCell className="text-slate-600 text-xs">
+                                {r.temperature_c != null ? `${r.temperature_c}°C` : "—"}
+                              </TableCell>
+                              <TableCell className="text-slate-600 text-xs">
+                                {r.humidity_percent != null ? `${r.humidity_percent}%` : "—"}
+                              </TableCell>
+                              <TableCell className="text-slate-600 text-xs">
+                                {r.battery_level != null ? `${r.battery_level}%` : "—"}
+                              </TableCell>
+                              <TableCell className="text-slate-600 font-mono text-xs">
+                                {r.ai_confidence != null
+                                  ? `${(r.ai_confidence <= 1 ? r.ai_confidence * 100 : r.ai_confidence).toFixed(1)}%`
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                <StatusBadge status={computedConnection} />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
             </>
@@ -523,10 +750,10 @@ export default function TrapReportDropdown({
         </div>
       )}
 
-      {/* Tab 2: Action Requests Log */}
+      {/* Tab 2: Trap Request Log from request_actions */}
       {activeTab === "actions" && (
         <div className="space-y-3">
-          {loading ? (
+          {loading && requests.length === 0 ? (
             <div className="space-y-2">
               {[0, 1].map((i) => (
                 <div
@@ -535,13 +762,13 @@ export default function TrapReportDropdown({
                 />
               ))}
             </div>
-          ) : actions.length === 0 ? (
+          ) : requests.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
               <p className="text-sm font-medium text-slate-700">
-                No action requests logged for this trap.
+                No action requests currently logged for this trap.
               </p>
               <p className="text-xs text-slate-400 mt-1">
-                You can submit a dispatch or intervention command directly for this active node.
+                You can submit a pick-up, inspection, clean-up drive, or misting request directly for this trap.
               </p>
               <Button
                 size="sm"
@@ -554,47 +781,49 @@ export default function TrapReportDropdown({
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200/80 overflow-hidden">
+              <div className="bg-slate-50/80 px-4 py-2.5 border-b border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
+                <span>Field Requests for {device.device_code}</span>
+                <span className="text-[11px] font-normal text-slate-500">
+                  from request_actions
+                </span>
+              </div>
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
                   <tr>
                     <th className="text-left font-semibold px-4 py-2.5">Request Type</th>
-                    <th className="text-left font-semibold px-4 py-2.5">Priority</th>
                     <th className="text-left font-semibold px-4 py-2.5">Status</th>
-                    <th className="text-left font-semibold px-4 py-2.5">Assigned Date</th>
-                    <th className="text-left font-semibold px-4 py-2.5">Remarks / Directive</th>
+                    <th className="text-left font-semibold px-4 py-2.5">Date Requested</th>
+                    <th className="text-left font-semibold px-4 py-2.5">Due Date</th>
+                    <th className="text-left font-semibold px-4 py-2.5">Details & Remarks</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {actions.map((act) => (
-                    <tr key={act.id} className="hover:bg-slate-50/80">
+                  {requests.map((act) => (
+                    <tr key={act.req_id} className="hover:bg-slate-50/80">
                       <td className="px-4 py-2.5 font-semibold text-slate-900">
-                        {act.triggerSource}
+                        {act.request}
                       </td>
                       <td className="px-4 py-2.5">
                         <span
                           className={cn(
                             "inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold border",
-                            PRIORITY_BADGES[act.priority] || "bg-slate-100 text-slate-600 border-slate-200"
+                            ACTION_STATUS_BADGES[act.status || "Pending"] ||
+                              "bg-slate-100 text-slate-600 border-slate-200"
                           )}
                         >
-                          {act.priority}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span
-                          className={cn(
-                            "inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold border",
-                            ACTION_STATUS_BADGES[act.status] || "bg-slate-100 text-slate-600 border-slate-200"
-                          )}
-                        >
-                          {act.status}
+                          {act.status || "Pending"}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-slate-600 font-mono">
-                        {act.assignedDate || formatRelativeTime(act.createdAt)}
+                        {formatTelemetryTimestamp(act.created_at)}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-600 font-mono">
+                        {act.due_date || "—"}
                       </td>
                       <td className="px-4 py-2.5 text-slate-700 max-w-xs break-words">
-                        {act.remarks || "—"}
+                        {[act.descriptions, act.notes, act.remarks]
+                          .filter(Boolean)
+                          .join(" | ") || "—"}
                       </td>
                     </tr>
                   ))}
@@ -658,7 +887,7 @@ export default function TrapReportDropdown({
             </h4>
             <div className="space-y-2">
               <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Device ID</span>
+                <span className="text-slate-500">Trap ID</span>
                 <span className="font-mono font-bold text-slate-800">
                   {device.device_code}
                 </span>
@@ -670,9 +899,15 @@ export default function TrapReportDropdown({
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Status</span>
+                <span className="text-slate-500">Operational Status</span>
                 <span className="font-medium text-slate-800">
-                  {device.device_statuses?.status_name ?? "Unknown"}
+                  {device.operational_status ?? "Deployed"}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">Connection</span>
+                <span className="font-medium text-slate-800">
+                  {statusMeta.label}
                 </span>
               </div>
               <div className="pt-1">
@@ -685,6 +920,25 @@ export default function TrapReportDropdown({
           </div>
         </div>
       )}
+
+      {/* Database Record (Raw JSON) Dialog - matches Trap Data Overview */}
+      <Dialog
+        open={!!selectedPayload}
+        onOpenChange={(open) => !open && setSelectedPayload(null)}
+      >
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-slate-800">
+              Database Record (Raw JSON)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="bg-slate-900 rounded-md p-4 overflow-x-auto mt-2">
+            <pre className="text-emerald-400 font-mono text-xs leading-relaxed">
+              {selectedPayload && JSON.stringify(selectedPayload, null, 2)}
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

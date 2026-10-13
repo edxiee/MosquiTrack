@@ -94,6 +94,11 @@ export default function NodeProvisioningPage() {
   useEffect(() => {
     loadData(true);
 
+    // Periodic check every minute to auto-expire to Offline after threshold (15-16m)
+    const interval = setInterval(() => {
+      loadData(false);
+    }, 60000);
+
     const channel = supabase
       .channel("ovitrap_devices_provisioning_realtime")
       .on(
@@ -113,6 +118,7 @@ export default function NodeProvisioningPage() {
       .subscribe();
 
     return () => {
+      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -266,16 +272,27 @@ export default function NodeProvisioningPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
                             displayStatus === "Online"
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                               : displayStatus === "Maintenance"
-                              ? "bg-amber-200 text-amber-700 border border-amber-200"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
                               : displayStatus === "Unreachable"
                               ? "bg-rose-50 text-rose-700 border border-rose-200"
-                              : "bg-rose-500 text-white border border-slate-200"
+                              : "bg-slate-100 text-slate-600 border border-slate-200"
                           }`}
                         >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              displayStatus === "Online"
+                                ? "bg-emerald-500 animate-pulse"
+                                : displayStatus === "Maintenance"
+                                ? "bg-amber-500"
+                                : displayStatus === "Unreachable"
+                                ? "bg-rose-500"
+                                : "bg-slate-400"
+                            }`}
+                          />
                           {displayStatus}
                         </span>
                       </td>
