@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/lib/supabase";
 import { emptyDeviceForm } from "@/constants/device";
 import { formatBarangayLabel } from "@/utils/deviceHelpers";
 import {
@@ -62,8 +61,10 @@ export default function DeviceModal({
       setError(null);
       setCreatedResult(null);
 
-      const offlineStatus =
-        statuses.find((s) => s.status_name === "Offline") ?? statuses[0];
+      const defaultStatus =
+        statuses.find((s) => s.status_name.toLowerCase() === "in storage") ??
+        statuses.find((s) => s.status_name === "Offline") ??
+        statuses[0];
 
       if (mode === "edit" && device) {
         setForm({
@@ -72,7 +73,7 @@ export default function DeviceModal({
           barangay_id: device.barangay_id ?? "",
           description: device.description ?? "",
           notes: device.notes ?? "",
-          device_status_id: device.device_status_id ?? offlineStatus?.id ?? "",
+          device_status_id: device.device_status_id ?? defaultStatus?.id ?? "",
         });
       } else {
         // Auto-generate next Trap ID
@@ -81,7 +82,7 @@ export default function DeviceModal({
         setForm({
           ...emptyDeviceForm,
           device_code: nextCode,
-          device_status_id: offlineStatus?.id ?? "",
+          device_status_id: defaultStatus?.id ?? "",
         });
       }
     }
@@ -111,30 +112,30 @@ export default function DeviceModal({
     setSaving(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const defaultStatus =
+        statuses.find((s) => s.status_name.toLowerCase() === "in storage") ??
+        statuses.find((s) => s.status_name === "Offline") ??
+        statuses[0];
+      const targetStatusId = form.device_status_id || defaultStatus?.id || null;
 
-      const offlineStatus =
-        statuses.find((s) => s.status_name === "Offline") ?? statuses[0];
-      const targetStatusId = form.device_status_id || offlineStatus?.id || null;
-
-      const payload = {
+      const payload: Record<string, unknown> = {
         device_code: form.device_code.trim(),
         serial_number: form.serial_number.trim() || null,
         barangay_id: form.barangay_id || null,
         description: form.description.trim() || null,
         notes: form.notes.trim() || null,
         device_status_id: targetStatusId,
-        deployed_by: user?.id ?? null,
         updated_at: new Date().toISOString(),
       };
 
       if (mode === "create") {
+        payload.operational_status = "In Storage";
+        payload.deployed_by = null;
         const created = await createDevice(payload);
         setCreatedResult(created);
         onSuccess();
       } else {
+        payload.deployed_by = device?.deployed_by ?? null;
         await updateDevice(device!.id, payload);
         onSuccess();
         handleClose();

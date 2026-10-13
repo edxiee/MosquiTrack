@@ -237,23 +237,54 @@ export async function pickUpDevice(deviceId: string, offlineStatusId: string) {
       latitude: null,
       longitude: null,
       deployed_by: null,
+      operational_status: "In Storage",
       updated_at: new Date().toISOString(),
     } as any)
     .eq("id", deviceId);
+
+  if (error && error.message?.includes("operational_status")) {
+    const { error: fallbackErr } = await supabase
+      .from("ovitrap_devices")
+      .update({
+        device_status_id: offlineStatusId,
+        latitude: null,
+        longitude: null,
+        deployed_by: null,
+        updated_at: new Date().toISOString(),
+      } as any)
+      .eq("id", deviceId);
+    if (fallbackErr) throw fallbackErr;
+    return;
+  }
 
   if (error) throw error;
 }
 
 export async function createDevice(payload: Record<string, unknown>): Promise<{ id: string; device_code: string }> {
-  const { data, error } = await supabase
+  const insertPayload = {
+    operational_status: "In Storage",
+    ...payload,
+    latitude: null as number | null,
+    longitude: null as number | null,
+  };
+
+  let { data, error } = await supabase
     .from("ovitrap_devices")
-    .insert({
-      ...payload,
-      latitude: null as number | null,
-      longitude: null as number | null,
-    } as any)
+    .insert(insertPayload as any)
     .select("id, device_code")
     .single();
+
+  if (error && error.message?.includes("operational_status")) {
+    const fallbackPayload = { ...insertPayload };
+    delete (fallbackPayload as any).operational_status;
+    const res = await supabase
+      .from("ovitrap_devices")
+      .insert(fallbackPayload as any)
+      .select("id, device_code")
+      .single();
+    data = res.data;
+    error = res.error;
+  }
 
   if (error) throw error;
   return data as { id: string; device_code: string };
