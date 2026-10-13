@@ -21,6 +21,7 @@ export interface BarangaySurveillanceDevice {
   notes: string | null;
   operational_status?: string | null;
   installation_date?: string | null;
+  barangay_name?: string | null;
 }
 
 export interface SurveillanceTrendPoint {
@@ -96,6 +97,8 @@ export async function fetchAvailableBarangays(): Promise<BarangayOption[]> {
 export async function fetchBarangaySurveillanceData(
   targetBarangayId?: string
 ): Promise<BarangaySurveillanceData> {
+  const isAll = targetBarangayId === "all";
+
   // 1. Fetch available barangays list from real database
   const availableBarangays = await fetchAvailableBarangays();
 
@@ -104,7 +107,7 @@ export async function fetchBarangaySurveillanceData(
     data: { user },
   } = await supabase.auth.getUser();
 
-  let resolvedBarangayId: string | null = targetBarangayId || null;
+  let resolvedBarangayId: string | null = isAll ? "all" : targetBarangayId || null;
   let userBarangayName: string | null = null;
   let userMunicipality: string | null = null;
 
@@ -124,39 +127,54 @@ export async function fetchBarangaySurveillanceData(
     }
   }
 
+  // Scope available barangays to the user's municipality if present
+  const scopedBarangays = userMunicipality
+    ? availableBarangays.filter(
+        (b) =>
+          b.municipality &&
+          b.municipality.toLowerCase() === userMunicipality!.toLowerCase()
+      )
+    : availableBarangays;
+
+  const scopedBarangayIds = scopedBarangays.map((b) => b.id);
+
   // 3. Fallback resolution: lookup by profile barangay name or pick first available barangay
-  if (!resolvedBarangayId && userBarangayName) {
-    const match = availableBarangays.find(
-      (b) =>
-        b.barangay_name.toLowerCase() === userBarangayName!.toLowerCase() &&
-        (!userMunicipality ||
-          !b.municipality ||
-          b.municipality.toLowerCase() === userMunicipality.toLowerCase())
-    );
-    if (match) {
-      resolvedBarangayId = match.id;
+  if (!isAll) {
+    if (!resolvedBarangayId && userBarangayName) {
+      const match = scopedBarangays.find(
+        (b) => b.barangay_name.toLowerCase() === userBarangayName!.toLowerCase()
+      );
+      if (match) {
+        resolvedBarangayId = match.id;
+      }
+    }
+
+    if (!resolvedBarangayId && scopedBarangays.length > 0 && scopedBarangays[0]) {
+      resolvedBarangayId = scopedBarangays[0].id;
     }
   }
 
-  if (!resolvedBarangayId && availableBarangays.length > 0 && availableBarangays[0]) {
-    resolvedBarangayId = availableBarangays[0].id;
-  }
-
   // 4. Resolve current barangay details
-  const currentBarangay = availableBarangays.find(
-    (b) => b.id === resolvedBarangayId
-  ) || {
-    id: resolvedBarangayId || "unknown",
-    barangay_name: userBarangayName || "Barangay Surveillance",
-    municipality: userMunicipality || null,
-    province: null,
-  };
+  const currentBarangay = isAll
+    ? {
+        id: "all",
+        barangay_name: "All Barangays",
+        municipality: userMunicipality || scopedBarangays[0]?.municipality || null,
+        province: scopedBarangays[0]?.province || null,
+      }
+    : scopedBarangays.find((b) => b.id === resolvedBarangayId) ||
+      availableBarangays.find((b) => b.id === resolvedBarangayId) || {
+        id: resolvedBarangayId || "unknown",
+        barangay_name: userBarangayName || "Barangay Surveillance",
+        municipality: userMunicipality || null,
+        province: null,
+      };
 
   const barangayId = currentBarangay.id;
   const barangayName = currentBarangay.barangay_name;
 
-  // 5. Query ovitrap_devices for this barangay from database
-  let { data: devicesData, error: devicesError } = await supabase
+  // 5. Query ovitrap_devices from database
+  let devicesQuery = supabase
     .from("ovitrap_devices")
     .select(
       `
@@ -177,11 +195,20 @@ export async function fetchBarangaySurveillanceData(
       barangays ( id, barangay_name, municipality )
     `
     )
-    .eq("barangay_id", barangayId)
     .order("created_at", { ascending: false });
 
+  if (isAll) {
+    if (scopedBarangayIds.length > 0) {
+      devicesQuery = devicesQuery.in("barangay_id", scopedBarangayIds);
+    }
+  } else if (barangayId !== "all") {
+    devicesQuery = devicesQuery.eq("barangay_id", barangayId);
+  }
+
+  let { data: devicesData, error: devicesError } = await devicesQuery;
+
   if (devicesError && devicesError.message?.includes("operational_status")) {
-    const resFallback = await supabase
+    let resFallbackQuery = supabase
       .from("ovitrap_devices")
       .select(
         `
@@ -201,8 +228,16 @@ export async function fetchBarangaySurveillanceData(
         barangays ( id, barangay_name, municipality )
       `
       )
-      .eq("barangay_id", barangayId)
       .order("created_at", { ascending: false });
+
+    if (isAll) {
+      if (scopedBarangayIds.length > 0) {
+        resFallbackQuery = resFallbackQuery.in("barangay_id", scopedBarangayIds);
+      }
+    } else if (barangayId !== "all") {
+      resFallbackQuery = resFallbackQuery.eq("barangay_id", barangayId);
+    }
+    const resFallback = await resFallbackQuery;
     devicesData = resFallback.data as any;
     devicesError = resFallback.error;
   }
@@ -272,7 +307,7 @@ export async function fetchBarangaySurveillanceData(
   let latestAssessmentColor: string | null = null;
   let latestAssessmentNotes: string | null = null;
 
-  const { data: riskData } = await supabase
+  let riskQuery = supabase
     .from("risk_assessments")
     .select(
       `
@@ -290,10 +325,16 @@ export async function fetchBarangaySurveillanceData(
       )
     `
     )
-    .eq("barangay_id", barangayId)
     .order("assessment_period_end", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+
+  if (!isAll && barangayId !== "all") {
+    riskQuery = riskQuery.eq("barangay_id", barangayId);
+  } else if (scopedBarangayIds.length > 0) {
+    riskQuery = riskQuery.in("barangay_id", scopedBarangayIds);
+  }
+
+  const { data: riskData } = await riskQuery.maybeSingle();
 
   if (riskData) {
     latestAssessmentScore = riskData.calculated_score;
@@ -308,7 +349,7 @@ export async function fetchBarangaySurveillanceData(
 
   // 9. Query recent action_triage_log for this barangay from database
   let recentActions: RecentTriageActionSummary[] = [];
-  const { data: actionsData } = await supabase
+  let actionQuery = supabase
     .from("action_triage_log")
     .select(
       `
@@ -322,9 +363,16 @@ export async function fetchBarangaySurveillanceData(
       device:ovitrap_devices ( device_code )
     `
     )
-    .eq("barangay_id", barangayId)
     .order("created_at", { ascending: false })
     .limit(5);
+
+  if (!isAll && barangayId !== "all") {
+    actionQuery = actionQuery.eq("barangay_id", barangayId);
+  } else if (scopedBarangayIds.length > 0) {
+    actionQuery = actionQuery.in("barangay_id", scopedBarangayIds);
+  }
+
+  const { data: actionsData } = await actionQuery;
 
   if (actionsData) {
     recentActions = (actionsData as any[]).map((a) => {
@@ -418,6 +466,9 @@ export async function fetchBarangaySurveillanceData(
     else if (todayCountForDevice >= 30) activityLevel = "High";
     else if (todayCountForDevice >= 10) activityLevel = "Moderate";
 
+    const rawBrgy = Array.isArray(d.barangays) ? d.barangays[0] : d.barangays;
+    const brgyName = rawBrgy?.barangay_name ?? null;
+
     return {
       id: d.id,
       device_code: d.device_code || `TRAP-${d.id.slice(0, 4)}`,
@@ -440,17 +491,18 @@ export async function fetchBarangaySurveillanceData(
       notes: d.notes ?? null,
       operational_status: d.operational_status ?? null,
       installation_date: d.installation_date ?? null,
+      barangay_name: brgyName,
     };
   });
 
-  // Barangay center = average of real device coords only
+  // Center = average of real device coords only
   const barangayCenter =
     validLats.length > 0 && validLngs.length > 0
       ? {
           lat: validLats.reduce((a, b) => a + b, 0) / validLats.length,
           lng: validLngs.reduce((a, b) => a + b, 0) / validLngs.length,
         }
-      : { lat: 0, lng: 0 };
+      : { lat: 14.561, lng: 121.118 };
 
   // 11. 7-Day Trend Timeline
   const trendMap = new Map<string, number>();
@@ -584,7 +636,7 @@ export async function fetchBarangaySurveillanceData(
     barangayName,
     municipality: currentBarangay.municipality,
     province: currentBarangay.province,
-    availableBarangays,
+    availableBarangays: scopedBarangays,
     barangayCenter,
     riskLevel,
     riskScore: latestAssessmentScore,
