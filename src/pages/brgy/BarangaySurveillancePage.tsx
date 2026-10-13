@@ -337,10 +337,17 @@ export default function BarangaySurveillancePage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Deployed Traps Pill */}
+          {/* Online Traps Pill */}
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>{deployedTraps.length} Deployed</span>
+            <span
+              className={cn(
+                "flex h-2 w-2 rounded-full",
+                onlineCount > 0
+                  ? "bg-emerald-500 animate-pulse"
+                  : "bg-slate-400"
+              )}
+            />
+            <span>{onlineCount} Online</span>
           </div>
 
           {availableBarangays.length > 1 && (
