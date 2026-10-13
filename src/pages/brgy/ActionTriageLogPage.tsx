@@ -144,7 +144,7 @@ export default function ActionTriageLogPage() {
               <ClipboardList className="size-5" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Action Triage Log
+              Action Logs
             </h1>
           </div>
           <p className="mt-1 text-sm text-slate-500">
@@ -178,7 +178,7 @@ export default function ActionTriageLogPage() {
               <div className="flex items-center gap-2">
                 <Filter className="size-4 text-slate-500" />
                 <span className="text-sm font-semibold text-slate-800">
-                  Filter & Search Triage Actions
+                  Filter & Search Action Log
                 </span>
               </div>
               {hasActiveFilters && (

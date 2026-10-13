@@ -94,7 +94,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       items: [
         { name: "Barangay Surveillance", path: ROUTES.bhw.surveillance, icon: Eye },
         { name: "Traps Overview", path: ROUTES.bhw.hardware, icon: Boxes },
-        { name: "Action Triage Log", path: ROUTES.bhw.triage, icon: FileText },
+        { name: "Action Logs", path: ROUTES.bhw.triage, icon: FileText },
       ],
     },
   ],
@@ -141,7 +141,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       items: [
         { name: "Barangay Surveillance", path: ROUTES.bhw.surveillance, icon: Eye },
         { name: "Traps Overview", path: ROUTES.bhw.hardware, icon: Boxes },
-        { name: "Action Triage Log", path: ROUTES.bhw.triage, icon: FileText },
+        { name: "Action Logs", path: ROUTES.bhw.triage, icon: FileText },
       ],
     },
   ],
