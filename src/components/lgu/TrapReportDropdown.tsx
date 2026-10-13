@@ -32,7 +32,9 @@ import {
 import type { OvitrapDevice } from "@/types/device.types";
 import {
   getDeviceReadings,
+  getDeviceMosquitoStats,
   type DeviceReadingSummary,
+  type DeviceMosquitoStats,
 } from "@/services/telemetry.service";
 import {
   fetchTrapRequestsByDevice,
@@ -166,6 +168,7 @@ export default function TrapReportDropdown({
 }: TrapReportDropdownProps) {
   const [readings, setReadings] = useState<DeviceReadingSummary[]>([]);
   const [requests, setRequests] = useState<TrapRequest[]>([]);
+  const [mosquitoStats, setMosquitoStats] = useState<DeviceMosquitoStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"reports" | "actions" | "specs">("reports");
   const [error, setError] = useState<string | null>(null);
@@ -175,12 +178,14 @@ export default function TrapReportDropdown({
     setLoading(true);
     setError(null);
     try {
-      const [readingsData, requestsData] = await Promise.all([
+      const [readingsData, requestsData, statsData] = await Promise.all([
         getDeviceReadings(device.id, 50),
         fetchTrapRequestsByDevice(device.id),
+        getDeviceMosquitoStats(device.id),
       ]);
       setReadings(readingsData);
       setRequests(requestsData);
+      setMosquitoStats(statsData);
     } catch (err) {
       console.error(`Failed to load reports for trap ${device.device_code}:`, err);
       setError("Failed to load telemetry reports for this trap.");
@@ -228,25 +233,33 @@ export default function TrapReportDropdown({
 
   const latestReading = readings[0] ?? null;
 
-  // Calculate Today's Cumulative Mosquito Count from readings
+  // Calculate Today's Cumulative Mosquito Count from ovitrap_readings
   const todayDateStr = new Date().toISOString().slice(0, 10);
   const todayReadings = readings.filter((r) =>
     Boolean(r.captured_at?.startsWith(todayDateStr) || r.created_at?.startsWith(todayDateStr))
   );
-  const todaySum = todayReadings.reduce(
+  const fallbackTodaySum = todayReadings.reduce(
     (acc, r) => acc + (r.mosquito_count ?? 0),
     0
   );
-  const allTimeSum = readings.reduce(
+  const fallbackAllTimeSum = readings.reduce(
     (acc, r) => acc + (r.mosquito_count ?? 0),
     0
   );
 
-  // The primary count to display: today's sum (or all-time sum / device count fallback)
+  const effectiveTodaySum = mosquitoStats ? mosquitoStats.todaySum : fallbackTodaySum;
+  const effectiveAllTimeSum = mosquitoStats ? mosquitoStats.allTimeSum : fallbackAllTimeSum;
+  const effectiveTodayPings = mosquitoStats ? mosquitoStats.todayPingsCount : todayReadings.length;
+
+  // The primary count to display: today's sum from ovitrap_readings (or device today/latest count fallback)
   const displayMosquitoCount =
-    todaySum > 0
-      ? todaySum
-      : (device.today_mosquito_count ?? device.latest_mosquito_count ?? (allTimeSum > 0 ? allTimeSum : latestReading?.mosquito_count ?? 0));
+    effectiveTodaySum > 0
+      ? effectiveTodaySum
+      : (device.today_mosquito_count && device.today_mosquito_count > 0
+          ? device.today_mosquito_count
+          : (device.latest_mosquito_count && device.latest_mosquito_count > 0
+              ? device.latest_mosquito_count
+              : (effectiveAllTimeSum > 0 ? effectiveAllTimeSum : latestReading?.mosquito_count ?? 0)));
 
   const danger = getTrapDangerLevel(displayMosquitoCount);
 
@@ -488,8 +501,8 @@ export default function TrapReportDropdown({
                     <span className="text-sm font-semibold text-slate-500">mosq</span>
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    {todayReadings.length > 0
-                      ? `${todayReadings.length} pings today (Latest: ${latestReading?.mosquito_count ?? 0})`
+                    {effectiveTodayPings > 0
+                      ? `${effectiveTodayPings} pings today (Latest: ${mosquitoStats?.latestCount ?? latestReading?.mosquito_count ?? 0})`
                       : latestReading
                       ? `Captured ${formatRelativeTime(latestReading.captured_at)}`
                       : "No readings"}

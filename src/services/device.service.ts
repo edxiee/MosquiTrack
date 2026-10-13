@@ -433,6 +433,9 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
 
   const latestReadingMap = new Map<string, string>();
   const latestCountMap = new Map<string, number | null>();
+  const todayStartStr = new Date().toISOString().split("T")[0];
+  const todayCountMap = new Map<string, number>();
+
   if (readingsRes.data) {
     for (const r of readingsRes.data) {
       const time = r.captured_at || r.created_at;
@@ -441,6 +444,11 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
       if (!existing || new Date(time).getTime() > new Date(existing).getTime()) {
         latestReadingMap.set(r.device_id, time);
         latestCountMap.set(r.device_id, r.mosquito_count ?? null);
+      }
+
+      if (time.startsWith(todayStartStr)) {
+        const cur = todayCountMap.get(r.device_id) ?? 0;
+        todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
       }
     }
   }
@@ -470,11 +478,15 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
       computedStatusName = "Offline";
     }
 
+    const todayCount = todayCountMap.get(d.id);
+    const displayCount = todayCount != null && todayCount > 0 ? todayCount : latestCountMap.get(d.id) ?? 0;
+
     const rawBarangay = d.barangays;
     return {
       ...d,
       last_seen_at: latestTimestamp,
-      latest_mosquito_count: latestCountMap.get(d.id) ?? null,
+      latest_mosquito_count: displayCount,
+      today_mosquito_count: todayCount ?? 0,
       device_statuses: statusObj
         ? { ...statusObj, status_name: computedStatusName }
         : { id: "unknown", status_name: computedStatusName, description: null },

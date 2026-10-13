@@ -123,6 +123,66 @@ export async function getDeviceReadings(
   })) as DeviceReadingSummary[];
 }
 
+export interface DeviceMosquitoStats {
+  todaySum: number;
+  todayPingsCount: number;
+  allTimeSum: number;
+  allTimePingsCount: number;
+  latestCount: number | null;
+}
+
+/**
+ * Calculates accurate mosquito counts and ping metrics directly from ovitrap_readings table for a device.
+ */
+export async function getDeviceMosquitoStats(
+  deviceId: string,
+): Promise<DeviceMosquitoStats> {
+  const { data, error } = await supabase
+    .from("ovitrap_readings")
+    .select("captured_at, created_at, mosquito_count")
+    .eq("device_id", deviceId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Failed to fetch device mosquito stats:", error);
+    return {
+      todaySum: 0,
+      todayPingsCount: 0,
+      allTimeSum: 0,
+      allTimePingsCount: 0,
+      latestCount: null,
+    };
+  }
+
+  const readings = data ?? [];
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+
+  let todaySum = 0;
+  let todayPingsCount = 0;
+  let allTimeSum = 0;
+  const latestCount = readings.length > 0 ? readings[0]?.mosquito_count ?? 0 : null;
+
+  for (const r of readings) {
+    const time = r.captured_at || r.created_at || "";
+    const count = r.mosquito_count ?? 0;
+    allTimeSum += count;
+
+    if (time.startsWith(todayDateStr)) {
+      todaySum += count;
+      todayPingsCount++;
+    }
+  }
+
+  return {
+    todaySum,
+    todayPingsCount,
+    allTimeSum,
+    allTimePingsCount: readings.length,
+    latestCount,
+  };
+}
+
+
 /** Fetch one reading (with joins) by id — used to hydrate realtime inserts. */
 export async function getTelemetryById(
   id: string,

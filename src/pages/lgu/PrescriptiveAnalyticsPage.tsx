@@ -482,10 +482,12 @@ export default function PrescriptiveAnalyticsPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredDevices.map((device) => {
                   const hasLocation = device.latitude != null;
-                  const isDeployed =
-                    device.latitude != null && device.longitude != null;
                   const isExpanded = expandedTrapIds.has(device.id);
-                  const danger = getTrapDangerLevel(device.latest_mosquito_count);
+                  const countForDanger =
+                    device.today_mosquito_count && device.today_mosquito_count > 0
+                      ? device.today_mosquito_count
+                      : device.latest_mosquito_count;
+                  const danger = getTrapDangerLevel(countForDanger);
 
                   return (
                     <Fragment key={device.id}>
@@ -564,16 +566,11 @@ export default function PrescriptiveAnalyticsPage() {
                         <td className="px-5 py-4">
                           <Button
                             size="sm"
-                            disabled={!isDeployed}
                             onClick={(e) => {
                               e.stopPropagation();
-                              isDeployed && openRequestModal(device);
+                              openRequestModal(device);
                             }}
-                            className={`h-8 px-3 text-xs font-medium rounded-lg gap-1.5 ${
-                              isDeployed
-                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                            }`}
+                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
                           >
                             <Send className="w-3.5 h-3.5" />
                             Post Request Action
