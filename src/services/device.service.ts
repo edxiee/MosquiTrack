@@ -134,7 +134,10 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
 
     let computedStatusName: string;
 
-    if (realStatusName === "Maintenance") {
+    if (d.status) {
+      const s = String(d.status).toLowerCase();
+      computedStatusName = s === "active" || s === "online" ? "Online" : s === "maintenance" ? "Maintenance" : "Offline";
+    } else if (realStatusName === "Maintenance") {
       computedStatusName = "Maintenance";
     } else if (isOnline) {
       computedStatusName = "Online";
@@ -456,7 +459,10 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
 
     let computedStatusName: string;
 
-    if (realStatusName === "Maintenance") {
+    if (d.status) {
+      const s = String(d.status).toLowerCase();
+      computedStatusName = s === "active" || s === "online" ? "Online" : s === "maintenance" ? "Maintenance" : "Offline";
+    } else if (realStatusName === "Maintenance") {
       computedStatusName = "Maintenance";
     } else if (isOnline) {
       computedStatusName = "Online";
@@ -611,7 +617,10 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
     const realStatusName = statusObj?.status_name ?? "Unknown";
 
     let computedStatusName: string;
-    if (realStatusName === "Maintenance") {
+    if (d.status) {
+      const s = String(d.status).toLowerCase();
+      computedStatusName = s === "active" || s === "online" ? "Online" : s === "maintenance" ? "Maintenance" : "Offline";
+    } else if (realStatusName === "Maintenance") {
       computedStatusName = "Maintenance";
     } else if (isOnline) {
       computedStatusName = "Online";

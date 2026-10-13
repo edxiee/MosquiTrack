@@ -24,7 +24,7 @@ interface TelemetryTableProps {
 }
 
 function StatusBadge({ status }: { status: string | null }) {
-  const isOk = status === "Active";
+  const isOk = status === "Active" || status === "Online";
   return (
     <Badge
       className={`border-none shadow-none font-medium ${

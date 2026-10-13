@@ -15,12 +15,22 @@ export const isDeviceActive = (device: OvitrapDevice | null | undefined): boolea
 export const getDeviceStatusName = (device: OvitrapDevice | null | undefined): "Online" | "Offline" | "Maintenance" => {
   if (!device) return "Offline";
 
+  // 1. Direct status column from ovitrap_devices table
+  if (device.status) {
+    const s = device.status.toLowerCase();
+    if (s === "active" || s === "online") return "Online";
+    if (s === "maintenance") return "Maintenance";
+    if (s === "offline") return "Offline";
+  }
+
+  // 2. device_statuses join
   const rawStatus = Array.isArray(device.device_statuses)
     ? (device.device_statuses as any)[0]?.status_name
     : device.device_statuses?.status_name;
 
   if (rawStatus === "Maintenance") return "Maintenance";
 
+  // 3. Fallback based on last_seen_at
   if (device.last_seen_at) {
     const lastSeenTime = new Date(device.last_seen_at).getTime();
     if (!isNaN(lastSeenTime)) {

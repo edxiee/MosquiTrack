@@ -37,6 +37,7 @@ export interface OvitrapDevice {
   latest_mosquito_count?: number | null;
   today_mosquito_count?: number | null;
   operational_status?: "Deployed" | "Pending" | "In Storage" | string;
+  status?: "Active" | "Online" | "Offline" | "Maintenance" | string | null;
 }
 
 export interface DeviceFormData {
