@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -17,6 +19,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import type { TelemetryReading } from "@/types/telemetry.types";
+
+const ITEMS_PER_PAGE = 15;
 
 interface TelemetryTableProps {
   readings: TelemetryReading[];
@@ -48,6 +52,17 @@ export default function TelemetryTable({
   isLoading,
 }: TelemetryTableProps) {
   const [selectedPayload, setSelectedPayload] = useState<TelemetryReading | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(readings.length / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedReadings = readings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   if (isLoading) {
     return (
@@ -95,7 +110,7 @@ export default function TelemetryTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                readings.map((reading) => (
+                paginatedReadings.map((reading) => (
                   <TableRow 
                     key={reading.id} 
                     className="cursor-pointer hover:bg-slate-50 border-slate-50 transition-colors"
@@ -129,6 +144,63 @@ export default function TelemetryTable({
               )}
             </TableBody>
           </Table>
+
+          {readings.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 px-6 py-4 bg-slate-50/40">
+              <p className="text-xs font-medium text-slate-500">
+                Showing{" "}
+                <span className="font-semibold text-slate-700">
+                  {startIndex + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-semibold text-slate-700">
+                  {Math.min(startIndex + ITEMS_PER_PAGE, readings.length)}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-slate-700">
+                  {readings.length}
+                </span>{" "}
+                records
+              </p>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safeCurrentPage === 1}
+                  className="h-8 px-3 text-xs gap-1 bg-white"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Previous
+                </Button>
+
+                <span className="text-xs font-medium text-slate-600 px-2">
+                  Page{" "}
+                  <span className="font-semibold text-slate-900">
+                    {safeCurrentPage}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-semibold text-slate-900">
+                    {totalPages}
+                  </span>
+                </span>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={safeCurrentPage >= totalPages}
+                  className="h-8 px-3 text-xs gap-1 bg-white"
+                >
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

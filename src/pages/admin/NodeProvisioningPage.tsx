@@ -197,7 +197,7 @@ export default function NodeProvisioningPage() {
             className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-lg flex items-center gap-2 shadow-sm"
           >
             <Plus className="w-4 h-4" />
-            Create Node
+            Create Trap
           </Button>
         </div>
       </div>
