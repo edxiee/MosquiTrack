@@ -137,7 +137,7 @@ const createCustomMarker = (activity: string) => {
     iconAnchor: [16, 32],
     popupAnchor: [0, -32],
   });
-};
+};  
 
 export default function MacroGeospatialHeatmapPage() {
   const [searchParams, setSearchParams] = useSearchParams();

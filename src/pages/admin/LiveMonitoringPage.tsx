@@ -17,14 +17,11 @@ import {
   MapPin,
   Activity,
   Battery,
-  Cpu,
   Radio,
-  Eye,
+  Satellite,
   Loader2,
-  FileText,
   AlertCircle,
   CheckCircle2,
-  ListTodo
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,8 +29,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice } from "@/types/device.types";
-import { ROUTES } from "@/utils/navigation";
-import { useNavigate } from "react-router-dom";
 import { ONLINE_THRESHOLD_MINUTES } from "@/utils/deviceHelpers";
 
 import "leaflet/dist/leaflet.css";
@@ -113,8 +108,6 @@ function MapFlyTo({ lat, lng }: { lat: number; lng: number }) {
 }
 
 export default function LiveMonitoringPage() {
-  const navigate = useNavigate();
-
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [deviceLatestReadings, setDeviceLatestReadings] = useState<Record<string, { battery_level: number | null; captured_at: string }>>({});
   const [loading, setLoading] = useState(true);
@@ -126,6 +119,14 @@ export default function LiveMonitoringPage() {
     temperature_c?: number | null;
     humidity_percent?: number | null;
     captured_at: string;
+    created_at?: string;
+    updated_at?: string | null;
+  } | null>(null);
+  const [latestBatteryReading, setLatestBatteryReading] = useState<{
+    battery_level: number;
+    captured_at: string;
+    created_at?: string;
+    updated_at?: string | null;
   } | null>(null);
   const [deviceTodayCount, setDeviceTodayCount] = useState<number | null>(null);
 
@@ -192,6 +193,7 @@ export default function LiveMonitoringPage() {
   useEffect(() => {
     if (!selectedDevice) {
       setLatestReading(null);
+      setLatestBatteryReading(null);
       setDeviceTodayCount(null);
       return;
     }
@@ -200,16 +202,36 @@ export default function LiveMonitoringPage() {
 
     async function fetchDeviceTelemetry() {
       try {
-        const { data: latest } = await supabase
-          .from("ovitrap_readings")
-          .select("battery_level, mosquito_count, temperature_c, humidity_percent, captured_at")
-          .eq("device_id", selectedDevice!.id)
-          .order("captured_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const [{ data: latest }, { data: latestBattery }] = await Promise.all([
+          supabase
+            .from("ovitrap_readings")
+            .select("battery_level, mosquito_count, temperature_c, humidity_percent, captured_at, created_at, updated_at")
+            .eq("device_id", selectedDevice!.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("ovitrap_readings")
+            .select("battery_level, captured_at, created_at, updated_at")
+            .eq("device_id", selectedDevice!.id)
+            .not("battery_level", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
         if (!isMounted) return;
         setLatestReading(latest ?? null);
+        setLatestBatteryReading(
+          latestBattery && latestBattery.battery_level != null
+            ? (latestBattery as {
+                battery_level: number;
+                captured_at: string;
+                created_at?: string;
+                updated_at?: string | null;
+              })
+            : null
+        );
 
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
@@ -532,9 +554,63 @@ export default function LiveMonitoringPage() {
             </Card>
           ) : (
             (() => {
-              const lastSeenStr = latestReading?.captured_at || selectedDevice.last_seen_at;
-              const status = getConnectionStatus(lastSeenStr);
+              const lastHttpPostStr =
+                latestReading?.created_at ||
+                latestReading?.captured_at ||
+                selectedDevice.last_seen_at;
+              const status = getConnectionStatus(lastHttpPostStr);
               const hasTelemetry = !!latestReading;
+
+              const batteryValue =
+                latestReading?.battery_level ??
+                latestBatteryReading?.battery_level ??
+                null;
+              const hasBatteryData =
+                batteryValue !== null && batteryValue !== undefined;
+              const batteryUpdatedStr =
+                latestBatteryReading?.updated_at ||
+                latestBatteryReading?.created_at ||
+                latestBatteryReading?.captured_at ||
+                latestReading?.captured_at ||
+                null;
+
+              const hasGpsFix =
+                selectedDevice.latitude != null &&
+                selectedDevice.longitude != null &&
+                !Number.isNaN(Number(selectedDevice.latitude)) &&
+                !Number.isNaN(Number(selectedDevice.longitude)) &&
+                Number(selectedDevice.latitude) !== 0 &&
+                Number(selectedDevice.longitude) !== 0;
+
+              const healthItems = [
+                {
+                  icon: Radio,
+                  label: "Connectivity Status",
+                  detail: lastHttpPostStr
+                    ? `Last HTTP POST: ${formatTimeAgo(lastHttpPostStr)}`
+                    : "No HTTP POST received in Supabase",
+                  status: status.state,
+                  ok: status.state === "Online",
+                },
+                {
+                  icon: Battery,
+                  label: "Battery",
+                  detail: hasBatteryData
+                    ? `Updated ${formatTimeAgo(batteryUpdatedStr)}`
+                    : "No battery data inserted or updated",
+                  status: hasBatteryData ? `${batteryValue}%` : "No Data",
+                  ok: hasBatteryData && batteryValue > 20,
+                },
+                {
+                  icon: Satellite,
+                  label: "GPS Satellite",
+                  detail: hasGpsFix
+                    ? `${Number(selectedDevice.latitude).toFixed(5)}, ${Number(selectedDevice.longitude).toFixed(5)}`
+                    : "Waiting for latitude & longitude",
+                  status: hasGpsFix ? "Okay" : "No Signal",
+                  ok: hasGpsFix,
+                },
+              ];
               
               return (
               <>
@@ -551,15 +627,15 @@ export default function LiveMonitoringPage() {
                       <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
                         {[
                           ["Trap ID", selectedDevice.device_code],
-                          ["Last Seen", formatTimeAgo(lastSeenStr)],
-                          ["Battery", latestReading?.battery_level != null ? `${latestReading.battery_level}%` : "Waiting for first telemetry"],
+                          ["Last Seen", formatTimeAgo(lastHttpPostStr)],
+                          ["Battery", hasBatteryData ? `${batteryValue}%` : "Waiting for first telemetry"],
                           ["Signal Strength", hasTelemetry ? "Excellent (-68 dBm)" : "Waiting for first telemetry"],
                           ["Firmware Version", hasTelemetry ? "v2.4.1" : "N/A"],
                           ["SIM Network", hasTelemetry ? "Smart LTE" : "N/A"],
                           ["Temperature", latestReading?.temperature_c != null ? `${latestReading.temperature_c}°C` : "N/A"],
                           ["Humidity", latestReading?.humidity_percent != null ? `${latestReading.humidity_percent}%` : "N/A"],
                           ["Deployment Date", selectedDevice.installation_date ? String(selectedDevice.installation_date).split("T")[0] : "N/A"],
-                          ["Last Telemetry Upload", latestReading?.captured_at ? new Date(latestReading.captured_at).toLocaleString() : "Waiting for first telemetry"],
+                          ["Last Telemetry Upload", lastHttpPostStr ? new Date(lastHttpPostStr).toLocaleString() : "Waiting for first telemetry"],
                         ].map(([label, value]) => (
                           <div key={label}>
                             <p className="text-xs text-slate-400 font-medium">{label}</p>
@@ -573,34 +649,29 @@ export default function LiveMonitoringPage() {
                   <Card>
                     <CardContent className="p-5 flex flex-col h-full">
                       <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Device Health</h3>
-                      
-                      {!hasTelemetry ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-2 py-4">
-                          <AlertCircle className="h-8 w-8 text-slate-300" />
-                          <p className="font-medium text-slate-500">Status Unknown</p>
-                          <p className="text-xs">Waiting for first telemetry</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {[
-                            { icon: Cpu, label: "ESP32", status: "Running", ok: true },
-                            { icon: Eye, label: "Infrared Break-Beam Sensor", status: "Operational", ok: true },
-                            { icon: Radio, label: "LTE Module", status: "Connected", ok: true },
-                            { icon: Battery, label: "Battery", status: `${latestReading.battery_level}%`, ok: (latestReading.battery_level ?? 0) > 20 },
-                          ].map(({ icon: Icon, label, status, ok }) => (
-                            <div key={label} className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                <Icon className="h-4 w-4 text-slate-500" />
-                                <span className="text-sm font-medium text-slate-700">{label}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                {ok && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-                                <span className={`text-xs font-bold ${ok ? "text-emerald-600" : "text-red-600"}`}>{status}</span>
+                      <div className="space-y-3">
+                        {healthItems.map(({ icon: Icon, label, detail, status: itemStatus, ok }) => (
+                          <div key={label} className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <Icon className="h-4 w-4 text-slate-500 shrink-0" />
+                              <div className="min-w-0">
+                                <span className="text-sm font-medium text-slate-700 block">{label}</span>
+                                <span className="text-[11px] text-slate-400 block truncate">{detail}</span>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                            <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                              {ok ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              ) : (
+                                <AlertCircle className="h-4 w-4 text-rose-500" />
+                              )}
+                              <span className={`text-xs font-bold ${ok ? "text-emerald-600" : "text-rose-600"}`}>
+                                {itemStatus}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -667,98 +738,47 @@ export default function LiveMonitoringPage() {
                   </Card>
                 </div>
 
-                <div className="grid gap-5 xl:grid-cols-3">
-                  <Card className="xl:col-span-2">
-                    <CardContent className="p-0 overflow-hidden rounded-xl">
-                      <div className="p-4 pb-0 flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">Device Location</h3>
-                      </div>
-                      {selectedDevice.latitude != null && selectedDevice.longitude != null ? (
-                        <div className="h-64 flex-1 relative z-0">
-                          <MapErrorBoundary>
-                            <MapContainer
-                              center={[Number(selectedDevice.latitude), Number(selectedDevice.longitude)]}
-                              zoom={16}
-                              zoomControl={false}
-                              className="w-full h-full rounded-b-xl"
-                              key={selectedDevice.id}
+                <Card>
+                  <CardContent className="p-0 overflow-hidden rounded-xl">
+                    <div className="p-4 pb-0 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">Device Location</h3>
+                    </div>
+                    {hasGpsFix ? (
+                      <div className="h-64 flex-1 relative z-0">
+                        <MapErrorBoundary>
+                          <MapContainer
+                            center={[Number(selectedDevice.latitude), Number(selectedDevice.longitude)]}
+                            zoom={16}
+                            zoomControl={false}
+                            className="w-full h-full rounded-b-xl"
+                            key={selectedDevice.id}
+                          >
+                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                            <MapFlyTo lat={Number(selectedDevice.latitude)} lng={Number(selectedDevice.longitude)} />
+                            <Marker
+                              position={[Number(selectedDevice.latitude), Number(selectedDevice.longitude)]}
+                              icon={createCustomMarker(status.state)}
                             >
-                              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                              <MapFlyTo lat={Number(selectedDevice.latitude)} lng={Number(selectedDevice.longitude)} />
-                              <Marker
-                                position={[Number(selectedDevice.latitude), Number(selectedDevice.longitude)]}
-                                icon={createCustomMarker(status.state)}
-                              >
-                                <Popup>
-                                  <div className="text-xs space-y-1">
-                                    <p className="font-bold text-sm">{selectedDevice.device_code}</p>
-                                    <p>{selectedDevice.description || "N/A"}</p>
-                                    <p>{status.state}</p>
-                                    <p>Last seen: {formatTimeAgo(lastSeenStr)}</p>
-                                  </div>
-                                </Popup>
-                              </Marker>
-                            </MapContainer>
-                          </MapErrorBoundary>
-                        </div>
-                      ) : (
-                        <div className="h-64 flex flex-col items-center justify-center bg-slate-50 text-slate-400 text-sm">
-                          <MapPin className="h-8 w-8 mb-2 opacity-50" />
-                          <p>No location data available (N/A)</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-5 space-y-4 flex flex-col h-full">
-                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Quick Actions</h3>
-                      <div className="space-y-2.5 flex-1">
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start gap-3 h-11 text-sm bg-white"
-                          onClick={() => {
-                            fetchDevices();
-                          }}
-                        >
-                          <RefreshCw className="h-4 w-4 text-emerald-600" />
-                          Refresh Status
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start gap-3 h-11 text-sm bg-white"
-                          onClick={() => navigate(ROUTES.admin.georeferencing)}
-                        >
-                          <MapPin className="h-4 w-4 text-sky-600" />
-                          View on Risk Map
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start gap-3 h-11 text-sm bg-white"
-                          onClick={() => navigate(ROUTES.admin.telemetry)}
-                        >
-                          <ListTodo className="h-4 w-4 text-amber-600" />
-                          Open Telemetry Logs
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start gap-3 h-11 text-sm bg-white"
-                          onClick={() => {
-                            alert(`Generating device report for ${selectedDevice.device_code}...`);
-                          }}
-                        >
-                          <FileText className="h-4 w-4 text-rose-600" />
-                          Generate Device Report
-                        </Button>
+                              <Popup>
+                                <div className="text-xs space-y-1">
+                                  <p className="font-bold text-sm">{selectedDevice.device_code}</p>
+                                  <p>{selectedDevice.description || "N/A"}</p>
+                                  <p>{status.state}</p>
+                                  <p>Last seen: {formatTimeAgo(lastHttpPostStr)}</p>
+                                </div>
+                              </Popup>
+                            </Marker>
+                          </MapContainer>
+                        </MapErrorBoundary>
                       </div>
-
-                      <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-3 flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-xs font-medium text-slate-600">Live telemetry connection active</span>
+                    ) : (
+                      <div className="h-64 flex flex-col items-center justify-center bg-slate-50 text-slate-400 text-sm">
+                        <MapPin className="h-8 w-8 mb-2 opacity-50" />
+                        <p>No location data available (N/A)</p>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                    )}
+                  </CardContent>
+                </Card>
               </>
               );
             })()
