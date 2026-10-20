@@ -29,7 +29,6 @@ export function useSidebarBadges() {
   const [triageHasNew, setTriageHasNew] = useState<boolean>(false);
   const [requestsHasNew, setRequestsHasNew] = useState<boolean>(false);
 
-  // Fetch pending action triage log tasks
   const fetchTriageCount = async () => {
     try {
       const { count, error } = await supabase
@@ -45,7 +44,6 @@ export function useSidebarBadges() {
     }
   };
 
-  // Fetch pending request actions (if any)
   const fetchRequestActionsCount = async () => {
     try {
       const { count, error } = await supabase
@@ -65,7 +63,6 @@ export function useSidebarBadges() {
     fetchTriageCount();
     fetchRequestActionsCount();
 
-    // Instant local optimistic listener
     const handleLocalBadgeChange = (e: Event) => {
       const customEvent = e as CustomEvent<{
         actionId: string;
@@ -75,10 +72,8 @@ export function useSidebarBadges() {
       const { newStatus, previousStatus } = customEvent.detail || {};
 
       if (previousStatus === "Pending" && newStatus !== "Pending") {
-        // Immediate optimistic decrement when starting/completing a pending task
         setTriageCount((prev) => Math.max(0, prev - 1));
       } else if (newStatus === "Pending" && previousStatus !== "Pending") {
-        // Immediate optimistic increment when receiving or adding a pending task
         setTriageCount((prev) => prev + 1);
         setTriageHasNew(true);
         setTimeout(() => setTriageHasNew(false), 5000);
@@ -87,9 +82,10 @@ export function useSidebarBadges() {
 
     window.addEventListener(TRIAGE_BADGE_EVENT, handleLocalBadgeChange);
 
-    // Realtime listener for action_triage_log
+    // We use "_v2" suffixes to force Supabase to create fresh channel instances 
+    // and avoid the "already subscribed" HMR/StrictMode crash.
     const triageChannel = supabase
-      .channel("sidebar_action_triage_channel")
+      .channel("sidebar_action_triage_channel_v2")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "action_triage_log" },
@@ -103,15 +99,14 @@ export function useSidebarBadges() {
       )
       .subscribe();
 
-    // Realtime listener for request_actions
     const requestsChannel = supabase
-      .channel("sidebar_request_actions_channel")
+      .channel("sidebar_request_actions_channel_v2")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "request_actions" },
         (payload) => {
           if (payload.eventType === "INSERT") {
-            setRequestsHasNew(true);
+            setRequestsHasNew(true); // <-- RESTORED THIS LINE
             setTimeout(() => setRequestsHasNew(false), 5000);
           }
           fetchRequestActionsCount();
@@ -133,7 +128,7 @@ export function useSidebarBadges() {
         hasNew: triageHasNew,
       };
     }
-    if (path === ROUTES.admin.requestActionsOverview) {
+    if (path.includes("request-actions") || path === "/admin/request-actions") {
       return {
         count: requestActionsCount,
         hasNew: requestsHasNew,
