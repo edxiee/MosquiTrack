@@ -480,7 +480,7 @@ export default function AdminDashboard() {
             </CardContent>
             <div className="border-t border-slate-100 p-4">
               <Button asChild variant="outline" size="sm" className="w-full justify-between rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700">
-                <Link to={ROUTES.admin.telemetry}>
+                <Link to={ROUTES.admin.trapDataOverview}>
                   <span className="inline-flex items-center gap-2 text-xs font-medium">
                     <Activity className="size-3.5 text-emerald-600" />
                     Open raw telemetry hub
