@@ -19,10 +19,7 @@ import {
 } from "@/services/triage.service";
 import { supabase } from "@/lib/supabase";
 import { computeTriageStats } from "@/utils/triageHelpers";
-import {
-  dispatchTriageStatusChange,
-  triggerTriageBadgeRefresh,
-} from "@/hooks/useSidebarBadges";
+import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
 
 const DEFAULT_FILTERS: TriageFilterValues = {
   search: "",
@@ -42,16 +39,13 @@ export default function ActionTriageLogPage() {
   const [filters, setFilters] = useState<TriageFilterValues>(DEFAULT_FILTERS);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedAction, setSelectedAction] = useState<TriageAction | null>(
-    null,
-  );
+  const [selectedAction, setSelectedAction] = useState<TriageAction | null>(null);
 
   async function loadActions() {
     setIsLoading(true);
     try {
       const data = await getAssignedActions(CURRENT_USER_ID);
       setActions(data);
-      triggerTriageBadgeRefresh();
     } catch (err) {
       console.error("Failed to load action items:", err);
     } finally {
@@ -84,7 +78,6 @@ export default function ActionTriageLogPage() {
                 dispatchTriageStatusChange(newAction.id, "Pending");
               }
             }
-            triggerTriageBadgeRefresh();
           } else if (payload.eventType === "UPDATE" && payload.new && (payload.new as { id?: string }).id) {
             const updatedId = (payload.new as { id: string }).id;
             const updated = await getActionById(updatedId);
@@ -93,11 +86,9 @@ export default function ActionTriageLogPage() {
                 prev.map((a) => (a.id === updated.id ? updated : a))
               );
             }
-            triggerTriageBadgeRefresh();
           } else if (payload.eventType === "DELETE" && payload.old && (payload.old as { id?: string }).id) {
             const deletedId = (payload.old as { id: string }).id;
             setActions((prev) => prev.filter((a) => a.id !== deletedId));
-            triggerTriageBadgeRefresh();
           }
         }
       )
@@ -168,7 +159,6 @@ export default function ActionTriageLogPage() {
     }
     await updateActionStatus(actionId, { status, remarks });
     await loadActions();
-    triggerTriageBadgeRefresh();
   }
 
   async function handleQuickStatus(action: TriageAction, status: TriageStatus) {
@@ -187,11 +177,9 @@ export default function ActionTriageLogPage() {
         ...(action.remarks ? { remarks: action.remarks } : {}),
       });
       await loadActions();
-      triggerTriageBadgeRefresh();
     } catch (err) {
       console.error("Failed to update action:", err);
       await loadActions();
-      triggerTriageBadgeRefresh();
     }
   }
 
