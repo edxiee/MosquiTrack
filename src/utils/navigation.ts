@@ -102,7 +102,10 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
   [ROLES.ADMIN]: [
     {
       title: "",
-      items: [{ name: "Dashboard", path: ROUTES.admin.dashboard, icon: LayoutDashboard }],
+      items: [
+        { name: "Dashboard", path: ROUTES.admin.dashboard, icon: LayoutDashboard },
+        { name: "Request Actions Overview", path: ROUTES.admin.requestActionsOverview, icon: StickyNote },
+      ],
     },
     {
       title: "SITE ADMINISTRATION",
