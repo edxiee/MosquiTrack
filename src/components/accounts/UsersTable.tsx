@@ -21,6 +21,8 @@ interface UsersTableProps {
   onToggleStatus: (user: DatabaseUser) => void;
   onResendConfirmation?: (user: DatabaseUser) => void;
   canEditUser?: (user: DatabaseUser) => boolean;
+  canToggleStatus?: (user: DatabaseUser) => boolean;
+  canDeleteUser?: (user: DatabaseUser) => boolean;
 }
 
 export default function UsersTable({
@@ -31,6 +33,8 @@ export default function UsersTable({
   onToggleStatus,
   onResendConfirmation,
   canEditUser,
+  canToggleStatus,
+  canDeleteUser,
 }: UsersTableProps) {
   if (isLoading) {
     return (
@@ -118,6 +122,14 @@ export default function UsersTable({
                         variant="outline"
                         size="sm"
                         onClick={() => onToggleStatus(user)}
+                        disabled={canToggleStatus ? !canToggleStatus(user) : false}
+                        title={
+                          canToggleStatus && !canToggleStatus(user)
+                            ? "You cannot change this account's status"
+                            : isInactive
+                            ? "Activate user"
+                            : "Deactivate user"
+                        }
                       >
                         {isInactive ? (
                           <>
@@ -134,8 +146,14 @@ export default function UsersTable({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 disabled:text-slate-400"
                         onClick={() => onDelete(user)}
+                        disabled={canDeleteUser ? !canDeleteUser(user) : false}
+                        title={
+                          canDeleteUser && !canDeleteUser(user)
+                            ? "You cannot delete this account"
+                            : "Delete user"
+                        }
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete

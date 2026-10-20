@@ -103,6 +103,7 @@ export default function UserAccessControlPage() {
     setSelectedUser(user);
     setIsEditDialogOpen(true);
   }
+  
 
   function canEditUser(user: DatabaseUser) {
     if (!profile || user.id === profile.id) return true;
@@ -112,6 +113,43 @@ export default function UserAccessControlPage() {
         (user.role === "ADMIN" || user.role === "SYS_ADMIN")) ||
       (currentRole === "SYS_ADMIN" && user.role === "SYS_ADMIN")
     );
+  }
+
+  function canToggleStatus(user: DatabaseUser) {
+    if (!profile) return false;
+    // Optional: allow toggling yourself, or block it — here we block self
+    if (user.id === profile.id) return false;
+
+    const currentRole = profile.role.role_code;
+
+    if (currentRole === "SYS_ADMIN") {
+      // SYS_ADMIN can deactivate/activate ADMIN, but not other SYS_ADMIN
+      return user.role !== "SYS_ADMIN";
+    }
+
+    if (currentRole === "ADMIN") {
+      // ADMIN cannot touch ADMIN or SYS_ADMIN
+      return user.role !== "ADMIN" && user.role !== "SYS_ADMIN";
+    }
+
+    return false;
+  }
+
+  function canDeleteUser(user: DatabaseUser) {
+    if (!profile) return false;
+    if (user.id === profile.id) return false; // never delete yourself
+
+    const currentRole = profile.role.role_code;
+
+    if (currentRole === "SYS_ADMIN") {
+      return user.role !== "SYS_ADMIN";
+    }
+
+    if (currentRole === "ADMIN") {
+      return user.role !== "ADMIN" && user.role !== "SYS_ADMIN";
+    }
+
+    return false;
   }
 
   function handleCreateDialogChange(open: boolean) {
@@ -200,6 +238,8 @@ export default function UserAccessControlPage() {
         onToggleStatus={handleToggleStatus}
         onResendConfirmation={handleResendConfirmation}
         canEditUser={canEditUser}
+        canToggleStatus={canToggleStatus}
+        canDeleteUser={canDeleteUser}
       />
       <CreateUserDialog
         open={isCreateDialogOpen}
