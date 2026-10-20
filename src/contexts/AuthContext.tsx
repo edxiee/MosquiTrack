@@ -61,6 +61,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(currentSession?.user ?? null);
 
         if (currentSession) {
+          if (currentSession.access_token) {
+            await supabase.realtime.setAuth(currentSession.access_token);
+          }
           await refreshProfile();
         }
       } finally {
@@ -78,6 +81,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(newSession?.user ?? null);
 
         if (newSession) {
+          if (newSession.access_token) {
+            await supabase.realtime.setAuth(newSession.access_token);
+          }
           // Only on an actual sign-in — not on page-load session
           // restores or token refreshes, which also flow through
           // this same listener.
@@ -118,12 +124,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider.");
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-
   return context;
 }
-
-export default AuthProvider;
