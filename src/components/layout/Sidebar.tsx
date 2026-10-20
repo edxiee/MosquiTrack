@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
-import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogOut, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SIDEBAR_CONFIG } from "@/utils/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -104,6 +104,18 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+          </button>
+        )}
+
+        {/* Mobile Close (X) Button */}
+        {isMobile && onMobileClose && (
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
           </button>
         )}
       </div>
