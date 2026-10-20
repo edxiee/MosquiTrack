@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import AuthBackground from "@/components/auth/AuthBackground";
 import AuthCard from "@/components/auth/AuthCard";
 import AuthHeader from "@/components/auth/AuthHeader";
@@ -10,7 +10,10 @@ import { Label } from "@/components/ui/label";
 import { sendPasswordResetEmail } from "@/services/auth.service";
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const emailFromForgotPassword = searchParams.get("email") ?? "";
+
+  const [email, setEmail] = useState(emailFromForgotPassword);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +90,14 @@ export default function ForgotPasswordPage() {
           </form>
 
           <div className="text-center text-sm">
-            <Link to="/" className="font-medium text-emerald-600 hover:text-emerald-700">
+            <Link
+              to={
+                email.trim()
+                  ? `/?email=${encodeURIComponent(email.trim())}`
+                  : "/"
+              }
+              className="font-medium text-emerald-600 hover:text-emerald-700"
+            >
               Back to Sign In
             </Link>
           </div>

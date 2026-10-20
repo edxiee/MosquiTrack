@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Mail } from "lucide-react";
@@ -19,14 +19,19 @@ export default function LoginForm() {
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
 
+  const [searchParams] = useSearchParams();
+  const emailFromForgotPassword = searchParams.get("email") ?? "";
+
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "",
+      email: emailFromForgotPassword,
       password: "",
     },
   });
@@ -62,6 +67,14 @@ export default function LoginForm() {
     }
   }
 
+  useEffect(() => {
+    if (emailFromForgotPassword) {
+      setValue("email", emailFromForgotPassword);
+    }
+  }, [emailFromForgotPassword, setValue]);
+
+  const emailValue = watch("email");
+
   return (
     <form
       onSubmit={(event) => {
@@ -75,7 +88,11 @@ export default function LoginForm() {
       <div className="flex items-center justify-between">
         <RememberMe />
         <Link
-          to="/forgot-password"
+          to={
+            emailValue?.trim()
+              ? `/forgot-password?email=${encodeURIComponent(emailValue.trim())}`
+              : "/forgot-password"
+          }
           className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
         >
           Forgot password?
