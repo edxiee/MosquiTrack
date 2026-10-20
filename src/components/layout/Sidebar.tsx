@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { SIDEBAR_CONFIG } from "@/utils/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import AppLogo from "@/components/common/AppLogo";
+import { useSidebarBadges } from "@/hooks/useSidebarBadges";
+import { cn } from "@/lib/utils";
 
 interface SidebarProps {
   isMobile?: boolean;
@@ -51,8 +53,10 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
       clearTimeout(timeoutId);
     };
   }, [isMobile]);
+
   const role = profile?.role?.role_code;
   const navigationSections = role ? (SIDEBAR_CONFIG[role] ?? []) : [];
+  const { getBadgeForPath } = useSidebarBadges();
 
   async function handleLogout() {
     try {
@@ -117,36 +121,79 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
             <ul className="space-y-1">
               {section.items.map((item) => {
                 const IconComponent = item.icon;
+                const badgeInfo = getBadgeForPath(item.path);
+                const showBadge = Boolean(badgeInfo && badgeInfo.count > 0);
+                const badgeCount = badgeInfo?.count ?? 0;
+
                 return (
                   <li key={item.path}>
                     <NavLink
                       to={item.path}
-                      title={isCollapsed ? item.name : undefined} // Native tooltip when collapsed
+                      title={
+                        isCollapsed
+                          ? showBadge
+                            ? `${item.name} (${badgeCount} pending)`
+                            : item.name
+                          : undefined
+                      }
                       onClick={() => {
                         if (isMobile && onMobileClose) {
                           onMobileClose();
                         }
                       }}
                       className={({ isActive }) => {
-                        let baseClasses = "flex items-center gap-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ";
-                        
+                        let baseClasses =
+                          "flex items-center rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ";
+
                         if (isCollapsed) {
-                          baseClasses += "justify-center h-10 w-10 mx-auto ";
-                          baseClasses += isActive 
-                            ? "bg-emerald-100 text-emerald-800" 
+                          baseClasses += "justify-center h-10 w-10 mx-auto relative ";
+                          baseClasses += isActive
+                            ? "bg-emerald-100 text-emerald-800"
                             : "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
                         } else {
-                          baseClasses += "px-3 py-2.5 text-[15px] ";
+                          baseClasses += "px-3 py-2.5 text-[15px] justify-between ";
                           baseClasses += isActive
                             ? "border-l-4 border-emerald-600 bg-emerald-50 pl-2 text-emerald-800 font-semibold"
                             : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium";
                         }
-                        
+
                         return baseClasses;
                       }}
                     >
-                      <IconComponent className="h-5 w-5 flex-shrink-0" />
-                      {!isCollapsed && <span className="truncate">{item.name}</span>}
+                      {isCollapsed ? (
+                        <div className="relative flex items-center justify-center">
+                          <IconComponent className="h-5 w-5 flex-shrink-0" />
+                          {showBadge && (
+                            <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-xs">
+                              {badgeInfo?.hasNew && (
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                              )}
+                              <span className="relative">
+                                {badgeCount > 9 ? "9+" : badgeCount}
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <IconComponent className="h-5 w-5 flex-shrink-0" />
+                            <span className="truncate">{item.name}</span>
+                          </div>
+                          {showBadge && (
+                            <span
+                              className={cn(
+                                "ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold text-white shadow-xs transition-all",
+                                badgeInfo?.hasNew
+                                  ? "bg-rose-600 animate-bounce"
+                                  : "bg-rose-500 animate-pulse"
+                              )}
+                            >
+                              {badgeCount > 99 ? "99+" : badgeCount}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </NavLink>
                   </li>
                 );

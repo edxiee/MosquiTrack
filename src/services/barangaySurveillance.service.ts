@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
 import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
 
 export interface BarangaySurveillanceDevice {
@@ -679,4 +680,6 @@ export async function submitTriageRequest(payload: {
     console.error("Failed to insert triage action request:", error);
     throw error;
   }
-}
+  dispatchTriageStatusChange("new", "Pending");
+  }
+

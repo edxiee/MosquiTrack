@@ -33,6 +33,7 @@ interface TriageTableProps {
   onUpdateStatus: (action: TriageAction) => void;
   onQuickStatus: (action: TriageAction, status: TriageStatus) => void;
   borderless?: boolean;
+  newActionIds?: Set<string>;
 }
 
 function Badge({
@@ -68,6 +69,7 @@ export default function TriageTable({
   onUpdateStatus,
   onQuickStatus,
   borderless = false,
+  newActionIds,
 }: TriageTableProps) {
   if (isLoading) {
     if (borderless) {
@@ -122,15 +124,27 @@ export default function TriageTable({
               actions.map((action) => {
                 const closed =
                   action.status === "Completed" || action.status === "Cancelled";
+                const isNew = Boolean(newActionIds?.has(action.id));
                 return (
                   <TableRow
                     key={action.id}
-                    className={`group border-l-4 transition-colors hover:bg-slate-50 ${PRIORITY_BORDER[action.priority] ?? ""} ${closed ? "opacity-70" : ""}`}
+                    className={`group border-l-4 transition-colors ${
+                      isNew
+                        ? "bg-rose-50/50 hover:bg-rose-50/80"
+                        : "hover:bg-slate-50"
+                    } ${PRIORITY_BORDER[action.priority] ?? ""} ${closed ? "opacity-70" : ""}`}
                   >
                     <TableCell className="max-w-[220px]">
-                      <p className="font-semibold text-slate-800">
-                        {action.triggerSource}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-800">
+                          {action.triggerSource}
+                        </p>
+                        {isNew && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500 text-white tracking-wider animate-pulse shadow-xs">
+                            NEW
+                          </span>
+                        )}
+                      </div>
                       <p className="font-mono text-[11px] text-slate-400">
                         #{action.id.slice(0, 8)}
                       </p>

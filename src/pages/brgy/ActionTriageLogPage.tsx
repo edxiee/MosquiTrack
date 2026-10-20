@@ -12,11 +12,14 @@ import type {
   TriageStatus,
 } from "@/types/triage.types";
 import {
+  getActionById,
   getAssignedActions,
   getBarangayOptions,
   updateActionStatus,
 } from "@/services/triage.service";
+import { supabase } from "@/lib/supabase";
 import { computeTriageStats } from "@/utils/triageHelpers";
+import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
 
 const DEFAULT_FILTERS: TriageFilterValues = {
   search: "",
@@ -57,6 +60,42 @@ export default function ActionTriageLogPage() {
     getBarangayOptions()
       .then(setBarangayOptions)
       .catch((err) => console.error("Failed to load barangays:", err));
+
+    // Realtime channel for synchronized action log items
+    const channel = supabase
+      .channel("action_triage_log_page_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "action_triage_log" },
+        async (payload) => {
+          if (payload.eventType === "INSERT" && payload.new && (payload.new as { id?: string }).id) {
+            const newId = (payload.new as { id: string }).id;
+            const newAction = await getActionById(newId);
+            if (newAction) {
+              setActions((prev) => {
+                if (prev.some((a) => a.id === newAction.id)) return prev;
+                return [newAction, ...prev];
+              });
+            }
+          } else if (payload.eventType === "UPDATE" && payload.new && (payload.new as { id?: string }).id) {
+            const updatedId = (payload.new as { id: string }).id;
+            const updated = await getActionById(updatedId);
+            if (updated) {
+              setActions((prev) =>
+                prev.map((a) => (a.id === updated.id ? updated : a))
+              );
+            }
+          } else if (payload.eventType === "DELETE" && payload.old && (payload.old as { id?: string }).id) {
+            const deletedId = (payload.old as { id: string }).id;
+            setActions((prev) => prev.filter((a) => a.id !== deletedId));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredActions = useMemo(() => {
@@ -113,12 +152,21 @@ export default function ActionTriageLogPage() {
     status: TriageStatus,
     remarks: string,
   ) {
+    const prev = actions.find((a) => a.id === actionId);
+    if (prev?.status === "Pending" && status !== "Pending") {
+      dispatchTriageStatusChange(actionId, status, prev.status);
+    }
     await updateActionStatus(actionId, { status, remarks });
     await loadActions();
   }
 
   async function handleQuickStatus(action: TriageAction, status: TriageStatus) {
-    // optimistic update
+    // Immediate optimistic decrement for the sidebar notification badge
+    if (action.status === "Pending" && status !== "Pending") {
+      dispatchTriageStatusChange(action.id, status, action.status);
+    }
+
+    // optimistic update in table
     setActions((prev) =>
       prev.map((a) => (a.id === action.id ? { ...a, status } : a)),
     );
