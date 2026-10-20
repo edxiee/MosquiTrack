@@ -8,8 +8,10 @@ import EditUserDialog from "@/components/accounts/EditUserDialog";
 import type { DatabaseUser } from "@/types/user.types";
 import { getUsers } from "@/services/get-users.service";
 import { deleteUser, setUserStatus } from "@/services/users.service";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function UserAccessControlPage() {
+  const { profile } = useAuth();
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
@@ -97,8 +99,19 @@ export default function UserAccessControlPage() {
   }
 
   function handleEditUser(user: DatabaseUser) {
+    if (!canEditUser(user)) return;
     setSelectedUser(user);
     setIsEditDialogOpen(true);
+  }
+
+  function canEditUser(user: DatabaseUser) {
+    if (!profile || user.id === profile.id) return true;
+    const currentRole = profile.role.role_code;
+    return !(
+      (currentRole === "ADMIN" &&
+        (user.role === "ADMIN" || user.role === "SYS_ADMIN")) ||
+      (currentRole === "SYS_ADMIN" && user.role === "SYS_ADMIN")
+    );
   }
 
   function handleCreateDialogChange(open: boolean) {
@@ -186,6 +199,7 @@ export default function UserAccessControlPage() {
         onDelete={handleDeleteUser}
         onToggleStatus={handleToggleStatus}
         onResendConfirmation={handleResendConfirmation}
+        canEditUser={canEditUser}
       />
       <CreateUserDialog
         open={isCreateDialogOpen}

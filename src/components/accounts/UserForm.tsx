@@ -10,6 +10,8 @@ interface UserFormProps<T extends BaseUserForm> {
   errors: UserFormErrors;
   updateForm: <K extends keyof T>(field: K, value: T[K]) => void;
   isEditing?: boolean; // ← add this
+  currentUserRole?: string | null | undefined;
+  roleDisabled?: boolean;
 }
 
 export default function UserForm<T extends BaseUserForm>({
@@ -17,6 +19,8 @@ export default function UserForm<T extends BaseUserForm>({
   errors,
   updateForm,
   isEditing = false, // ← default false
+  currentUserRole,
+  roleDisabled = false,
 }: UserFormProps<T>) {
   return (
     <div className="space-y-6">
@@ -49,6 +53,8 @@ export default function UserForm<T extends BaseUserForm>({
         role={formData.role}
         errors={errors}
         onRoleChange={(value) => updateForm("role", value)}
+        currentUserRole={currentUserRole}
+        disabled={roleDisabled}
       />
 
       <LocationAssignmentForm

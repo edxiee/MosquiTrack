@@ -1,9 +1,11 @@
+export type UserRole = "SYS_ADMIN" | "ADMIN" | "MHO" | "BHW" | "";
+
 export interface User {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  role: "SYS_ADMIN" | "MHO" | "BHW";
+  role: "SYS_ADMIN" | "ADMIN" | "MHO" | "BHW";
   assignedArea: string;
   status: "Active" | "Inactive";
 }
@@ -15,7 +17,7 @@ export interface DatabaseUser {
   last_name: string;
   username: string;
   phone_number: string | null;
-  role: "SYS_ADMIN" | "MHO" | "BHW";
+  role: "SYS_ADMIN" | "ADMIN" | "MHO" | "BHW";
   municipality: string | null;
   barangay: string | null;
   email: string;
@@ -31,7 +33,7 @@ export interface BaseUserForm {
   email: string;
   phoneNumber: string;
   username: string;
-  role: "" | "SYS_ADMIN" | "MHO" | "BHW";
+  role: UserRole;
   municipality: string;
   barangay: string;
 }

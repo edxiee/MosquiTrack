@@ -20,6 +20,7 @@ interface UsersTableProps {
   onDelete: (user: DatabaseUser) => void;
   onToggleStatus: (user: DatabaseUser) => void;
   onResendConfirmation?: (user: DatabaseUser) => void;
+  canEditUser?: (user: DatabaseUser) => boolean;
 }
 
 export default function UsersTable({
@@ -29,6 +30,7 @@ export default function UsersTable({
   onDelete,
   onToggleStatus,
   onResendConfirmation,
+  canEditUser,
 }: UsersTableProps) {
   if (isLoading) {
     return (
@@ -102,6 +104,12 @@ export default function UsersTable({
                         variant="outline"
                         size="sm"
                         onClick={() => onEdit(user)}
+                        disabled={canEditUser ? !canEditUser(user) : false}
+                        title={
+                          canEditUser && !canEditUser(user)
+                            ? "You cannot edit another administrator's account"
+                            : "Edit user"
+                        }
                       >
                         <Pencil className="mr-2 h-4 w-4" />
                         Edit

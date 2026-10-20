@@ -32,6 +32,16 @@ export default function EditUserDialog({
   user,
 }: EditUserDialogProps) {
   const { profile, refreshProfile } = useAuth();
+  const currentUserRole = profile?.role.role_code;
+  const isReadOnly =
+    !!user &&
+    user.id !== profile?.id &&
+    ((currentUserRole === "ADMIN" &&
+      (user.role === "ADMIN" || user.role === "SYS_ADMIN")) ||
+      (currentUserRole === "SYS_ADMIN" && user.role === "SYS_ADMIN"));
+  const isRoleLocked =
+    user?.role === "SYS_ADMIN" ||
+    (currentUserRole === "ADMIN" && user?.role === "ADMIN");
   const [formData, setFormData] = useState<UpdateUserForm>({
     id: "",
     firstName: "",
@@ -83,6 +93,21 @@ export default function EditUserDialog({
   }
 
   async function handleUpdateUser() {
+    if (isReadOnly) return;
+
+    const isChangingToElevatedRole =
+      (formData.role === "SYS_ADMIN" || formData.role === "ADMIN") &&
+      formData.role !== user?.role;
+
+    if (isChangingToElevatedRole && currentUserRole !== "SYS_ADMIN") {
+      setNotice({
+        variant: "error",
+        title: "Role Change Not Allowed",
+        message: "Only a System Administrator can assign these roles.",
+      });
+      return;
+    }
+
     const validationErrors = validateUpdateUserForm(formData);
     setErrors(validationErrors);
 
@@ -129,18 +154,27 @@ export default function EditUserDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <UserForm
-            formData={formData}
-            errors={errors}
-            updateForm={updateForm}
-            isEditing={true}
-          />
+          {isReadOnly && (
+            <p className="text-sm text-muted-foreground">
+              You cannot edit another administrator's account.
+            </p>
+          )}
+          <fieldset disabled={isReadOnly} className="min-w-0 border-0 p-0">
+            <UserForm
+              formData={formData}
+              errors={errors}
+              updateForm={updateForm}
+              isEditing={true}
+              currentUserRole={currentUserRole}
+              roleDisabled={isRoleLocked || isReadOnly}
+            />
+          </fieldset>
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
               variant="ghost"
               onClick={() => onOpenChange(false)}
-              disabled={isUpdating}
+              disabled={isUpdating || isReadOnly}
             >
               Cancel
             </Button>

@@ -13,6 +13,7 @@ import NoticeDialog from "./NoticeDialog";
 import { validateCreateUserForm } from "@/utils/validateUserForm";
 import type { CreateUserForm, UserFormErrors } from "@/types/user.types";
 import { createUser } from "@/services/users.service";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateUserDialogProps {
   open: boolean;
@@ -23,6 +24,7 @@ export default function CreateUserDialog({
   open,
   onOpenChange,
 }: CreateUserDialogProps) {
+  const { profile } = useAuth();
   const [formData, setFormData] = useState<CreateUserForm>({
     firstName: "",
     middleName: "",
@@ -185,6 +187,7 @@ export default function CreateUserDialog({
               formData={formData}
               errors={errors}
               updateForm={updateForm}
+              currentUserRole={profile?.role.role_code}
             />
 
             <DialogFooter className="gap-2 sm:gap-2">
