@@ -279,7 +279,7 @@ export function useSidebarBadges() {
   }, []);
 
   const getBadgeForPath = (path: string): BadgeInfo | null => {
-    if (path === ROUTES.bhw.triage) {
+    if (path === ROUTES.bhw.actionLogs) {
       return {
         count: globalTriageCount,
         hasNew: globalTriageHasNew,
