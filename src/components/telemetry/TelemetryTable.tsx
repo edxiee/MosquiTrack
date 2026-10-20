@@ -16,7 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import type { TelemetryReading } from "@/types/telemetry.types";
 
@@ -25,26 +24,6 @@ const ITEMS_PER_PAGE = 15;
 interface TelemetryTableProps {
   readings: TelemetryReading[];
   isLoading: boolean;
-}
-
-function StatusBadge({ status }: { status: string | null }) {
-  const isOk = status === "Active" || status === "Online";
-  return (
-    <Badge
-      className={`border-none shadow-none font-medium ${
-        isOk
-          ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
-          : "bg-slate-100 text-slate-700 hover:bg-slate-100"
-      }`}
-    >
-      <span
-        className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${
-          isOk ? "bg-emerald-500" : "bg-slate-400"
-        }`}
-      />
-      {status ?? "Unknown"}
-    </Badge>
-  );
 }
 
 export default function TelemetryTable({
@@ -93,14 +72,13 @@ export default function TelemetryTable({
                 <TableHead className="font-semibold text-slate-500">Humidity (%)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Battery (%)</TableHead>
                 <TableHead className="font-semibold text-slate-500">AI Confidence</TableHead>
-                <TableHead className="font-semibold text-slate-500">Device Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {readings.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={9}
+                    colSpan={8}
                     className="py-16 text-center text-slate-500"
                   >
                     <div className="max-w-md mx-auto space-y-3">
@@ -135,9 +113,6 @@ export default function TelemetryTable({
                     </TableCell>
                     <TableCell className="text-slate-600 font-mono text-xs">
                       {reading.ai_confidence != null ? `${(reading.ai_confidence * 100).toFixed(1)}%` : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={reading.status_name} />
                     </TableCell>
                   </TableRow>
                 ))
