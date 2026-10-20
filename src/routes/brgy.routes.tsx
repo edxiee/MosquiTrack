@@ -30,11 +30,11 @@ export const brgyRoutes: RouteObject[] = [
         element: <BarangaySurveillancePage />,
       },
       {
-        path: "hardware",
+        path: "traps-overview",
         element: <TrapsOverview />,
       },
       {
-        path: "triage",
+        path: "action-logs",
         element: <ActionLogs />,
       },
     ],
