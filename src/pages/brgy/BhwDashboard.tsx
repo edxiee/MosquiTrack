@@ -40,13 +40,13 @@ const quickLinks = [
   {
     label: "Node & Battery Diagnostics",
     description: "Inspect trap health and voltage status.",
-    href: ROUTES.bhw.hardware,
+    href: ROUTES.bhw.trapOverview,
     icon: BatteryLow,
   },
   {
     label: "Action Triage Log",
     description: "Open the field action logging workflow.",
-    href: ROUTES.bhw.triage,
+    href: ROUTES.bhw.actionLogs,
     icon: ClipboardList,
   },
 ] as const;
@@ -133,7 +133,7 @@ export default function BhwDashboard() {
               </Button>
 
               <Button asChild size="sm" variant="outline" className="rounded-full px-4">
-                <Link to={ROUTES.bhw.triage}>
+                <Link to={ROUTES.bhw.actionLogs}>
                   Log action
                   <MonitorDown className="size-4 ml-1" />
                 </Link>
@@ -329,7 +329,7 @@ export default function BhwDashboard() {
             ))}
 
             <Button asChild className="w-full justify-between rounded-full bg-emerald-600 hover:bg-emerald-700 text-white">
-              <Link to={ROUTES.bhw.triage}>
+              <Link to={ROUTES.bhw.actionLogs}>
                 Log new action
                 <ArrowRight className="size-4" />
               </Link>

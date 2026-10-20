@@ -22,9 +22,9 @@ export const ROUTES = {
   admin: {
     dashboard: "/admin/dashboard",
     users: "/admin/users",
-    georeferencing: "/admin/georeferencing",
-    nodes: "/admin/nodes",
-    telemetry: "/admin/telemetry",
+    trapLocation: "/admin/trap-location",
+    trapManagement: "/admin/trap-management",
+    trapDataOverview: "/admin/trap-data-overview",
     liveMonitoring: "/admin/live-monitoring",
     announcements: "/admin/announcements",
     systemControls: "/admin/system-controls",
@@ -32,15 +32,15 @@ export const ROUTES = {
   },
   lgu: {
     dashboard: "/lgu/dashboard",
-    heatmap: "/lgu/heatmap",
-    analytics: "/lgu/analytics",
+    trapMap: "/lgu/trap-map",
+    trapActionRequests: "/lgu/trap-action-requests",
     reports: "/lgu/reports",
   },
   bhw: {
     dashboard: "/bhw/dashboard",
     surveillance: "/bhw/surveillance",
-    hardware: "/bhw/hardware",
-    triage: "/bhw/triage",
+    trapOverview: "/bhw/traps-overview",
+    actionLogs: "/bhw/action-logs",
   },
 } as const;
 
@@ -75,17 +75,17 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "SITE ADMINISTRATION",
       items: [
         { name: "User Access Control", path: ROUTES.admin.users, icon: Users },
-        { name: "Trap Location", path: ROUTES.admin.georeferencing, icon: MapPin },
-        { name: "Trap Management", path: ROUTES.admin.nodes, icon: Router },
-        { name: "Trap Data Overview", path: ROUTES.admin.telemetry, icon: Activity },
+        { name: "Trap Location", path: ROUTES.admin.trapLocation, icon: MapPin },
+        { name: "Trap Management", path: ROUTES.admin.trapManagement, icon: Router },
+        { name: "Trap Data Overview", path: ROUTES.admin.trapDataOverview, icon: Activity },
         { name: "Live Monitoring", path: ROUTES.admin.liveMonitoring, icon: Monitor },
       ],
     },
     {
       title: "LGU MONITORING",
       items: [
-        { name: "Mosquito Trap Map", path: ROUTES.lgu.heatmap, icon: Map },
-        { name: "Traps Reports & Requests", path: ROUTES.lgu.analytics, icon: ClipboardList },
+        { name: "Mosquito Trap Map", path: ROUTES.lgu.trapMap, icon: Map },
+        { name: "Traps Reports & Requests", path: ROUTES.lgu.trapActionRequests, icon: ClipboardList },
         { name: "Reports & Analytics", path: ROUTES.lgu.reports, icon: BarChart3 },
       ],
     },
@@ -93,8 +93,8 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "BARANGAY OPERATIONS",
       items: [
         { name: "Barangay Surveillance", path: ROUTES.bhw.surveillance, icon: Eye },
-        { name: "Traps Overview", path: ROUTES.bhw.hardware, icon: Boxes },
-        { name: "Action Logs", path: ROUTES.bhw.triage, icon: FileText },
+        { name: "Traps Overview", path: ROUTES.bhw.trapOverview, icon: Boxes },
+        { name: "Action Logs", path: ROUTES.bhw.actionLogs, icon: FileText },
       ],
     },
   ],
@@ -111,9 +111,9 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "SITE ADMINISTRATION",
       items: [
         { name: "User Access Control", path: ROUTES.admin.users, icon: Users },
-        { name: "Trap Location", path: ROUTES.admin.georeferencing, icon: MapPin },
-        { name: "Trap Management", path: ROUTES.admin.nodes, icon: Router },
-        { name: "Raw Telemetry Hub", path: ROUTES.admin.telemetry, icon: Activity },
+        { name: "Trap Location", path: ROUTES.admin.trapLocation, icon: MapPin },
+        { name: "Trap Management", path: ROUTES.admin.trapManagement, icon: Router },
+        { name: "Trap Data Overview", path: ROUTES.admin.trapDataOverview, icon: Activity },
         { name: "Live Monitoring", path: ROUTES.admin.liveMonitoring, icon: Monitor },
       ],
     },
@@ -127,8 +127,8 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
     {
       title: "LGU MONITORING",
       items: [
-        { name: "Mosquito Trap Map", path: ROUTES.lgu.heatmap, icon: Map },
-        { name: "Traps Reports & Requests", path: ROUTES.lgu.analytics, icon: ClipboardList },
+        { name: "Mosquito Trap Map", path: ROUTES.lgu.trapMap, icon: Map },
+        { name: "Traps Reports & Requests", path: ROUTES.lgu.trapActionRequests, icon: ClipboardList },
         { name: "Reports & Analytics", path: ROUTES.lgu.reports, icon: BarChart3 },
       ],
     },
@@ -143,8 +143,8 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "BARANGAY OPERATIONS",
       items: [
         { name: "Barangay Surveillance", path: ROUTES.bhw.surveillance, icon: Eye },
-        { name: "Traps Overview", path: ROUTES.bhw.hardware, icon: Boxes },
-        { name: "Action Logs", path: ROUTES.bhw.triage, icon: FileText },
+        { name: "Traps Overview", path: ROUTES.bhw.trapOverview, icon: Boxes },
+        { name: "Action Logs", path: ROUTES.bhw.actionLogs, icon: FileText },
       ],
     },
   ],

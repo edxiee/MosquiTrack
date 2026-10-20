@@ -8,9 +8,9 @@ import RequestActionsOverviewPage from "@/pages/shared/RequestActionsOverviewPag
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const UserAccessControlPage = lazy(() => import("@/pages/admin/UserAccessControlPage"));
-const StaticGeoreferencingPage = lazy(() => import("@/pages/admin/StaticGeoreferencingPage"));
-const NodeProvisioningPage = lazy(() => import("@/pages/admin/NodeProvisioningPage"));
-const RawTelemetryHubPage = lazy(() => import("@/pages/admin/RawTelemetryHubPage"));
+const TrapLocation = lazy(() => import("@/pages/admin/TrapLocation"));
+const TrapManagement = lazy(() => import("@/pages/admin/TrapManagement"));
+const TrapDataOverview = lazy(() => import("@/pages/admin/TrapDataOverview"));
 const LiveMonitoringPage = lazy(() => import("@/pages/admin/LiveMonitoringPage"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 const SystemControls = lazy(() => import("@/pages/admin/SystemControls"));
@@ -39,16 +39,16 @@ export const adminRoutes: RouteObject[] = [
         element: <UserAccessControlPage />,
       },
       {
-        path: "georeferencing",
-        element: <StaticGeoreferencingPage />,
+        path: "trap-location",
+        element: <TrapLocation />,
       },
       {
-        path: "nodes",
-        element: <NodeProvisioningPage />,
+        path: "trap-management",
+        element: <TrapManagement />,
       },
       {
-        path: "telemetry",
-        element: <RawTelemetryHubPage />,
+        path: "trap-data-overview",
+        element: <TrapDataOverview />,
       },
       {
         path: "live-monitoring",
