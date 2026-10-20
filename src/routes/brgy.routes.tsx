@@ -7,8 +7,8 @@ import { ROLES } from "@/constants/roles";
 
 const BhwDashboard = lazy(() => import("@/pages/brgy/BhwDashboard"));
 const BarangaySurveillancePage = lazy(() => import("@/pages/brgy/BarangaySurveillancePage"));
-const HardwareNodesPage = lazy(() => import("@/pages/brgy/HardwareNodesPage"));
-const ActionTriageLogPage = lazy(() => import("@/pages/brgy/ActionTriageLogPage"));
+const TrapsOverview = lazy(() => import("@/pages/brgy/TrapsOverview"));
+const ActionLogs = lazy(() => import("@/pages/brgy/ActionLogs"));
 
 export const brgyRoutes: RouteObject[] = [
   {
@@ -31,11 +31,11 @@ export const brgyRoutes: RouteObject[] = [
       },
       {
         path: "hardware",
-        element: <HardwareNodesPage />,
+        element: <TrapsOverview />,
       },
       {
         path: "triage",
-        element: <ActionTriageLogPage />,
+        element: <ActionLogs />,
       },
     ],
   },

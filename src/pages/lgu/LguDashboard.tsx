@@ -83,13 +83,13 @@ const quickLinks = [
   {
     label: "Traps Reports and Request",
     description: "Review municipal trend recommendations.",
-    href: ROUTES.lgu.analytics,
+    href: ROUTES.lgu.trapActionRequests,
     icon: BarChart3,
   },
   {
     label: "Mosquito Trap Map",
     description: "Open the barangay-level spatial view.",
-    href: ROUTES.lgu.heatmap,
+    href: ROUTES.lgu.trapMap,
     icon: MapPinned,
   },
   {
@@ -267,7 +267,7 @@ export default function LguDashboard() {
             size="sm"
             className="rounded-full bg-emerald-600 px-4 text-white hover:bg-emerald-700"
           >
-            <Link to={ROUTES.lgu.heatmap}>
+            <Link to={ROUTES.lgu.trapMap}>
               <MapPinned className="mr-1 size-4" />
               Trap map
             </Link>
@@ -299,7 +299,7 @@ export default function LguDashboard() {
         </div>
         {highAlertCount > 0 && (
           <Button asChild size="sm" variant="outline" className="hidden rounded-full sm:inline-flex">
-            <Link to={ROUTES.lgu.analytics}>
+            <Link to={ROUTES.lgu.reports}>
               Review <ArrowRight className="ml-1 size-4" />
             </Link>
           </Button>
