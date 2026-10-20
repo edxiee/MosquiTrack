@@ -24,6 +24,7 @@ export interface BadgeInfo {
 }
 
 export function useSidebarBadges() {
+<<<<<<< HEAD
   const [triageCount, setTriageCount] = useState<number>(0);
   const [requestActionsCount, setRequestActionsCount] = useState<number>(0);
   const [triageHasNew, setTriageHasNew] = useState<boolean>(false);
@@ -58,6 +59,9 @@ export function useSidebarBadges() {
       console.error("Failed to fetch request actions notification count:", err);
     }
   };
+=======
+  const [, setTick] = useState(0);
+>>>>>>> 67219e5fe514eb137f986dc13abcd79f0aaa3f65
 
   useEffect(() => {
     fetchTriageCount();
@@ -72,16 +76,30 @@ export function useSidebarBadges() {
       const { newStatus, previousStatus } = customEvent.detail || {};
 
       if (previousStatus === "Pending" && newStatus !== "Pending") {
+<<<<<<< HEAD
         setTriageCount((prev) => Math.max(0, prev - 1));
       } else if (newStatus === "Pending" && previousStatus !== "Pending") {
         setTriageCount((prev) => prev + 1);
         setTriageHasNew(true);
         setTimeout(() => setTriageHasNew(false), 5000);
+=======
+        globalTriageCount = Math.max(0, globalTriageCount - 1);
+        notifySubscribers();
+      } else if (newStatus === "Pending" && previousStatus !== "Pending") {
+        globalTriageCount += 1;
+        globalTriageHasNew = true;
+        notifySubscribers();
+        setTimeout(() => {
+          globalTriageHasNew = false;
+          notifySubscribers();
+        }, 5000);
+>>>>>>> 67219e5fe514eb137f986dc13abcd79f0aaa3f65
       }
     };
 
     window.addEventListener(TRIAGE_BADGE_EVENT, handleLocalBadgeChange);
 
+<<<<<<< HEAD
     // We use "_v2" suffixes to force Supabase to create fresh channel instances 
     // and avoid the "already subscribed" HMR/StrictMode crash.
     const triageChannel = supabase
@@ -114,6 +132,8 @@ export function useSidebarBadges() {
       )
       .subscribe();
 
+=======
+>>>>>>> 67219e5fe514eb137f986dc13abcd79f0aaa3f65
     return () => {
       window.removeEventListener(TRIAGE_BADGE_EVENT, handleLocalBadgeChange);
       supabase.removeChannel(triageChannel);
@@ -128,7 +148,11 @@ export function useSidebarBadges() {
         hasNew: triageHasNew,
       };
     }
-    if (path.includes("request-actions") || path === "/admin/request-actions") {
+    if (
+      path === ROUTES.admin.requestActionsOverview ||
+      path.includes("request-actions") ||
+      path === "/admin/request-actions"
+    ) {
       return {
         count: requestActionsCount,
         hasNew: requestsHasNew,
