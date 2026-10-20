@@ -260,7 +260,7 @@ export default function RawTelemetryHubPage() {
       "Temperature (C)",
       "Humidity (%)",
       "Battery (%)",
-      "AI Confidence",
+      "Danger Level",
       "Latitude",
       "Longitude",
       "Status"

@@ -557,7 +557,7 @@ export default function StaticGeoreferencingPage() {
                           className="flex-1 h-7 text-xs px-1 gap-1 border-slate-200 hover:bg-slate-50"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`${ROUTES.admin.nodes}`);
+                            navigate(`${ROUTES.admin.trapManagement}`);
                           }}
                         >
                           <Pencil className="w-3 h-3 text-slate-500" />
@@ -568,7 +568,7 @@ export default function StaticGeoreferencingPage() {
                           className="flex-1 h-7 text-xs px-1 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`${ROUTES.admin.telemetry}?trapId=${trap.id}`);
+                            navigate(`${ROUTES.admin.trapDataOverview}?trapId=${trap.id}`);
                           }}
                         >
                           <Activity className="w-3 h-3" />

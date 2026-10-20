@@ -6,9 +6,9 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { ROLES } from "@/constants/roles";
 
 const LguDashboard = lazy(() => import("@/pages/lgu/LguDashboard"));
-const MacroGeospatialHeatmapPage = lazy(() => import("@/pages/lgu/MacroGeospatialHeatmapPage"));
-const PrescriptiveAnalyticsPage = lazy(() => import("@/pages/lgu/PrescriptiveAnalyticsPage"));
-const ReportsAnalyticsPage = lazy(() => import("@/pages/lgu/ReportsAnalyticsPage"));
+const MosquitoTrapMap = lazy(() => import("@/pages/lgu/MosquitoTrapMap"));
+const TrapActionRequest = lazy(() => import("@/pages/lgu/TrapActionRequest"));
+const ReportsPage = lazy(() => import("@/pages/lgu/ReportsPage"));
 
 export const lguRoutes: RouteObject[] = [
   {
@@ -26,16 +26,16 @@ export const lguRoutes: RouteObject[] = [
         element: <LguDashboard />,
       },
       {
-        path: "heatmap",
-        element: <MacroGeospatialHeatmapPage />,
+        path: "trap-map",
+        element: <MosquitoTrapMap />,
       },
       {
-        path: "analytics",
-        element: <PrescriptiveAnalyticsPage />,
+        path: "trap-action-requests",
+        element: <TrapActionRequest />,
       },
       {
         path: "reports",
-        element: <ReportsAnalyticsPage />,
+        element: <ReportsPage />,
       },
     ],
   },

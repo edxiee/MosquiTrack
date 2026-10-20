@@ -362,7 +362,7 @@ export default function PrescriptiveAnalyticsPage() {
 
   const handleViewLocation = (device: OvitrapDevice) => {
     if (!device.latitude || !device.longitude) return;
-    navigate(`${ROUTES.lgu.heatmap}?viewId=${device.id}`);
+    navigate(`${ROUTES.lgu.trapMap}?viewId=${device.id}`);
   };
 
   const openRequestModal = (device: OvitrapDevice) => {

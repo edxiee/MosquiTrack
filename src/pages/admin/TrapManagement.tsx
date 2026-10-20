@@ -137,7 +137,7 @@ export default function NodeProvisioningPage() {
 
   const handleViewLocation = (device: OvitrapDevice) => {
     if (!device.latitude || !device.longitude) return;
-    navigate(`${ROUTES.admin.georeferencing}?viewId=${device.id}`);
+    navigate(`${ROUTES.admin.trapLocation}?viewId=${device.id}`);
   };
 
   const filteredDevices = useMemo(() => {
