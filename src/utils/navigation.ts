@@ -85,8 +85,8 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "LGU MONITORING",
       items: [
         { name: "Mosquito Trap Map", path: ROUTES.lgu.trapMap, icon: Map },
-        { name: "Traps Reports & Requests", path: ROUTES.lgu.trapActionRequests, icon: ClipboardList },
-        { name: "Reports & Analytics", path: ROUTES.lgu.reports, icon: BarChart3 },
+        { name: "Traps List & Requests", path: ROUTES.lgu.trapActionRequests, icon: ClipboardList },
+        { name: "Trap Reports", path: ROUTES.lgu.reports, icon: BarChart3 },
       ],
     },
     {
@@ -128,8 +128,8 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "LGU MONITORING",
       items: [
         { name: "Mosquito Trap Map", path: ROUTES.lgu.trapMap, icon: Map },
-        { name: "Traps Reports & Requests", path: ROUTES.lgu.trapActionRequests, icon: ClipboardList },
-        { name: "Reports & Analytics", path: ROUTES.lgu.reports, icon: BarChart3 },
+        { name: "Traps List & Requests", path: ROUTES.lgu.trapActionRequests, icon: ClipboardList },
+        { name: "Trap Reports", path: ROUTES.lgu.reports, icon: BarChart3 },
       ],
     },
   ],
