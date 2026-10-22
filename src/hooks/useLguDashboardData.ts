@@ -24,6 +24,10 @@ export interface LguDashboardMetrics {
   dviAveragePrev3Day: number;
   barangaysMonitored: number;
   pendingApprovals: number;
+  pendingActions: number;
+  inProgressActions: number;
+  completedActions: number;
+  cancelledActions: number;
   dohCases7Day: number | null;
   alertTierCounts: {
     green: number;
@@ -45,6 +49,10 @@ const EMPTY_METRICS: LguDashboardMetrics = {
   dviAveragePrev3Day: 0,
   barangaysMonitored: 0,
   pendingApprovals: 0,
+  pendingActions: 0,
+  inProgressActions: 0,
+  completedActions: 0,
+  cancelledActions: 0,
   dohCases7Day: null,
   alertTierCounts: {
     green: 0,
@@ -204,9 +212,9 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const now = Date.now();
-  const trendDays = 14;
+  const trendDays = 7;
 
-  // Seed the 14-day trend buckets (oldest -> newest)
+  // Seed the weekly trend buckets (oldest -> newest)
   const trendBuckets = new Map<string, { total: number; readings: number }>();
   for (let i = trendDays - 1; i >= 0; i -= 1) {
     trendBuckets.set(new Date(now - i * DAY_MS).toISOString().slice(0, 10), {
@@ -309,6 +317,36 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
 
   if (pendingError) {
     throw pendingError;
+  }
+
+  const { data: actionStatusRows, error: actionStatusError } = await supabase
+    .from("action_triage_log")
+    .select("status")
+    .in("barangay_id", barangayIds);
+
+  if (actionStatusError) {
+    throw actionStatusError;
+  }
+
+  const actionCounts = {
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    cancelled: 0,
+  };
+
+  for (const row of
+    (actionStatusRows as Array<{ status: string | null }> | null) ?? []) {
+    const status = (row.status ?? "").toLowerCase();
+    if (status === "pending") {
+      actionCounts.pending += 1;
+    } else if (status === "in progress") {
+      actionCounts.inProgress += 1;
+    } else if (status === "completed") {
+      actionCounts.completed += 1;
+    } else if (status === "cancelled") {
+      actionCounts.cancelled += 1;
+    }
   }
 
   const { data: riskAssessmentsData, error: riskAssessmentsError } = await supabase
@@ -418,6 +456,10 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
     dviAveragePrev3Day,
     barangaysMonitored: monitoredBarangayIds.size,
     pendingApprovals: pendingCount ?? 0,
+    pendingActions: actionCounts.pending,
+    inProgressActions: actionCounts.inProgress,
+    completedActions: actionCounts.completed,
+    cancelledActions: actionCounts.cancelled,
     dohCases7Day: null,
     alertTierCounts,
     recentEscalations: recentEscalations.slice(0, 8),

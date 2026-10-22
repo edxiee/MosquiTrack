@@ -93,7 +93,7 @@ const quickLinks = [
     icon: MapPinned,
   },
   {
-    label: "Reports and Analytics",
+    label: "Trap Reports",
     description: "Export municipal summaries and case reports.",
     href: ROUTES.lgu.reports,
     icon: FileText,
@@ -209,6 +209,18 @@ export default function LguDashboard() {
   const avg3 = metrics?.dviAverage3Day ?? 0;
   const prev3 = metrics?.dviAveragePrev3Day ?? 0;
   const overallChange = prev3 > 0 ? ((avg3 - prev3) / prev3) * 100 : null;
+  const actionMetrics = metrics as
+    | {
+        pendingActions?: number;
+        inProgressActions?: number;
+        completedActions?: number;
+        cancelledActions?: number;
+      }
+    | undefined;
+  const pendingActions = actionMetrics?.pendingActions ?? 0;
+  const inProgressActions = actionMetrics?.inProgressActions ?? 0;
+  const completedActions = actionMetrics?.completedActions ?? 0;
+  const cancelledActions = actionMetrics?.cancelledActions ?? 0;
 
   const watchlist = barangayStatus.filter(
     (b) => b.tier === "red" || b.tier === "orange",
@@ -311,7 +323,7 @@ export default function LguDashboard() {
         <KpiCard
           icon={Bug}
           label="Avg mosquito count (3-day)"
-          value={show(avg3.toFixed(1))}
+          value={show(Math.round(avg3).toString())}
           tone="bg-emerald-50 text-emerald-700"
           detail={
             <span className="inline-flex items-center gap-1.5">
@@ -339,19 +351,49 @@ export default function LguDashboard() {
           detail={`${risingBarangays.length} showing a rising trend`}
         />
         <KpiCard
-          icon={ClipboardList}
-          label="Open response actions"
-          value={show(String(metrics?.pendingApprovals ?? 0))}
-          tone="bg-amber-50 text-amber-700"
-          detail="Pending or in-progress field actions"
-        />
+  icon={ClipboardList}
+  label="Response Actions"
+  value=""
+  tone="bg-amber-50 text-amber-700"
+  detail={
+    <div className="grid grid-cols-4 divide-x divide-gray-200 mt-2 w-full">
+      <div className="min-w-0 text-center px-1">
+        <p className="text-xs font-medium text-amber-700">Pending</p>
+        <p className="text-lg font-bold">
+          {show(String(pendingActions))}
+        </p>
+      </div>
+
+      <div className="min-w-0 text-center px-1">
+        <p className="text-xs font-medium text-blue-700">In Progress</p>
+        <p className="text-lg font-bold">
+          {show(String(inProgressActions))}
+        </p>
+      </div>
+
+      <div className="min-w-0 text-center px-1">
+        <p className="text-xs font-medium text-emerald-700">Completed</p>
+        <p className="text-lg font-bold">
+          {show(String(completedActions))}
+        </p>
+      </div>
+
+      <div className="min-w-0 text-center px-1">
+        <p className="text-xs font-medium text-red-700">Cancelled</p>
+        <p className="text-lg font-bold">
+          {show(String(cancelledActions))}
+        </p>
+      </div>
+    </div>
+  }
+/>
       </section>
 
       {/* Trend + tier distribution */}
       <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
         <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle>Mosquito activity, last 14 days</CardTitle>
+            <CardTitle>Mosquito activity, last 7 days</CardTitle>
             <CardDescription>
               Daily average mosquito count across all monitored traps.
             </CardDescription>
@@ -361,7 +403,7 @@ export default function LguDashboard() {
               <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
             ) : dailyTrend.every((d) => d.readings === 0) ? (
               <div className="flex h-64 items-center justify-center text-sm text-slate-500">
-                No trap readings in the last 14 days.
+                No trap readings in the last 7 days.
               </div>
             ) : (
               <div className="h-64 w-full">
