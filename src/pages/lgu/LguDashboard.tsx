@@ -339,7 +339,7 @@ export default function LguDashboard() {
           tone={
             highAlertCount > 0
               ? "bg-rose-50 text-rose-600"
-              : "bg-emerald-50 text-emerald-700"
+              : "bg-red-50 text-red-700"
           }
           detail={`${redCount} critical · ${orangeCount} high`}
         />
