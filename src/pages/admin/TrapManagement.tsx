@@ -224,6 +224,9 @@ export default function NodeProvisioningPage() {
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
                     Deployed by
                   </th>
+                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
+                    Barangay
+                  </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
                     Status
                   </th>
@@ -269,6 +272,9 @@ export default function NodeProvisioningPage() {
                       </td>
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
                         {formatDeployedBy(device.users)}
+                      </td>
+                      <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                        {device.barangays?.barangay_name ?? "—"}
                       </td>
                       <td className="px-5 py-4">
                         <span
