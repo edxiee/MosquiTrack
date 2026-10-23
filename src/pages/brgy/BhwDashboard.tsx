@@ -189,8 +189,8 @@ export default function BhwDashboard() {
           </h1>
           <p className="mt-1 text-base text-slate-600">
             {profile
-              ? `Welcome back, ${profile.first_name}. Monitor trap nodes, track breeding hotspots, and log field actions for your barangay.`
-              : "Welcome back. Monitor trap nodes, track breeding hotspots, and log field actions for your barangay."}
+              ? `Welcome back, ${profile.first_name}. Monitor trap nodes and log field actions for your barangay.`
+              : "Welcome back. Monitor trap nodes and log field actions for your barangay."}
           </p>
         </div>
 
