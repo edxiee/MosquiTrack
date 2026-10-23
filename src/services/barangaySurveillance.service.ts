@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
 import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
+import { getConsecutiveCriticalDays, getDangerTier } from "@/utils/dangerTiers";
 
 export interface BarangaySurveillanceDevice {
   id: string;
@@ -9,6 +10,7 @@ export interface BarangaySurveillanceDevice {
   location: string;
   status: "Online" | "Offline";
   count: number;
+  consecutiveCriticalDays: number;
   lastComm: string;
   lastSeenAt: string | null;
   battery: number;
@@ -273,7 +275,17 @@ export async function fetchBarangaySurveillanceData(
   const deviceIds = rawDevices.map((d) => d.id).filter(Boolean);
 
   let readings: any[] = [];
+  let criticalWindowReadings: Array<{
+    device_id: string;
+    captured_at: string | null;
+    created_at: string | null;
+    mosquito_count: number | null;
+  }> = [];
   if (deviceIds.length > 0) {
+    const criticalWindowStart = new Date();
+    criticalWindowStart.setUTCHours(0, 0, 0, 0);
+    criticalWindowStart.setUTCDate(criticalWindowStart.getUTCDate() - 2);
+
     const { data: readingsData, error: readingsError } = await supabase
       .from("ovitrap_readings")
       .select(
@@ -300,12 +312,22 @@ export async function fetchBarangaySurveillanceData(
     } else {
       readings = readingsData ?? [];
     }
+
+    const { data: criticalReadingsData, error: criticalReadingsError } = await supabase
+      .from("ovitrap_readings")
+      .select("device_id, captured_at, created_at, mosquito_count")
+      .in("device_id", deviceIds)
+      .gte("captured_at", criticalWindowStart.toISOString());
+
+    if (criticalReadingsError) {
+      console.error("Failed to fetch three-day risk readings:", criticalReadingsError);
+    } else {
+      criticalWindowReadings = criticalReadingsData ?? [];
+    }
   }
 
   // 8. Query latest risk_assessment from database for this barangay
   let latestAssessmentScore: number | null = null;
-  let latestAssessmentLevel: string | null = null;
-  let latestAssessmentColor: string | null = null;
   let latestAssessmentNotes: string | null = null;
 
   let riskQuery = supabase
@@ -316,14 +338,7 @@ export async function fetchBarangaySurveillanceData(
       calculated_score,
       assessment_notes,
       assessment_period_start,
-      assessment_period_end,
-      risk_level:risk_levels (
-        id,
-        level_name,
-        priority,
-        display_color,
-        description
-      )
+      assessment_period_end
     `
     )
     .order("assessment_period_end", { ascending: false })
@@ -340,12 +355,6 @@ export async function fetchBarangaySurveillanceData(
   if (riskData) {
     latestAssessmentScore = riskData.calculated_score;
     latestAssessmentNotes = riskData.assessment_notes;
-    const rawRLevel = (riskData as any).risk_level;
-    const rLevel = Array.isArray(rawRLevel) ? rawRLevel[0] : rawRLevel;
-    if (rLevel) {
-      latestAssessmentLevel = rLevel.level_name;
-      latestAssessmentColor = rLevel.display_color;
-    }
   }
 
   // 9. Query recent action_triage_log for this barangay from database
@@ -391,6 +400,8 @@ export async function fetchBarangaySurveillanceData(
     // 10. Process per-device telemetry and metrics
   const latestReadingsMap = new Map<string, any>();
   const todayReadingsMap = new Map<string, number>();
+  const dailyReadingsMap = new Map<string, Map<string, number>>();
+  const dailyTotalsMap = new Map<string, number>();
 
   const todayStartStr = new Date().toISOString().slice(0, 10);
 
@@ -399,11 +410,24 @@ export async function fetchBarangaySurveillanceData(
       latestReadingsMap.set(r.device_id, r);
     }
 
-    if (r.captured_at && r.captured_at.startsWith(todayStartStr)) {
+    const readingTime = r.captured_at || r.created_at;
+    if (readingTime && readingTime.startsWith(todayStartStr)) {
       const current = todayReadingsMap.get(r.device_id) ?? 0;
       const countVal = r.mosquito_count ?? 0;
       todayReadingsMap.set(r.device_id, current + countVal);
     }
+
+  }
+
+  for (const reading of criticalWindowReadings) {
+    const readingTime = reading.captured_at || reading.created_at;
+    if (!readingTime) continue;
+    const day = readingTime.slice(0, 10);
+    const count = reading.mosquito_count ?? 0;
+    const deviceDays = dailyReadingsMap.get(reading.device_id) ?? new Map<string, number>();
+    deviceDays.set(day, (deviceDays.get(day) ?? 0) + count);
+    dailyReadingsMap.set(reading.device_id, deviceDays);
+    dailyTotalsMap.set(day, (dailyTotalsMap.get(day) ?? 0) + count);
   }
 
   const validLats: number[] = [];
@@ -416,9 +440,14 @@ export async function fetchBarangaySurveillanceData(
     const statusName = rawStatus?.status_name ?? "Offline";
 
     const latestReading = latestReadingsMap.get(d.id);
-    const todayCountForDevice =
-      todayReadingsMap.get(d.id) ??
-      (latestReading?.mosquito_count ?? 0);
+    const todayCountForDevice = todayReadingsMap.get(d.id) ?? 0;
+    const consecutiveCriticalDays = getConsecutiveCriticalDays(
+      Array.from({ length: 3 }, (_, offset) => {
+        const day = new Date();
+        day.setUTCDate(day.getUTCDate() - offset);
+        return dailyReadingsMap.get(d.id)?.get(day.toISOString().slice(0, 10)) ?? 0;
+      }),
+    );
 
     const lastCommDate = latestReading?.captured_at || d.last_seen_at;
     let statusLabel: "Online" | "Offline" = "Offline";
@@ -460,10 +489,7 @@ export async function fetchBarangaySurveillanceData(
       lng = 0;
     }
 
-    let activityLevel: "Critical" | "High" | "Moderate" | "Low" = "Low";
-    if (todayCountForDevice >= 50) activityLevel = "Critical";
-    else if (todayCountForDevice >= 30) activityLevel = "High";
-    else if (todayCountForDevice >= 10) activityLevel = "Moderate";
+    const activityLevel = getDangerTier(todayCountForDevice, consecutiveCriticalDays);
 
     const rawBrgy = Array.isArray(d.barangays) ? d.barangays[0] : d.barangays;
     const brgyName = rawBrgy?.barangay_name ?? null;
@@ -475,6 +501,7 @@ export async function fetchBarangaySurveillanceData(
       location: d.description || d.notes || "Monitoring Station",
       status: statusLabel,
       count: todayCountForDevice,
+      consecutiveCriticalDays,
       lastComm: lastCommText,
       lastSeenAt: lastCommDate || null,
       battery: latestReading?.battery_level ?? 100,
@@ -584,48 +611,39 @@ export async function fetchBarangaySurveillanceData(
     (todayCount / (activeCount || 1)).toFixed(1)
   );
 
-  let riskLevel: "Critical Risk" | "High Risk" | "Moderate Risk" | "Low Risk" =
-    "Low Risk";
-  let riskColor = "#10b981";
-
-  if (latestAssessmentLevel) {
-    if (latestAssessmentLevel.toLowerCase().includes("critical")) {
-      riskLevel = "Critical Risk";
-      riskColor = latestAssessmentColor || "#f43f5e";
-    } else if (latestAssessmentLevel.toLowerCase().includes("high")) {
-      riskLevel = "High Risk";
-      riskColor = latestAssessmentColor || "#f97316";
-    } else if (latestAssessmentLevel.toLowerCase().includes("moderate") || latestAssessmentLevel.toLowerCase().includes("medium")) {
-      riskLevel = "Moderate Risk";
-      riskColor = latestAssessmentColor || "#f59e0b";
-    } else {
-      riskLevel = "Low Risk";
-      riskColor = latestAssessmentColor || "#10b981";
-    }
-  } else {
-    // Dynamic computation based on daily vector index
-    if (vectorIndex >= 25 || todayCount >= 80) {
-      riskLevel = "Critical Risk";
-      riskColor = "#f43f5e";
-    } else if (vectorIndex >= 18 || todayCount >= 50) {
-      riskLevel = "High Risk";
-      riskColor = "#f97316";
-    } else if (vectorIndex >= 10 || todayCount >= 20) {
-      riskLevel = "Moderate Risk";
-      riskColor = "#f59e0b";
-    }
-  }
+  const consecutiveCriticalDays = getConsecutiveCriticalDays(
+    Array.from({ length: 3 }, (_, offset) => {
+      const day = new Date();
+      day.setUTCDate(day.getUTCDate() - offset);
+      return (dailyTotalsMap.get(day.toISOString().slice(0, 10)) ?? 0) /
+        (activeCount || 1);
+    }),
+  );
+  const tier = getDangerTier(vectorIndex, consecutiveCriticalDays);
+  const riskLevel = `${tier} Risk` as
+    | "Critical Risk"
+    | "High Risk"
+    | "Moderate Risk"
+    | "Low Risk";
+  const riskColor =
+    tier === "Critical"
+      ? "#f43f5e"
+      : tier === "High"
+        ? "#f97316"
+        : tier === "Moderate"
+          ? "#f59e0b"
+          : "#10b981";
 
   let recommendation =
     latestAssessmentNotes ||
     "Mosquito population density is stable. Maintain standard routine surveillance.";
 
   if (!latestAssessmentNotes) {
-    if (riskLevel === "Critical Risk") {
+    if (tier === "Critical") {
       recommendation = `CRITICAL mosquito activity in ${barangayName}. Immediate targeted thermal fogging / misting and emergency community clean-up drive strongly advised.`;
-    } else if (riskLevel === "High Risk") {
+    } else if (tier === "High") {
       recommendation = `High mosquito proliferation detected across ${barangayName}. Dispatch field teams for standing water inspection and container abatement.`;
-    } else if (riskLevel === "Moderate Risk") {
+    } else if (tier === "Moderate") {
       recommendation = `Moderate oviposition activity detected in ${barangayName}. Inspect outdoor containers and public drainage areas near active traps.`;
     }
   }

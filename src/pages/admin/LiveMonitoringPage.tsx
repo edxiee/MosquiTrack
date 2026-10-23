@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice } from "@/types/device.types";
 import { ONLINE_THRESHOLD_MINUTES } from "@/utils/deviceHelpers";
+import { getConsecutiveCriticalDays, getDangerTier } from "@/utils/dangerTiers";
 
 import "leaflet/dist/leaflet.css";
 
@@ -59,12 +60,13 @@ function getConnectionStatus(lastSeenStr: string | null | undefined) {
   }
 }
 
-function getRiskClassification(count: number | null) {
+function getRiskClassification(count: number | null, consecutiveCriticalDays = 0) {
   if (count === null) return { label: "N/A", color: "text-slate-600", bg: "bg-slate-100 border-slate-200" };
-  if (count >= 100) return { label: "Red", color: "text-red-700", bg: "bg-red-100 border-red-200" };
-  if (count >= 50) return { label: "Orange", color: "text-orange-700", bg: "bg-orange-100 border-orange-200" };
-  if (count >= 20) return { label: "Yellow", color: "text-yellow-700", bg: "bg-yellow-100 border-yellow-200" };
-  return { label: "Green", color: "text-emerald-700", bg: "bg-emerald-100 border-emerald-200" };
+  const tier = getDangerTier(count, consecutiveCriticalDays);
+  if (tier === "Critical") return { label: tier, color: "text-rose-700", bg: "bg-rose-100 border-rose-200" };
+  if (tier === "High") return { label: tier, color: "text-orange-700", bg: "bg-orange-100 border-orange-200" };
+  if (tier === "Moderate") return { label: tier, color: "text-amber-700", bg: "bg-amber-100 border-amber-200" };
+  return { label: tier, color: "text-emerald-700", bg: "bg-emerald-100 border-emerald-200" };
 }
 
 const createCustomMarker = (status: ConnectionState) => {
@@ -129,6 +131,7 @@ export default function LiveMonitoringPage() {
     updated_at?: string | null;
   } | null>(null);
   const [deviceTodayCount, setDeviceTodayCount] = useState<number | null>(null);
+  const [deviceCriticalDays, setDeviceCriticalDays] = useState(0);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -195,6 +198,7 @@ export default function LiveMonitoringPage() {
       setLatestReading(null);
       setLatestBatteryReading(null);
       setDeviceTodayCount(null);
+      setDeviceCriticalDays(0);
       return;
     }
 
@@ -234,21 +238,31 @@ export default function LiveMonitoringPage() {
         );
 
         const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        todayStart.setUTCHours(0, 0, 0, 0);
+        const threeDayStart = new Date(todayStart);
+        threeDayStart.setUTCDate(threeDayStart.getUTCDate() - 2);
 
-        const { data: todayReadings } = await supabase
+        const { data: recentReadings } = await supabase
           .from("ovitrap_readings")
-          .select("mosquito_count")
+          .select("mosquito_count, captured_at, created_at")
           .eq("device_id", selectedDevice!.id)
-          .gte("captured_at", todayStart.toISOString());
+          .gte("captured_at", threeDayStart.toISOString());
 
         if (!isMounted) return;
-        if (todayReadings && todayReadings.length > 0) {
-          const sum = todayReadings.reduce((acc, r: any) => acc + (r.mosquito_count ?? 0), 0);
-          setDeviceTodayCount(sum);
-        } else {
-          setDeviceTodayCount(0);
+        const dailyCounts = new Map<string, number>();
+        for (const reading of recentReadings ?? []) {
+          const timestamp = reading.captured_at || reading.created_at;
+          if (!timestamp) continue;
+          const day = timestamp.slice(0, 10);
+          dailyCounts.set(day, (dailyCounts.get(day) ?? 0) + (reading.mosquito_count ?? 0));
         }
+        const days = Array.from({ length: 3 }, (_, offset) => {
+          const day = new Date(todayStart);
+          day.setUTCDate(day.getUTCDate() - offset);
+          return dailyCounts.get(day.toISOString().slice(0, 10)) ?? 0;
+        });
+        setDeviceTodayCount(days[0] ?? 0);
+        setDeviceCriticalDays(getConsecutiveCriticalDays(days));
       } catch (err) {
         console.error("Failed to fetch device telemetry:", err);
       }
@@ -705,10 +719,10 @@ export default function LiveMonitoringPage() {
                               {formatTimeAgo(latestReading?.captured_at)}
                             </p>
                           </div>
-                          <div className={`rounded-lg border p-4 text-center ${getRiskClassification(deviceTodayCount).bg}`}>
+                          <div className={`rounded-lg border p-4 text-center ${getRiskClassification(deviceTodayCount, deviceCriticalDays).bg}`}>
                             <p className="text-xs font-medium text-slate-500 opacity-80">Risk Classification</p>
-                            <p className={`text-xl font-bold mt-1 ${getRiskClassification(deviceTodayCount).color}`}>
-                              {getRiskClassification(deviceTodayCount).label}
+                            <p className={`text-xl font-bold mt-1 ${getRiskClassification(deviceTodayCount, deviceCriticalDays).color}`}>
+                              {getRiskClassification(deviceTodayCount, deviceCriticalDays).label}
                             </p>
                           </div>
                         </div>

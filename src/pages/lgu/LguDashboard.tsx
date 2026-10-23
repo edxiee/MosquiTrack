@@ -455,7 +455,10 @@ export default function LguDashboard() {
         <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle>Risk level distribution</CardTitle>
-            <CardDescription>Latest assessment per barangay.</CardDescription>
+            <CardDescription>
+              Latest saved assessment per barangay; numeric cutoffs are set by
+              the assessment, not shared across count-based risk tiers.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
             {(["red", "orange", "yellow", "green"] as const).map((tier) => {

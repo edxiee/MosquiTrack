@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice, DeviceStatus, Barangay, UserName } from "@/types/device.types";
+import { getConsecutiveCriticalDays } from "@/utils/dangerTiers";
 
 export async function fetchDevices(): Promise<OvitrapDevice[]> {
   let { data: devicesData, error: devicesError } = await supabase
@@ -102,6 +103,7 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
   const latestCountMap = new Map<string, number | null>();
   const todayStartStr = new Date().toISOString().split("T")[0];
   const todayCountMap = new Map<string, number>();
+  const dailyCountMap = new Map<string, Map<string, number>>();
 
   if (readingsRes.data) {
     for (const r of readingsRes.data) {
@@ -117,6 +119,11 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
         const cur = todayCountMap.get(r.device_id) ?? 0;
         todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
       }
+
+      const day = time.slice(0, 10);
+      const deviceDays = dailyCountMap.get(r.device_id) ?? new Map<string, number>();
+      deviceDays.set(day, (deviceDays.get(day) ?? 0) + (r.mosquito_count ?? 0));
+      dailyCountMap.set(r.device_id, deviceDays);
     }
   }
 
@@ -154,6 +161,13 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
       last_seen_at: latestTimestamp,
       latest_mosquito_count: displayCount,
       today_mosquito_count: todayCount ?? 0,
+      consecutive_critical_days: getConsecutiveCriticalDays(
+        Array.from({ length: 3 }, (_, offset) => {
+          const day = new Date();
+          day.setUTCDate(day.getUTCDate() - offset);
+          return dailyCountMap.get(d.id)?.get(day.toISOString().slice(0, 10)) ?? 0;
+        }),
+      ),
       device_statuses: statusObj
         ? { ...statusObj, status_name: computedStatusName }
         : { id: "unknown", status_name: computedStatusName, description: null },
@@ -466,6 +480,7 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
   const latestCountMap = new Map<string, number | null>();
   const todayStartStr = new Date().toISOString().split("T")[0];
   const todayCountMap = new Map<string, number>();
+  const dailyCountMap = new Map<string, Map<string, number>>();
 
   if (readingsRes.data) {
     for (const r of readingsRes.data) {
@@ -481,6 +496,11 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
         const cur = todayCountMap.get(r.device_id) ?? 0;
         todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
       }
+
+      const day = time.slice(0, 10);
+      const deviceDays = dailyCountMap.get(r.device_id) ?? new Map<string, number>();
+      deviceDays.set(day, (deviceDays.get(day) ?? 0) + (r.mosquito_count ?? 0));
+      dailyCountMap.set(r.device_id, deviceDays);
     }
   }
 
@@ -518,6 +538,13 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
       last_seen_at: latestTimestamp,
       latest_mosquito_count: displayCount,
       today_mosquito_count: todayCount ?? 0,
+      consecutive_critical_days: getConsecutiveCriticalDays(
+        Array.from({ length: 3 }, (_, offset) => {
+          const day = new Date();
+          day.setUTCDate(day.getUTCDate() - offset);
+          return dailyCountMap.get(d.id)?.get(day.toISOString().slice(0, 10)) ?? 0;
+        }),
+      ),
       device_statuses: statusObj
         ? { ...statusObj, status_name: computedStatusName }
         : { id: "unknown", status_name: computedStatusName, description: null },

@@ -36,6 +36,7 @@ export interface OvitrapDevice {
   users: UserName | null;
   latest_mosquito_count?: number | null;
   today_mosquito_count?: number | null;
+  consecutive_critical_days?: number;
   operational_status?: "Deployed" | "Pending" | "In Storage" | string;
   status?: "Active" | "Online" | "Offline" | "Maintenance" | string | null;
 }
