@@ -280,7 +280,7 @@ export default function HardwareNodesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Trap Overview
+            Trap Deployment
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Monitor deployed hardware nodes, manage storage inventory, and track pending requests.
