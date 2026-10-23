@@ -54,8 +54,9 @@ function Badge({
 }
 
 function formatDate(d: string | null) {
-  return d
-    ? new Date(d).toLocaleDateString(undefined, {
+  const date = d ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString(undefined, {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -100,7 +101,8 @@ export default function TriageTable({
               <TableHead className="text-xs uppercase tracking-wide">Location</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Priority</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
-              <TableHead className="text-xs uppercase tracking-wide">Schedule</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Posted</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Due</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Requested By</TableHead>
               <TableHead className="text-right text-xs uppercase tracking-wide">
                 Actions
@@ -110,7 +112,7 @@ export default function TriageTable({
           <TableBody>
             {actions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-16">
+                <TableCell colSpan={8} className="py-16">
                   <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
                     <div className="rounded-full bg-slate-100 p-4">
                       <Inbox className="h-7 w-7" />
@@ -179,7 +181,13 @@ export default function TriageTable({
                     <TableCell className="text-sm text-slate-700">
                       <span className="flex items-center gap-1.5">
                         <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
-                        {formatDate(action.assignedDate)}
+                        {formatDate(action.createdAt)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-700">
+                      <span className="flex items-center gap-1.5">
+                        <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
+                        {formatDate(action.dueDate)}
                       </span>
                     </TableCell>
                     <TableCell>

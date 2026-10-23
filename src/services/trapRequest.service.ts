@@ -85,6 +85,7 @@ export interface TriageLogRow {
   priority: string;
   status: string;
   remarks: string | null;
+  due_date: string | null;
   created_at: string;
   updated_at: string | null;
   barangay_name: string | null;
@@ -93,7 +94,7 @@ export interface TriageLogRow {
 export async function fetchMySubmittedTriageLogs(userId: string): Promise<TriageLogRow[]> {
   const { data: logs, error } = await supabase
     .from("action_triage_log")
-    .select("id, trigger_source, priority, status, remarks, created_at, updated_at, barangays(barangay_name)")
+    .select("id, trigger_source, priority, status, remarks, due_date, created_at, updated_at, barangays(barangay_name)")
     .eq("created_by", userId)
     .order("created_at", { ascending: false });
 
@@ -105,8 +106,39 @@ export async function fetchMySubmittedTriageLogs(userId: string): Promise<Triage
     priority: log.priority,
     status: log.status,
     remarks: log.remarks,
+    due_date: log.due_date,
     created_at: log.created_at,
     updated_at: log.updated_at,
     barangay_name: log.barangays?.barangay_name || null,
   }));
+}
+
+export interface TrapActionLogEntry {
+  id: string;
+  trigger_source: string;
+  priority: string;
+  status: string;
+  remarks: string | null;
+  due_date: string | null;
+  created_at: string;
+}
+
+export async function fetchTriageRequestsByDevice(
+  barangayId: string | null,
+  deviceCode: string,
+): Promise<TrapActionLogEntry[]> {
+  if (!barangayId) return [];
+
+  const { data, error } = await supabase
+    .from("action_triage_log")
+    .select("id, trigger_source, priority, status, remarks, due_date, created_at")
+    .eq("barangay_id", barangayId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const trapRemark = `Trap: ${deviceCode}`;
+  return ((data ?? []) as TrapActionLogEntry[]).filter((entry) =>
+    entry.remarks?.split(" | ").includes(trapRemark),
+  );
 }

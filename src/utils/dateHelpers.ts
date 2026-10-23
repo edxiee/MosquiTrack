@@ -21,6 +21,16 @@ export function formatTelemetryTimestamp(
   });
 }
 
+export function getLocalDateKey(date: Date = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function isSameLocalDay(timestamp: string, date: Date = new Date()): boolean {
+  const parsed = new Date(timestamp);
+  return !Number.isNaN(parsed.getTime()) && getLocalDateKey(parsed) === getLocalDateKey(date);
+}
+
 /** Formats ISO timestamp string into compact YYYY-MM-DD HH:mm:ss format */
 export function formatTimestampCompact(
   dateStr: string | null | undefined

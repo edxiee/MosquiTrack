@@ -29,6 +29,7 @@ import { SuccessModal } from "@/components/reports/modals/SuccessModal";
 import { ErrorModal } from "@/components/reports/modals/ErrorModal";
 import TrapReportDropdown, { getTrapDangerLevel } from "@/components/lgu/TrapReportDropdown";
 import { getDangerTier } from "@/utils/dangerTiers";
+import { getLocalDateKey } from "@/utils/dateHelpers";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -70,6 +71,7 @@ interface RequestActionModalProps {
     notes: string;
     requestType: RequestType;
     priority: PriorityType;
+    dueDate: string;
   }) => Promise<void>;
 }
 
@@ -78,6 +80,7 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
   const [notes, setNotes] = useState("");
   const [requestType, setRequestType] = useState<RequestType | "">("");
   const [priority, setPriority] = useState<PriorityType | "">("");
+  const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,6 +89,7 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
       setDescription(device.description || device.notes || "");
       setNotes("");
       setRequestType("");
+      setDueDate(getLocalDateKey());
       const tier = getDangerTier(
         device.today_mosquito_count,
         device.consecutive_critical_days,
@@ -111,6 +115,7 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
         notes: notes.trim(),
         requestType,
         priority: priority as PriorityType,
+        dueDate,
       });
       onClose();
     } catch (err: unknown) {
@@ -155,6 +160,10 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
             </select>
           </div>
           <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-600">Due Date <span className="text-rose-500">*</span></Label>
+            <Input type="date" value={dueDate} min={getLocalDateKey()} onChange={(e) => setDueDate(e.target.value)} className="h-9 text-sm" required />
+          </div>
+          <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-slate-600">Description</Label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe the situation or observation" className="h-9 text-sm" />
           </div>
@@ -164,7 +173,7 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={saving} className="h-9 px-4 text-sm">Cancel</Button>
-            <Button type="submit" disabled={saving || !requestType} className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium gap-1.5">
+            <Button type="submit" disabled={saving || !requestType || !priority || !dueDate} className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium gap-1.5">
               {saving ? (<><Loader2 className="w-4 h-4 animate-spin" />Submitting…</>) : (<><Send className="w-4 h-4" />Submit Request</>)}
             </Button>
           </div>
@@ -270,6 +279,7 @@ export default function PrescriptiveAnalyticsPage() {
     notes: string;
     requestType: RequestType;
     priority: PriorityType;
+    dueDate: string;
   }) => {
     try {
       if (!payload.barangayId) {
@@ -286,6 +296,7 @@ export default function PrescriptiveAnalyticsPage() {
         triggerSource: payload.requestType,
         priority: payload.priority,
         remarks: combinedRemarks,
+        dueDate: payload.dueDate,
       });
 
       setLastRequestType(payload.requestType);
@@ -521,6 +532,7 @@ export default function PrescriptiveAnalyticsPage() {
                   <th className="text-left font-semibold text-slate-600 px-5 py-3">Request Type & Remarks</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Location</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Date Submitted</th>
+                  <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Due Date</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Status</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Last Updated</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Action</th>
@@ -541,6 +553,7 @@ export default function PrescriptiveAnalyticsPage() {
                       </td>
                       <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap text-xs">{row.barangay_name || "—"}</td>
                       <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap text-xs">{new Date(row.created_at).toLocaleDateString()}</td>
+                      <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap text-xs">{row.due_date ? new Date(`${row.due_date}T00:00:00`).toLocaleDateString() : "—"}</td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         {row.status === "Completed" ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -615,6 +628,10 @@ export default function PrescriptiveAnalyticsPage() {
               <div className="flex justify-between py-2 border-b border-slate-100">
                 <span className="text-slate-500">Status</span>
                 <span className="font-medium text-slate-900">{selectedMyRequest.status}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-slate-100">
+                <span className="text-slate-500">Due Date</span>
+                <span className="font-medium text-slate-900">{selectedMyRequest.due_date ? new Date(`${selectedMyRequest.due_date}T00:00:00`).toLocaleDateString() : "—"}</span>
               </div>
               <div className="py-2">
                 <span className="text-slate-500 block mb-1">Remarks:</span>

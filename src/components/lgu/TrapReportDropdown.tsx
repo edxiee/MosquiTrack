@@ -38,9 +38,11 @@ import {
 } from "@/services/telemetry.service";
 import {
   fetchTrapRequestsByDevice,
+  fetchTriageRequestsByDevice,
   type TrapRequest,
+  type TrapActionLogEntry,
 } from "@/services/trapRequest.service";
-import { formatRelativeTime, formatTelemetryTimestamp } from "@/utils/dateHelpers";
+import { formatRelativeTime, formatTelemetryTimestamp, isSameLocalDay } from "@/utils/dateHelpers";
 import { cn } from "@/lib/utils";
 import { getDangerTier } from "@/utils/dangerTiers";
 import { supabase } from "@/lib/supabase";
@@ -173,6 +175,7 @@ export default function TrapReportDropdown({
 }: TrapReportDropdownProps) {
   const [readings, setReadings] = useState<DeviceReadingSummary[]>([]);
   const [requests, setRequests] = useState<TrapRequest[]>([]);
+  const [triageRequests, setTriageRequests] = useState<TrapActionLogEntry[]>([]);
   const [mosquitoStats, setMosquitoStats] = useState<DeviceMosquitoStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"reports" | "actions" | "specs">("reports");
@@ -183,13 +186,15 @@ export default function TrapReportDropdown({
     setLoading(true);
     setError(null);
     try {
-      const [readingsData, requestsData, statsData] = await Promise.all([
+      const [readingsData, requestsData, triageRequestsData, statsData] = await Promise.all([
         getDeviceReadings(device.id, 50),
         fetchTrapRequestsByDevice(device.id),
+        fetchTriageRequestsByDevice(device.barangay_id, device.device_code),
         getDeviceMosquitoStats(device.id),
       ]);
       setReadings(readingsData);
       setRequests(requestsData);
+      setTriageRequests(triageRequestsData);
       setMosquitoStats(statsData);
     } catch (err) {
       console.error(`Failed to load reports for trap ${device.device_code}:`, err);
@@ -229,45 +234,44 @@ export default function TrapReportDropdown({
           loadTrapData();
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "action_triage_log",
+          ...(device.barangay_id ? { filter: `barangay_id=eq.${device.barangay_id}` } : {}),
+        },
+        () => {
+          loadTrapData();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [device.id]);
+  }, [device.id, device.barangay_id, device.device_code]);
 
   const latestReading = readings[0] ?? null;
 
   // Calculate Today's Cumulative Mosquito Count from ovitrap_readings
-  const todayDateStr = new Date().toISOString().slice(0, 10);
   const todayReadings = readings.filter((r) =>
-    Boolean(r.captured_at?.startsWith(todayDateStr) || r.created_at?.startsWith(todayDateStr))
+    isSameLocalDay(r.captured_at || r.created_at || "")
   );
   const fallbackTodaySum = todayReadings.reduce(
     (acc, r) => acc + (r.mosquito_count ?? 0),
     0
   );
-  const fallbackAllTimeSum = readings.reduce(
-    (acc, r) => acc + (r.mosquito_count ?? 0),
-    0
-  );
-
-  const effectiveTodaySum = mosquitoStats ? mosquitoStats.todaySum : fallbackTodaySum;
-  const effectiveAllTimeSum = mosquitoStats ? mosquitoStats.allTimeSum : fallbackAllTimeSum;
   const effectiveTodayPings = mosquitoStats ? mosquitoStats.todayPingsCount : todayReadings.length;
 
   // The primary count to display: today's sum from ovitrap_readings (or device today/latest count fallback)
-  const displayMosquitoCount =
-    effectiveTodaySum > 0
-      ? effectiveTodaySum
-      : (device.today_mosquito_count && device.today_mosquito_count > 0
-          ? device.today_mosquito_count
-          : (device.latest_mosquito_count && device.latest_mosquito_count > 0
-              ? device.latest_mosquito_count
-              : (effectiveAllTimeSum > 0 ? effectiveAllTimeSum : latestReading?.mosquito_count ?? 0)));
+  const displayMosquitoCount = mosquitoStats
+    ? mosquitoStats.todaySum
+    : device.today_mosquito_count ?? fallbackTodaySum;
 
   const danger = getTrapDangerLevel(
-    effectiveTodaySum || device.today_mosquito_count || 0,
+    displayMosquitoCount,
     device.consecutive_critical_days,
   );
 
@@ -322,6 +326,29 @@ export default function TrapReportDropdown({
     const counts = readings.map((r) => r.mosquito_count ?? 0);
     return Math.max(1, ...counts);
   }, [readings]);
+
+  const requestLogEntries = useMemo(() => [
+    ...requests.map((request) => ({
+      id: request.req_id,
+      type: request.request,
+      priority: null as string | null,
+      status: request.status || "Pending",
+      created_at: request.created_at,
+      due_date: request.due_date,
+      details: [request.descriptions, request.notes, request.remarks]
+        .filter(Boolean)
+        .join(" | "),
+    })),
+    ...triageRequests.map((request) => ({
+      id: request.id,
+      type: request.trigger_source,
+      priority: request.priority,
+      status: request.status,
+      created_at: request.created_at,
+      due_date: request.due_date,
+      details: request.remarks?.split(" | ").slice(1).join(" | ") ?? "",
+    })),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [requests, triageRequests]);
 
   const hasLocation = device.latitude != null && device.longitude != null;
 
@@ -440,7 +467,7 @@ export default function TrapReportDropdown({
           <Send className="size-3.5" />
           <span>Trap Request Log</span>
           <span className="rounded-full bg-slate-200/70 px-1.5 py-0.2 text-[10px] text-slate-700 font-bold">
-            {requests.length}
+            {requestLogEntries.length}
           </span>
         </button>
 
@@ -783,7 +810,7 @@ export default function TrapReportDropdown({
                 />
               ))}
             </div>
-          ) : requests.length === 0 ? (
+          ) : requestLogEntries.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
               <p className="text-sm font-medium text-slate-700">
                 No action requests currently logged for this trap.
@@ -805,13 +832,14 @@ export default function TrapReportDropdown({
               <div className="bg-slate-50/80 px-4 py-2.5 border-b border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
                 <span>Field Requests for {device.device_code}</span>
                 <span className="text-[11px] font-normal text-slate-500">
-                  from request_actions
+                  Pickup, deployment, and field action requests
                 </span>
               </div>
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
                   <tr>
                     <th className="text-left font-semibold px-4 py-2.5">Request Type</th>
+                    <th className="text-left font-semibold px-4 py-2.5">Priority</th>
                     <th className="text-left font-semibold px-4 py-2.5">Status</th>
                     <th className="text-left font-semibold px-4 py-2.5">Date Requested</th>
                     <th className="text-left font-semibold px-4 py-2.5">Due Date</th>
@@ -819,20 +847,23 @@ export default function TrapReportDropdown({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {requests.map((act) => (
-                    <tr key={act.req_id} className="hover:bg-slate-50/80">
+                  {requestLogEntries.map((act) => (
+                    <tr key={act.id} className="hover:bg-slate-50/80">
                       <td className="px-4 py-2.5 font-semibold text-slate-900">
-                        {act.request}
+                        {act.type}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-600">
+                        {act.priority ?? "—"}
                       </td>
                       <td className="px-4 py-2.5">
                         <span
                           className={cn(
                             "inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold border",
-                            ACTION_STATUS_BADGES[act.status || "Pending"] ||
+                            ACTION_STATUS_BADGES[act.status] ||
                               "bg-slate-100 text-slate-600 border-slate-200"
                           )}
                         >
-                          {act.status || "Pending"}
+                          {act.status}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-slate-600 font-mono">
@@ -842,9 +873,7 @@ export default function TrapReportDropdown({
                         {act.due_date || "—"}
                       </td>
                       <td className="px-4 py-2.5 text-slate-700 max-w-xs break-words">
-                        {[act.descriptions, act.notes, act.remarks]
-                          .filter(Boolean)
-                          .join(" | ") || "—"}
+                        {act.details || "—"}
                       </td>
                     </tr>
                   ))}
