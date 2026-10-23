@@ -19,7 +19,6 @@ import {
   Compass,
   Loader2,
   MapPin,
-  RefreshCw,
   Search,
   ShieldAlert,
   Thermometer,
@@ -119,14 +118,11 @@ const createCustomMarker = (activity: string) => {
 };
 
 export default function BarangaySurveillancePage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const viewId = searchParams.get("viewId");
-  const urlBarangayId = searchParams.get("barangayId");
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
+  const hasAppliedViewId = useRef(false);
 
-  const [selectedBarangayId, setSelectedBarangayId] = useState<string>(
-    urlBarangayId || ""
-  );
   const [data, setData] = useState<BarangaySurveillanceData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,22 +141,17 @@ export default function BarangaySurveillancePage() {
   const loadData = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetchBarangaySurveillanceData(
-        selectedBarangayId || undefined
-      );
+      const res = await fetchBarangaySurveillanceData();
       setData(res);
 
-      if (!selectedBarangayId && res.barangayId) {
-        setSelectedBarangayId(res.barangayId);
-      }
-
-      // Check URL query param ?viewId=...
-      if (viewId) {
+      // Check URL query param ?viewId=... on initial load
+      if (viewId && !hasAppliedViewId.current) {
         const trapFromUrl =
           res.traps.find((t) => t.id === viewId) ||
           res.traps.find((t) => t.device_code === viewId);
 
         if (trapFromUrl) {
+          hasAppliedViewId.current = true;
           setSelectedTrap(trapFromUrl);
           setTimeout(() => {
             const marker = markerRefs.current[trapFromUrl.id];
@@ -170,7 +161,7 @@ export default function BarangaySurveillancePage() {
         }
       }
 
-      // Fallback selection
+      // Update currently selected trap in place or fallback to first valid trap
       setSelectedTrap((prev) => {
         const next =
           prev && res.traps.find((t) => t.id === prev.id)
@@ -187,7 +178,7 @@ export default function BarangaySurveillancePage() {
     } finally {
       setLoading(false);
     }
-  }, [viewId, selectedBarangayId]);
+  }, [viewId]);
 
   useEffect(() => {
     loadData();
@@ -220,20 +211,27 @@ export default function BarangaySurveillancePage() {
       )
       .subscribe();
 
+    // 5-second automatic heartbeat polling so traps transitioning online/offline
+    // (including 16-minute timeout expiration) update automatically without reload
+    const pollInterval = setInterval(() => {
+      loadData();
+    }, 5000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadData();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       supabase.removeChannel(readingsSub);
       supabase.removeChannel(devicesSub);
       supabase.removeChannel(actionsSub);
+      clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [loadData]);
-
-  const handleBarangayChange = (newBarangayId: string) => {
-    setSelectedBarangayId(newBarangayId);
-    setSearchParams((prev) => {
-      prev.set("barangayId", newBarangayId);
-      return prev;
-    });
-  };
 
   // Filter strictly to DEPLOYED traps
   const deployedTraps = useMemo(() => {
@@ -304,7 +302,6 @@ export default function BarangaySurveillancePage() {
   const barangayName = data?.barangayName ?? "Barangay Surveillance";
   const municipality = data?.municipality ?? "";
   const province = data?.province ?? "";
-  const availableBarangays = data?.availableBarangays ?? [];
   const barangayCenter = data?.barangayCenter ?? { lat: 14.561, lng: 121.118 };
 
   return (
@@ -338,7 +335,7 @@ export default function BarangaySurveillancePage() {
 
         <div className="flex items-center gap-2.5">
           {/* Online Traps Pill */}
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
             <span
               className={cn(
                 "flex h-2 w-2 rounded-full",
@@ -349,36 +346,6 @@ export default function BarangaySurveillancePage() {
             />
             <span>{onlineCount} Online</span>
           </div>
-
-          {availableBarangays.length > 1 && (
-            <select
-              value={selectedBarangayId}
-              onChange={(e) => handleBarangayChange(e.target.value)}
-              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              {availableBarangays.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.barangay_name} {b.municipality ? `(${b.municipality})` : ""}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadData}
-            disabled={loading}
-            className="h-9 px-3 text-xs font-medium border-slate-200 hover:bg-slate-50 gap-1.5"
-            title="Refresh database records"
-          >
-            <RefreshCw
-              className={`size-3.5 text-slate-600 ${
-                loading ? "animate-spin" : ""
-              }`}
-            />
-            <span className="hidden md:inline">Sync</span>
-          </Button>
         </div>
       </div>
 

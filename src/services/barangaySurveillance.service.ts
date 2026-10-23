@@ -397,7 +397,7 @@ export async function fetchBarangaySurveillanceData(
     });
   }
 
-    // 10. Process per-device telemetry and metrics
+  // 10. Process per-device telemetry and metrics
   const latestReadingsMap = new Map<string, any>();
   const todayReadingsMap = new Map<string, number>();
   const dailyReadingsMap = new Map<string, Map<string, number>>();
@@ -406,17 +406,26 @@ export async function fetchBarangaySurveillanceData(
   const todayStartStr = new Date().toISOString().slice(0, 10);
 
   for (const r of readings) {
-    if (!latestReadingsMap.has(r.device_id)) {
+    const readingTime = r.captured_at || r.created_at;
+    const existing = latestReadingsMap.get(r.device_id);
+    const existingTime = existing
+      ? existing.captured_at || existing.created_at
+      : null;
+
+    if (
+      !existing ||
+      (readingTime &&
+        (!existingTime ||
+          new Date(readingTime).getTime() > new Date(existingTime).getTime()))
+    ) {
       latestReadingsMap.set(r.device_id, r);
     }
 
-    const readingTime = r.captured_at || r.created_at;
     if (readingTime && readingTime.startsWith(todayStartStr)) {
       const current = todayReadingsMap.get(r.device_id) ?? 0;
       const countVal = r.mosquito_count ?? 0;
       todayReadingsMap.set(r.device_id, current + countVal);
     }
-
   }
 
   for (const reading of criticalWindowReadings) {
@@ -449,7 +458,17 @@ export async function fetchBarangaySurveillanceData(
       }),
     );
 
-    const lastCommDate = latestReading?.captured_at || d.last_seen_at;
+    const readingCommDate =
+      latestReading?.captured_at || latestReading?.created_at || null;
+    const deviceSeenDate = d.last_seen_at || null;
+    let lastCommDate: string | null = readingCommDate || deviceSeenDate;
+    if (readingCommDate && deviceSeenDate) {
+      lastCommDate =
+        new Date(deviceSeenDate).getTime() > new Date(readingCommDate).getTime()
+          ? deviceSeenDate
+          : readingCommDate;
+    }
+
     let statusLabel: "Online" | "Offline" = "Offline";
     let lastCommText = "Never Connected";
 
@@ -701,5 +720,4 @@ export async function submitTriageRequest(payload: {
     throw error;
   }
   dispatchTriageStatusChange("new", "Pending");
-  }
-
+}
