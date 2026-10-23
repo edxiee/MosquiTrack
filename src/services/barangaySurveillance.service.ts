@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
-import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
+import { formatTelemetryTimestamp, getLocalDateKey } from "@/utils/dateHelpers";
 import { getConsecutiveCriticalDays, getDangerTier } from "@/utils/dangerTiers";
 
 export interface BarangaySurveillanceDevice {
@@ -677,12 +677,13 @@ export async function submitTriageRequest(payload: {
   triggerSource: string;
   priority: "Low" | "Medium" | "High" | "Critical";
   remarks: string;
+  dueDate: string;
 }): Promise<void> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateKey();
 
   const { error } = await supabase.from("action_triage_log").insert({
     barangay_id: payload.barangayId,
@@ -690,6 +691,7 @@ export async function submitTriageRequest(payload: {
     priority: payload.priority,
     status: "Pending",
     assigned_date: todayStr,
+    due_date: payload.dueDate,
     remarks: payload.remarks,
     created_by: user?.id || null,
   } as any);

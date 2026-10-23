@@ -101,6 +101,18 @@ export default function ActionTriageLogPage() {
 
   const filteredActions = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
+    const statusOrder: Record<string, number> = {
+      Pending: 0,
+      "In Progress": 1,
+      Cancelled: 2,
+      Completed: 3,
+    };
+    const priorityOrder: Record<string, number> = {
+      Critical: 0,
+      High: 1,
+      Medium: 2,
+      Low: 3,
+    };
     return actions.filter((a) => {
       const matchesSearch =
         q === "" ||
@@ -127,7 +139,12 @@ export default function ActionTriageLogPage() {
         matchesFrom &&
         matchesTo
       );
-    });
+    }).sort((a, b) =>
+      (statusOrder[a.status] ?? Number.MAX_SAFE_INTEGER) -
+        (statusOrder[b.status] ?? Number.MAX_SAFE_INTEGER) ||
+      (priorityOrder[a.priority] ?? Number.MAX_SAFE_INTEGER) -
+        (priorityOrder[b.priority] ?? Number.MAX_SAFE_INTEGER),
+    );
   }, [actions, filters]);
 
   const stats = useMemo(

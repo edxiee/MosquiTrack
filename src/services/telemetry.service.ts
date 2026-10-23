@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { TelemetryReading } from "@/types/telemetry.types";
+import { isSameLocalDay } from "@/utils/dateHelpers";
 
 // Raw shape as it comes back from Supabase before flattening the joins
 interface RawReadingRow {
@@ -155,8 +156,6 @@ export async function getDeviceMosquitoStats(
   }
 
   const readings = data ?? [];
-  const todayDateStr = new Date().toISOString().slice(0, 10);
-
   let todaySum = 0;
   let todayPingsCount = 0;
   let allTimeSum = 0;
@@ -167,7 +166,7 @@ export async function getDeviceMosquitoStats(
     const count = r.mosquito_count ?? 0;
     allTimeSum += count;
 
-    if (time.startsWith(todayDateStr)) {
+    if (isSameLocalDay(time)) {
       todaySum += count;
       todayPingsCount++;
     }
