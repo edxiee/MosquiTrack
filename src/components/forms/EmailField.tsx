@@ -20,10 +20,12 @@ export default function EmailField({
         Email Address
       </Label>
       <div className="relative">
-        <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+        <Mail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
         <Input
           id="email"
           type="email"
+          autoComplete="username"
+          spellCheck={false}
           placeholder="name@example.com"
           className="h-12 text-base pl-12"
           {...register("email")}

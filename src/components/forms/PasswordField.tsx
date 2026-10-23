@@ -2,7 +2,6 @@
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { useState } from "react";
 import type { FieldError, UseFormRegister } from "react-hook-form";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { LoginSchema } from "@/schemas/login.schema";
@@ -24,28 +23,28 @@ export default function PasswordField({
         Password
       </Label>
       <div className="relative">
-        <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+        <Lock className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
         <Input
           id="password"
           type={showPassword ? "text" : "password"}
+          autoComplete="current-password"
           placeholder="••••••••"
-          className="h-12 text-base pl-12 pr-12"
+          className="h-12 pl-12 pr-12 text-base [&::-ms-clear]:hidden [&::-ms-reveal]:hidden"
           {...register("password")}
         />
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon"
-          className="absolute right-2 top-1/2 h-10 w-10 -translate-y-1/2 text-slate-500 hover:text-slate-900"
+          className="absolute right-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           onClick={() => setShowPassword((prev) => !prev)}
           aria-label={showPassword ? "Hide password" : "Show password"}
+          aria-pressed={showPassword}
         >
           {showPassword ? (
-            <EyeOff className="h-5 w-5" />
+            <EyeOff className="size-5" />
           ) : (
-            <Eye className="h-5 w-5" />
+            <Eye className="size-5" />
           )}
-        </Button>
+        </button>
       </div>
       {error && (
         <p className="text-sm text-destructive">

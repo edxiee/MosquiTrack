@@ -107,10 +107,11 @@
   }
 
   body {
-  @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground font-sans antialiased;
   }
 
-  body {
-  @apply bg-background text-foreground font-sans antialiased;
-}
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
 }
