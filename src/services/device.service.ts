@@ -728,3 +728,17 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
     };
   }) as unknown as OvitrapDevice[];
 }
+
+
+export async function deleteDevice(deviceId: string): Promise<void> {
+  // Clean up dependent records first in case foreign keys do not cascade
+  await supabase.from("ovitrap_readings").delete().eq("device_id", deviceId);
+  await supabase.from("request_actions").delete().eq("device_id", deviceId);
+
+  const { error } = await supabase
+    .from("ovitrap_devices")
+    .delete()
+    .eq("id", deviceId);
+
+  if (error) throw error;
+}

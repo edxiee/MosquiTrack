@@ -11,6 +11,9 @@ import {
   Check,
   CheckCircle2,
   Search,
+  Trash2,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/utils/navigation";
@@ -19,6 +22,7 @@ import {
   fetchDevices,
   fetchStatuses,
   fetchBarangays,
+  deleteDevice,
 } from "@/services/device.service";
 import { formatDeployedBy } from "@/utils/deviceHelpers";
 import type { OvitrapDevice, DeviceStatus, Barangay } from "@/types/device.types";
@@ -41,6 +45,13 @@ export default function NodeProvisioningPage() {
   const [editingDevice, setEditingDevice] = useState<OvitrapDevice | null>(
     null
   );
+
+  // Delete confirmation modal state
+  const [deletingDevice, setDeletingDevice] = useState<OvitrapDevice | null>(
+    null
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Clipboard copy state & Toast
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -135,29 +146,61 @@ export default function NodeProvisioningPage() {
     setModalOpen(true);
   };
 
+  const openDeleteConfirm = (device: OvitrapDevice) => {
+    setDeleteError(null);
+    setDeletingDevice(device);
+  };
+
+  const closeDeleteConfirm = () => {
+    if (isDeleting) return;
+    setDeletingDevice(null);
+    setDeleteError(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingDevice) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    const targetCode = deletingDevice.device_code;
+    const targetId = deletingDevice.id;
+
+    try {
+      await deleteDevice(targetId);
+      setDevices((prev) => prev.filter((d) => d.id !== targetId));
+      setDeletingDevice(null);
+      showToast(`Trap ${targetCode} has been deleted.`, "success");
+      loadData(false);
+    } catch (err: unknown) {
+      console.error("Failed to delete device:", err);
+      setDeleteError(getErrorMessage(err, "Failed to delete trap."));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleViewLocation = (device: OvitrapDevice) => {
     if (!device.latitude || !device.longitude) return;
     navigate(`${ROUTES.admin.trapLocation}?viewId=${device.id}`);
   };
 
   const filteredDevices = useMemo(() => {
-      const q = search.trim().toLowerCase();
-      if (!q) return devices;
-  
-      return devices.filter((d) => {
-        const trapId = d.device_code?.toLowerCase() ?? "";
-        const description = (d.description || d.notes || "").toLowerCase();
-        const deployedBy = formatDeployedBy(d.users).toLowerCase();
-        const status = (d.device_statuses?.status_name ?? "").toLowerCase();
-  
-        return (
-          trapId.includes(q) ||
-          description.includes(q) ||
-          deployedBy.includes(q) ||
-          status.includes(q)
-        );
-      });
-    }, [devices, search]);
+    const q = search.trim().toLowerCase();
+    if (!q) return devices;
+
+    return devices.filter((d) => {
+      const trapId = d.device_code?.toLowerCase() ?? "";
+      const description = (d.description || d.notes || "").toLowerCase();
+      const deployedBy = formatDeployedBy(d.users).toLowerCase();
+      const status = (d.device_statuses?.status_name ?? "").toLowerCase();
+
+      return (
+        trapId.includes(q) ||
+        description.includes(q) ||
+        deployedBy.includes(q) ||
+        status.includes(q)
+      );
+    });
+  }, [devices, search]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -357,6 +400,17 @@ export default function NodeProvisioningPage() {
                               </>
                             )}
                           </Button>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDeleteConfirm(device)}
+                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                            title={`Delete ${device.device_code}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -386,6 +440,92 @@ export default function NodeProvisioningPage() {
         onClose={() => setModalOpen(false)}
         onSuccess={loadData}
       />
+
+      {/* Delete Confirmation Modal */}
+      {deletingDevice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={closeDeleteConfirm}
+          />
+
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Delete Trap
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Permanent removal confirmation
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeDeleteConfirm}
+                disabled={isDeleting}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {deleteError && (
+                <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs px-3 py-2">
+                  {deleteError}
+                </div>
+              )}
+
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-slate-900">
+                  {deletingDevice.device_code}
+                </span>
+                {deletingDevice.barangays?.barangay_name
+                  ? ` in Barangay ${deletingDevice.barangays.barangay_name}`
+                  : ""}
+                ? This action cannot be undone and will permanently remove the
+                trap and its associated records.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeDeleteConfirm}
+                  disabled={isDeleting}
+                  className="h-9 px-4 text-sm"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="h-9 px-4 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium gap-1.5"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete Trap
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Success Toast Notification */}
       {toast && (
