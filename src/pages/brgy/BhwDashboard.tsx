@@ -32,6 +32,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBhwDashboardData } from "@/hooks/useBhwDashboardData";
 import { ROUTES } from "@/utils/navigation";
 
+const RISK_LEVELS = ["low", "moderate", "high", "critical"] as const;
+
 const severityStyles: Record<string, string> = {
   critical: "border-rose-200 bg-rose-50 text-rose-700",
   high: "border-orange-200 bg-orange-50 text-orange-700",
@@ -39,16 +41,30 @@ const severityStyles: Record<string, string> = {
   low: "border-emerald-200 bg-emerald-50 text-emerald-700",
 };
 
+// Normalizes whatever the backend sends into one of the 4 risk levels
+function normalizeRisk(level: string): string {
+  const key = (level ?? "").trim().toLowerCase();
+  if (key === "medium") return "moderate"; // alias, if your data uses it
+  return (RISK_LEVELS as readonly string[]).includes(key) ? key : "";
+}
+
 function severityLabel(level: string) {
-  const key = level.trim().toLowerCase();
-  return key.charAt(0).toUpperCase() + key.slice(1);
+  const key = normalizeRisk(level);
+  return key ? key.charAt(0).toUpperCase() + key.slice(1) : level;
 }
 
 function severityClass(level: string) {
   return (
-    severityStyles[level.trim().toLowerCase()] ??
+    severityStyles[normalizeRisk(level)] ??
     "border-slate-200 bg-slate-50 text-slate-700"
   );
+}
+
+// 1 -> "Trap-001", "trap-7" -> "Trap-007", "Trap-012" -> "Trap-012"
+function formatTrapLabel(trapId?: string | number | null): string {
+  if (trapId === undefined || trapId === null || trapId === "") return "—";
+  const digits = String(trapId).match(/\d+/)?.[0];
+  return digits ? `Trap-${digits.padStart(3, "0")}` : String(trapId);
 }
 
 function maskEmail(email: string): string {
@@ -67,7 +83,7 @@ function maskEmail(email: string): string {
 
   // Get first 3 characters
   const firstThree = localPart.slice(0, 3);
-  
+
   // Calculate exact remaining length for matching asterisks
   const remainingLength = localPart.length - 3;
   const maskedStars = "*".repeat(remainingLength);
@@ -128,7 +144,7 @@ export default function BhwDashboard() {
   // Retrieve user email from profile or auth user object
   const userEmail = profile?.email ?? user?.email ?? "";
   const maskedUserEmail = maskEmail(userEmail);
-  
+
   const recentAlerts = metrics?.recentAlerts ?? [];
   const actionLog = (metrics?.actionLog ?? []).slice(0, 2);
 
@@ -154,7 +170,7 @@ export default function BhwDashboard() {
       : openTriageActions > 0
         ? {
             level: "Action required",
-            text: `${openTriageActions} triage action${openTriageActions === 1 ? " is" : "s are"} still open. Keep field follow-ups moving to closure.`,
+            text: `${openTriageActions} action${openTriageActions === 1 ? " is" : "s are"} still open. Keep field follow-ups moving to closure.`,
             style: "border-orange-200 bg-gradient-to-r from-orange-50 to-white text-orange-900",
             icon: ShieldAlert,
             iconStyle: "bg-orange-100 text-orange-600",
@@ -195,15 +211,13 @@ export default function BhwDashboard() {
         </div>
 
         <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
-       {/* Upper right email display - Large */}
-{userEmail && (
-          <div className="flex items-center gap-2.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-700 shadow-sm sm:self-start">
-            <User className="size-4 text-slate-500" />
-            <span>{maskedUserEmail}</span>
-          </div>
-        )}
-
-         
+          {/* Upper right email display */}
+          {userEmail && (
+            <div className="flex items-center gap-2.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-700 shadow-sm sm:self-start">
+              <User className="size-4 text-slate-500" />
+              <span>{maskedUserEmail}</span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -282,13 +296,14 @@ export default function BhwDashboard() {
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle>Recent field alerts</CardTitle>
             <CardDescription>
-              Barangay-scoped vector density alerts, breeding ground coordinates, and node battery warnings.
+                Most recent trap detections and their risk levels in your barangay.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Trap</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Risk level</TableHead>
                   <TableHead>Timestamp</TableHead>
@@ -297,19 +312,22 @@ export default function BhwDashboard() {
               <TableBody>
                 {metricsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
+                    <TableCell colSpan={4} className="py-6 text-center text-slate-500">
                       Loading recent alerts...
                     </TableCell>
                   </TableRow>
                 ) : recentAlerts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
+                    <TableCell colSpan={4} className="py-6 text-center text-slate-500">
                       No recent field alerts.
                     </TableCell>
                   </TableRow>
                 ) : (
                   recentAlerts.map((item) => (
-                    <TableRow key={`${item.location}-${item.timestamp}`}>
+                    <TableRow key={`${item.trapId}-${item.location}-${item.timestamp}`}>
+                      <TableCell className="font-mono text-sm text-slate-700">
+                        {formatTrapLabel(item.trapId)}
+                      </TableCell>
                       <TableCell className="font-medium text-slate-950">
                         {item.location}
                       </TableCell>
@@ -337,6 +355,7 @@ export default function BhwDashboard() {
             </Button>
           </div>
         </Card>
+
         <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle>Action Log</CardTitle>

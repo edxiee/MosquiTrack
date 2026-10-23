@@ -4,6 +4,13 @@ import { fetchBarangaySurveillanceData } from "@/services/barangaySurveillance.s
 import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import { getDangerTier } from "@/utils/dangerTiers";
 
+export interface BhwRecentAlert {
+  trapId: string; // device code, e.g. "Trap-001"
+  location: string;
+  type: string; // risk level: Low | Moderate | High | Critical
+  timestamp: string;
+}
+
 export interface BhwDashboardMetrics {
   barangayName: string;
   barangayDvi: number;
@@ -14,11 +21,7 @@ export interface BhwDashboardMetrics {
   queueRisk: number;
   fieldSpots: number;
   criticalNodes: number;
-  recentAlerts: Array<{
-    location: string;
-    type: string;
-    timestamp: string;
-  }>;
+  recentAlerts: BhwRecentAlert[];
   actionLog: Array<{
     action: string;
     detail: string;
@@ -69,29 +72,28 @@ export function useBhwDashboardData() {
         (trap) => trap.activityLevel === "Critical" || (trap.battery ?? 100) < 15,
       ).length;
 
-      const recentAlerts = surveillanceData.latestDetections.slice(0, 3).map((item) => {
-        const fallbackFromTrap = trapLocationByCode.get(item.trapId);
-        const locationText = (item.location || "").trim();
-        const normalizedLocation = locationText.toLowerCase();
-        const isGenericLocation =
-          !locationText ||
-          normalizedLocation === "monitoring node" ||
-          normalizedLocation === "monitoring station";
-        const dangerTier = getDangerTier(item.count);
+      const recentAlerts: BhwRecentAlert[] = surveillanceData.latestDetections
+        .slice(0, 3)
+        .map((item) => {
+          const fallbackFromTrap = trapLocationByCode.get(item.trapId);
+          const locationText = (item.location || "").trim();
+          const normalizedLocation = locationText.toLowerCase();
+          const isGenericLocation =
+            !locationText ||
+            normalizedLocation === "monitoring node" ||
+            normalizedLocation === "monitoring station";
+          const dangerTier = getDangerTier(item.count);
 
-        return {
-          location: isGenericLocation
-            ? fallbackFromTrap || surveillanceData.barangayName
-            : locationText,
-          type:
-            dangerTier === "High" || dangerTier === "Critical"
-              ? "High mosquito detection"
-              : item.status === "Unverified"
-                ? "Unverified detection"
-                : "Surveillance alert",
-          timestamp: item.time || "—",
-        };
-      });
+          return {
+            trapId: item.trapId ?? "",
+            location: isGenericLocation
+              ? fallbackFromTrap || surveillanceData.barangayName
+              : locationText,
+            // Risk level shown in the dashboard badge (Low / Moderate / High / Critical)
+            type: dangerTier,
+            timestamp: item.time || "—",
+          };
+        });
 
       const actionLog = surveillanceData.recentActions.slice(0, 3).map((item) => ({
         action: item.triggerSource || "Field action",
