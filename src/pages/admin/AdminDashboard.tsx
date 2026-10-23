@@ -9,6 +9,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   Network,
+  User,
   Wifi,
 } from "lucide-react";
 import {
@@ -75,15 +76,35 @@ function CustomTooltip({
   if (!item) return null;
   const fullDate = item.payload?.fullDate;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-sm">
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-lg">
       <p className="font-semibold text-slate-950">
         {label} {fullDate ? `(${fullDate})` : ""}
       </p>
-      <p className="text-emerald-600 font-medium">
+      <p className="font-medium text-emerald-600">
         {item.value} {item.value === 1 ? "mosquito" : "mosquitoes"} detected
       </p>
     </div>
   );
+}
+
+function maskEmail(email: string): string {
+  if (!email || !email.includes("@")) return email;
+
+  const parts = email.split("@");
+  const localPart = parts[0];
+  const domain = parts[1];
+
+  if (!localPart || !domain) return email;
+
+  if (localPart.length <= 3) {
+    return `${localPart}@${domain}`;
+  }
+
+  const firstThree = localPart.slice(0, 3);
+  const remainingLength = localPart.length - 3;
+  const maskedStars = "*".repeat(remainingLength);
+
+  return `${firstThree}${maskedStars}@${domain}`;
 }
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
@@ -142,7 +163,7 @@ function MetricCard({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const {
     counts,
     deviceMap,
@@ -159,6 +180,9 @@ export default function AdminDashboard() {
     weeklyReadingsQuery,
     telemetry24hQuery,
   } = useAdminDashboardData();
+
+  const userEmail = profile?.email ?? user?.email ?? "";
+  const maskedUserEmail = maskEmail(userEmail);
 
   const loading =
     activeAccountsQuery.isLoading ||
@@ -190,7 +214,6 @@ export default function AdminDashboard() {
       sortOrder: number;
     }[] = [];
 
-    // 1. Process explicit triage actions from action_triage_log if present
     if (triageActions && triageActions.length > 0) {
       for (const action of triageActions) {
         const p: "High" | "Med" | "Low" =
@@ -218,7 +241,6 @@ export default function AdminDashboard() {
       }
     }
 
-    // 2. Classify traps by level (High, Med, Low) from real telemetry readings
     for (const device of devices) {
       const reading = latestReadingsByDevice.get(device.id);
       const code = device.device_code || `TRAP-${device.id.slice(0, 4)}`;
@@ -278,7 +300,6 @@ export default function AdminDashboard() {
     });
   }, [deviceMap, recentReadings]);
 
-  // Compute 7-day trend from real readings
   const trendData = useMemo(() => {
     const days: { day: string; dateKey: string; count: number; fullDate: string }[] = [];
     const now = new Date();
@@ -335,21 +356,31 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* ── Clean flat header ────────────────────────────────────────────────── */}
-      <section className="border-b border-slate-200 pb-5">
-        <div className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-          <LayoutDashboard className="size-3" />
-          IoT Command Center
+      <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <LayoutDashboard className="size-3" />
+            IoT Command Center
+          </div>
+
+          <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
+            MosquiTrack Overview
+          </h1>
+
+          <p className="mt-1.5 max-w-2xl text-sm text-slate-500">
+            {profile
+              ? `Welcome back, ${profile.first_name}. Monitor node uptime, detection events, and hardware alerts.`
+              : "Monitor node uptime, detection events, and hardware alerts from a single operations view."}
+          </p>
         </div>
 
-        <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
-          MosquiTrack Overview
-        </h1>
-
-        <p className="mt-1.5 max-w-2xl text-sm text-slate-500">
-          {profile
-            ? `Welcome back, ${profile.first_name}. Monitor node uptime, detection events, and hardware alerts.`
-            : "Monitor node uptime, detection events, and hardware alerts from a single operations view."}
-        </p>
+        {/* Upper right email display - Large + Masked */}
+        {userEmail && (
+          <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-base font-medium text-slate-700 shadow-sm sm:self-start">
+            <User className="size-4 text-slate-500" />
+            <span>{maskedUserEmail}</span>
+          </div>
+        )}
       </section>
 
       {/* ── KPI cards ───────────────────────────────────────────────────────── */}
@@ -501,7 +532,7 @@ export default function AdminDashboard() {
                   <ClipboardList className="size-4" />
                 </div>
                 <div>
-                  <CardTitle>Pending Triage Actions</CardTitle>
+                  <CardTitle>Pending Actions</CardTitle>
                   <CardDescription className="mt-0.5">
                     Actionable tasks generated from real-time trap triggers.
                   </CardDescription>

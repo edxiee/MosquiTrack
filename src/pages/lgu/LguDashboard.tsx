@@ -21,6 +21,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Siren,
+  User,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +147,26 @@ function ChangeIndicator({ changePct }: { changePct: number | null }) {
   );
 }
 
+function maskEmail(email: string): string {
+  if (!email || !email.includes("@")) return email;
+
+  const parts = email.split("@");
+  const localPart = parts[0];
+  const domain = parts[1];
+
+  if (!localPart || !domain) return email;
+
+  if (localPart.length <= 3) {
+    return `${localPart}@${domain}`;
+  }
+
+  const firstThree = localPart.slice(0, 3);
+  const remainingLength = localPart.length - 3;
+  const maskedStars = "*".repeat(remainingLength);
+
+  return `${firstThree}${maskedStars}@${domain}`;
+}
+
 function KpiCard({
   icon: Icon,
   label,
@@ -187,8 +208,11 @@ function formatShortDate(iso: string) {
 }
 
 export default function LguDashboard() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { data: metrics, isLoading } = useLguDashboardData();
+
+  const userEmail = profile?.email ?? user?.email ?? "";
+  const maskedUserEmail = maskEmail(userEmail);
 
   const tierCounts = metrics?.alertTierCounts ?? {
     green: 0,
@@ -196,6 +220,7 @@ export default function LguDashboard() {
     orange: 0,
     red: 0,
   };
+
   const barangayStatus: BarangayMosquitoStatus[] = metrics?.barangayStatus ?? [];
   const dailyTrend = metrics?.dailyTrend ?? [];
   const recentEscalations = metrics?.recentEscalations ?? [];
@@ -226,7 +251,11 @@ export default function LguDashboard() {
     (b) => b.tier === "red" || b.tier === "orange",
   );
   const risingBarangays = barangayStatus.filter(
-    (b) => b.changePct !== null && b.changePct >= 25 && b.tier !== "red" && b.tier !== "orange",
+    (b) =>
+      b.changePct !== null &&
+      b.changePct >= 25 &&
+      b.tier !== "red" &&
+      b.tier !== "orange",
   );
 
   const banner =
@@ -260,7 +289,7 @@ export default function LguDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
             LGU Health Administrator
@@ -273,23 +302,34 @@ export default function LguDashboard() {
             Track mosquito activity and get early warning on high-alert barangays.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            asChild
-            size="sm"
-            className="rounded-full bg-emerald-600 px-4 text-white hover:bg-emerald-700"
-          >
-            <Link to={ROUTES.lgu.trapMap}>
-              <MapPinned className="mr-1 size-4" />
-              Trap map
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="rounded-full px-4">
-            <Link to={ROUTES.lgu.reports}>
-              <FileText className="mr-1 size-4" />
-              Generate report
-            </Link>
-          </Button>
+
+        {/* Upper right: masked email + action buttons */}
+        <div className="flex flex-col items-start gap-3 sm:items-end">
+          {userEmail && (
+            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-base font-medium text-slate-700 shadow-sm">
+              <User className="size-4 text-slate-500" />
+              <span>{maskedUserEmail}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              asChild
+              size="sm"
+              className="rounded-full bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+            >
+              <Link to={ROUTES.lgu.trapMap}>
+                <MapPinned className="mr-1 size-4" />
+                Trap map
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="rounded-full px-4">
+              <Link to={ROUTES.lgu.reports}>
+                <FileText className="mr-1 size-4" />
+                Generate report
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -310,7 +350,12 @@ export default function LguDashboard() {
           </p>
         </div>
         {highAlertCount > 0 && (
-          <Button asChild size="sm" variant="outline" className="hidden rounded-full sm:inline-flex">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="hidden rounded-full sm:inline-flex"
+          >
             <Link to={ROUTES.lgu.reports}>
               Review <ArrowRight className="ml-1 size-4" />
             </Link>
@@ -351,42 +396,34 @@ export default function LguDashboard() {
           detail={`${risingBarangays.length} showing a rising trend`}
         />
         <KpiCard
-  icon={ClipboardList}
-  label="Response Actions"
-  value=""
-  tone="bg-amber-50 text-amber-700"
-  detail={
-    <div className="grid grid-cols-4 divide-x divide-gray-200 mt-2 w-full">
-      <div className="min-w-0 text-center px-1">
-        <p className="text-xs font-medium text-amber-700">Pending</p>
-        <p className="text-lg font-bold">
-          {show(String(pendingActions))}
-        </p>
-      </div>
+          icon={ClipboardList}
+          label="Response Actions"
+          value=""
+          tone="bg-amber-50 text-amber-700"
+          detail={
+            <div className="mt-2 grid w-full grid-cols-4 divide-x divide-gray-200">
+              <div className="min-w-0 px-1 text-center">
+                <p className="text-xs font-medium text-amber-700">Pending</p>
+                <p className="text-lg font-bold">{show(String(pendingActions))}</p>
+              </div>
 
-      <div className="min-w-0 text-center px-1">
-        <p className="text-xs font-medium text-blue-700">In Progress</p>
-        <p className="text-lg font-bold">
-          {show(String(inProgressActions))}
-        </p>
-      </div>
+              <div className="min-w-0 px-1 text-center">
+                <p className="text-xs font-medium text-blue-700">In Progress</p>
+                <p className="text-lg font-bold">{show(String(inProgressActions))}</p>
+              </div>
 
-      <div className="min-w-0 text-center px-1">
-        <p className="text-xs font-medium text-emerald-700">Completed</p>
-        <p className="text-lg font-bold">
-          {show(String(completedActions))}
-        </p>
-      </div>
+              <div className="min-w-0 px-1 text-center">
+                <p className="text-xs font-medium text-emerald-700">Completed</p>
+                <p className="text-lg font-bold">{show(String(completedActions))}</p>
+              </div>
 
-      <div className="min-w-0 text-center px-1">
-        <p className="text-xs font-medium text-red-700">Cancelled</p>
-        <p className="text-lg font-bold">
-          {show(String(cancelledActions))}
-        </p>
-      </div>
-    </div>
-  }
-/>
+              <div className="min-w-0 px-1 text-center">
+                <p className="text-xs font-medium text-red-700">Cancelled</p>
+                <p className="text-lg font-bold">{show(String(cancelledActions))}</p>
+              </div>
+            </div>
+          }
+        />
       </section>
 
       {/* Trend + tier distribution */}

@@ -4,11 +4,11 @@ import {
   BatteryLow,
   Droplets,
   MapPinned,
-  MonitorDown,
   ShieldAlert,
   ShieldCheck,
   Siren,
   TriangleAlert,
+  User,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,30 @@ function severityClass(level: string) {
     severityStyles[level.trim().toLowerCase()] ??
     "border-slate-200 bg-slate-50 text-slate-700"
   );
+}
+
+function maskEmail(email: string): string {
+  if (!email || !email.includes("@")) return email;
+
+  const parts = email.split("@");
+  const localPart = parts[0];
+  const domain = parts[1];
+
+  if (!localPart || !domain) return email;
+
+  // If username is 3 characters or less, show what's available without masking
+  if (localPart.length <= 3) {
+    return `${localPart}@${domain}`;
+  }
+
+  // Get first 3 characters
+  const firstThree = localPart.slice(0, 3);
+  
+  // Calculate exact remaining length for matching asterisks
+  const remainingLength = localPart.length - 3;
+  const maskedStars = "*".repeat(remainingLength);
+
+  return `${firstThree}${maskedStars}@${domain}`;
 }
 
 function MetricCard({
@@ -93,7 +117,7 @@ function MetricCard({
 }
 
 export default function BhwDashboard() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const {
     data: metrics,
     isLoading: metricsLoading,
@@ -101,6 +125,10 @@ export default function BhwDashboard() {
     error,
   } = useBhwDashboardData();
 
+  // Retrieve user email from profile or auth user object
+  const userEmail = profile?.email ?? user?.email ?? "";
+  const maskedUserEmail = maskEmail(userEmail);
+  
   const recentAlerts = metrics?.recentAlerts ?? [];
   const actionLog = (metrics?.actionLog ?? []).slice(0, 2);
 
@@ -151,7 +179,7 @@ export default function BhwDashboard() {
       )}
 
       {/* Page header */}
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
             Barangay Health Worker
@@ -166,24 +194,16 @@ export default function BhwDashboard() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Button
-            asChild
-            size="sm"
-            className="rounded-full bg-emerald-600 px-4 text-white hover:bg-emerald-700"
-          >
-            <Link to={ROUTES.bhw.surveillance}>
-              <MapPinned className="mr-1 size-4" />
-              View barangay map
-            </Link>
-          </Button>
+        <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
+       {/* Upper right email display - Large */}
+{userEmail && (
+          <div className="flex items-center gap-2.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-700 shadow-sm sm:self-start">
+            <User className="size-4 text-slate-500" />
+            <span>{maskedUserEmail}</span>
+          </div>
+        )}
 
-          <Button asChild size="sm" variant="outline" className="rounded-full px-4">
-            <Link to={ROUTES.bhw.actionLogs}>
-              <MonitorDown className="mr-1 size-4" />
-              Log action
-            </Link>
-          </Button>
+         
         </div>
       </header>
 
