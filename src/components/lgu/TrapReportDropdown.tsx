@@ -42,6 +42,7 @@ import {
 } from "@/services/trapRequest.service";
 import { formatRelativeTime, formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import { cn } from "@/lib/utils";
+import { getDangerTier } from "@/utils/dangerTiers";
 import { supabase } from "@/lib/supabase";
 
 function StatusBadge({ status }: { status: string | null }) {
@@ -115,7 +116,10 @@ const ACTION_STATUS_BADGES: Record<string, string> = {
   Cancelled: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-export function getTrapDangerLevel(count: number | null | undefined): {
+export function getTrapDangerLevel(
+  count: number | null | undefined,
+  consecutiveCriticalDays = 0,
+): {
   level: "Low" | "Moderate" | "High" | "Critical" | "No Data";
   label: string;
   badge: string;
@@ -129,33 +133,34 @@ export function getTrapDangerLevel(count: number | null | undefined): {
       barColor: "bg-slate-300",
     };
   }
-  if (count >= 30) {
+  const level = getDangerTier(count, consecutiveCriticalDays);
+  if (level === "Critical") {
     return {
       level: "Critical",
-      label: "Critical Danger",
+      label: "Critical Danger (30+, 3 days)",
       badge: "bg-rose-50 text-rose-700 border-rose-200",
       barColor: "bg-rose-500",
     };
   }
-  if (count >= 15) {
+  if (level === "High") {
     return {
       level: "High",
-      label: "High Danger",
+      label: count >= 30 ? "High Danger (30+, needs 3 days)" : "High Danger (16-29)",
       badge: "bg-orange-50 text-orange-700 border-orange-200",
       barColor: "bg-orange-500",
     };
   }
-  if (count >= 5) {
+  if (level === "Moderate") {
     return {
       level: "Moderate",
-      label: "Moderate Danger",
+      label: "Moderate Danger (6-15)",
       badge: "bg-amber-50 text-amber-700 border-amber-200",
       barColor: "bg-amber-500",
     };
   }
   return {
     level: "Low",
-    label: "Low Risk",
+    label: "Low Risk (0-5)",
     badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
     barColor: "bg-emerald-500",
   };
@@ -261,7 +266,10 @@ export default function TrapReportDropdown({
               ? device.latest_mosquito_count
               : (effectiveAllTimeSum > 0 ? effectiveAllTimeSum : latestReading?.mosquito_count ?? 0)));
 
-  const danger = getTrapDangerLevel(displayMosquitoCount);
+  const danger = getTrapDangerLevel(
+    effectiveTodaySum || device.today_mosquito_count || 0,
+    device.consecutive_critical_days,
+  );
 
   // Compute live connection status
   const latestTimestamp =
@@ -615,8 +623,8 @@ export default function TrapReportDropdown({
                     {reversedReadings.map((r) => {
                       const count = r.mosquito_count ?? 0;
                       const heightPct = Math.max(10, (count / maxMosquitoCount) * 100);
-                      const isHigh = count >= 15;
-                      const isMed = count >= 5;
+                      const isHigh = count >= 16;
+                      const isMed = count >= 6;
 
                       return (
                         <div

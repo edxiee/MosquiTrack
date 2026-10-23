@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { fetchBarangaySurveillanceData } from "@/services/barangaySurveillance.service";
 import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
+import { getDangerTier } from "@/utils/dangerTiers";
 
 export interface BhwDashboardMetrics {
   barangayName: string;
@@ -61,7 +62,7 @@ export function useBhwDashboardData() {
       ).length;
 
       const fieldSpots = surveillanceData.traps.filter(
-        (trap) => (trap.count ?? 0) >= 10,
+        (trap) => getDangerTier(trap.count, trap.consecutiveCriticalDays) !== "Low",
       ).length;
 
       const criticalNodes = surveillanceData.traps.filter(
@@ -76,21 +77,18 @@ export function useBhwDashboardData() {
           !locationText ||
           normalizedLocation === "monitoring node" ||
           normalizedLocation === "monitoring station";
-
-        let riskLevel = "Low";
-        if (item.count >= 50) {
-          riskLevel = "Critical";
-        } else if (item.count >= 30) {
-          riskLevel = "High";
-        } else if (item.count >= 10) {
-          riskLevel = "Moderate";
-        }
+        const dangerTier = getDangerTier(item.count);
 
         return {
           location: isGenericLocation
             ? fallbackFromTrap || surveillanceData.barangayName
             : locationText,
-          type: riskLevel,
+          type:
+            dangerTier === "High" || dangerTier === "Critical"
+              ? "High mosquito detection"
+              : item.status === "Unverified"
+                ? "Unverified detection"
+                : "Surveillance alert",
           timestamp: item.time || "—",
         };
       });

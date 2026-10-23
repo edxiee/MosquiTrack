@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { getConsecutiveCriticalDays, getDangerTier } from "@/utils/dangerTiers";
 
 export type AlertTier = "green" | "yellow" | "orange" | "red";
 
@@ -203,8 +204,12 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
 
   const deviceIds = devices.map((d) => d.id);
   const deviceToBarangay = new Map<string, string>();
+  const devicesPerBarangay = new Map<string, number>();
   for (const d of devices) {
-    if (d.barangay_id) deviceToBarangay.set(d.id, d.barangay_id);
+    if (d.barangay_id) {
+      deviceToBarangay.set(d.id, d.barangay_id);
+      devicesPerBarangay.set(d.barangay_id, (devicesPerBarangay.get(d.barangay_id) ?? 0) + 1);
+    }
   }
 
   let dviAverage3Day = 0;
@@ -227,6 +232,7 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
     string,
     { recentTotal: number; recentN: number; prevTotal: number; prevN: number; last: string | null }
   >();
+  const dailyDetectionsPerBarangay = new Map<string, Map<string, number>>();
 
   if (deviceIds.length > 0) {
     const sinceIso = new Date(now - trendDays * DAY_MS).toISOString();
@@ -278,6 +284,11 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
 
       const brgyId = deviceToBarangay.get(row.device_id);
       if (brgyId) {
+        const day = new Date(ts).toISOString().slice(0, 10);
+        const dailyCounts = dailyDetectionsPerBarangay.get(brgyId) ?? new Map<string, number>();
+        dailyCounts.set(day, (dailyCounts.get(day) ?? 0) + value);
+        dailyDetectionsPerBarangay.set(brgyId, dailyCounts);
+
         const agg = perBarangay.get(brgyId) ?? {
           recentTotal: 0,
           recentN: 0,
@@ -360,13 +371,7 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
     throw riskAssessmentsError;
   }
 
-  const latestByBarangay = new Map<string, RiskAssessmentRow>();
   const riskRows = (riskAssessmentsData as RiskAssessmentRow[]) ?? [];
-  for (const row of riskRows) {
-    if (!latestByBarangay.has(row.barangay_id)) {
-      latestByBarangay.set(row.barangay_id, row);
-    }
-  }
 
   const alertTierCounts = {
     green: 0,
@@ -382,8 +387,29 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
     riskRowsByBarangay.set(row.barangay_id, existing);
   }
 
-  for (const row of latestByBarangay.values()) {
-    const tier = normalizeAlertTier(getRiskLevelName(row));
+  const currentTierByBarangay = new Map<string, AlertTier | null>();
+  for (const barangayId of monitoredBarangayIds) {
+    const agg = perBarangay.get(barangayId);
+    if (!agg || agg.recentN === 0) {
+      currentTierByBarangay.set(barangayId, null);
+      continue;
+    }
+    const deviceCount = Math.max(1, devicesPerBarangay.get(barangayId) ?? 0);
+    const dailyAverages = Array.from({ length: 3 }, (_, offset) => {
+      const day = new Date();
+      day.setUTCHours(0, 0, 0, 0);
+      day.setUTCDate(day.getUTCDate() - offset);
+      return (dailyDetectionsPerBarangay.get(barangayId)?.get(day.toISOString().slice(0, 10)) ?? 0) / deviceCount;
+    });
+    const dangerTier = getDangerTier(
+      dailyAverages[0],
+      getConsecutiveCriticalDays(dailyAverages),
+    );
+    const tier: AlertTier =
+      dangerTier === "Critical" ? "red" :
+        dangerTier === "High" ? "orange" :
+          dangerTier === "Moderate" ? "yellow" : "green";
+    currentTierByBarangay.set(barangayId, tier);
     if (tier) {
       alertTierCounts[tier] += 1;
     }
@@ -432,12 +458,12 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
       const avgPrev3Day = agg && agg.prevN > 0 ? agg.prevTotal / agg.prevN : 0;
       const changePct =
         avgPrev3Day > 0 ? ((avg3Day - avgPrev3Day) / avgPrev3Day) * 100 : null;
-      const latest = latestByBarangay.get(b.id);
+      const tier = currentTierByBarangay.get(b.id) ?? null;
 
       return {
         id: b.id,
         name: b.barangay_name ?? "Unknown",
-        tier: latest ? normalizeAlertTier(getRiskLevelName(latest)) : null,
+        tier,
         avg3Day,
         avgPrev3Day,
         changePct,

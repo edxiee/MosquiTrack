@@ -114,19 +114,19 @@ function VectorTrendTooltip({
 
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">Confirmed Vectors:</span>
+          <span className="text-slate-500">Mosquitoes detected:</span>
           <span className="font-bold text-emerald-700 text-sm tabular-nums">
             {point.mosquitoCount.toLocaleString()}
           </span>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">Daily Vector Index (DVI):</span>
+          <span className="text-slate-500">Avg. Mosquitoes / Trap / Day:</span>
           <span className="font-semibold text-slate-800 tabular-nums">
             {point.dvi.toFixed(2)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">Telemetry Packets:</span>
+          <span className="text-slate-500">Readings received:</span>
           <span className="font-medium text-slate-600 tabular-nums">
             {point.readingsCount}
           </span>
@@ -252,7 +252,7 @@ function Trend7DayBadge({ row }: { row: BarangayRiskTableRow }) {
 
 export default function ReportsAnalyticsPage() {
   const [selectedBarangay, setSelectedBarangay] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<DateRangePreset>("30d");
+  const [dateRange, setDateRange] = useState<DateRangePreset>("7d");
   const [reportData, setReportData] =
     useState<EpidemiologicalReportData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -348,12 +348,17 @@ export default function ReportsAnalyticsPage() {
     completedTriageCount: 0,
     totalTriageCount: 0,
     activeDeployedTraps: 0,
-    periodDays: 30,
+    periodDays: 7,
   };
 
   const vectorTrend = reportData?.vectorTrend ?? [];
   const interventionDistribution = reportData?.interventionDistribution ?? [];
   const barangayRankings = reportData?.barangayRankings ?? [];
+  const rankingScopeLabel =
+    selectedBarangay === "all"
+      ? "All barangays"
+      : barangaySelectOptions.find((option) => option.value === selectedBarangay)?.label ??
+        selectedBarangay;
 
   // Points on the AreaChart that have completed misting or clean-up interventions
   const interventionPoints = useMemo(() => {
@@ -415,10 +420,10 @@ export default function ReportsAnalyticsPage() {
     lines.push('"KPI SUMMARY"');
     lines.push('"Metric","Value","Details"');
     lines.push(
-      `"Average Daily Vector Index (DVI)","${kpis.avgDvi.toFixed(2)}","${kpis.dviTrendPct >= 0 ? `+${kpis.dviTrendPct}%` : `${kpis.dviTrendPct}%`} vs last period (${kpis.activeDeployedTraps} active traps / ${kpis.periodDays} days)"`,
+      `"Average mosquitoes per active trap per day","${kpis.avgDvi.toFixed(2)}","Total detections divided by ${kpis.activeDeployedTraps} active traps and ${kpis.periodDays} days; ${kpis.dviTrendPct >= 0 ? `+${kpis.dviTrendPct}%` : `${kpis.dviTrendPct}%`} vs previous period"`,
     );
     lines.push(
-      `"Total Confirmed Vectors","${kpis.totalConfirmedVectors}","${kpis.totalReadingsCount} telemetry packets"`,
+      `"Total Mosquitoes Detected","${kpis.totalConfirmedVectors}","${kpis.totalReadingsCount} readings"`,
     );
     lines.push(
       `"Critical / High-Risk Zones","${kpis.criticalHighRiskZones}","${kpis.criticalCount} Critical, ${kpis.highRiskCount} High-Risk"`,
@@ -430,7 +435,7 @@ export default function ReportsAnalyticsPage() {
 
     lines.push('"BARANGAY RISK RANKING TABLE"');
     lines.push(
-      '"Rank","Barangay Name","Active Traps","Total Traps","Total Detections","Calculated Score (DVI)","Risk Level","7-Day Trend (%)"',
+      '"Rank","Barangay Name","Active Traps","Total Traps","Total Detections","Average Mosquitoes per Active Trap per Day","Danger Level","7-Day Trend (%)"',
     );
     for (const row of barangayRankings) {
       lines.push(
@@ -450,7 +455,7 @@ export default function ReportsAnalyticsPage() {
 
     lines.push('"DAILY VECTOR GROWTH TREND & INTERVENTIONS"');
     lines.push(
-      '"Date","Confirmed Mosquito Count","Daily Vector Index (DVI)","Completed Interventions"',
+      '"Date","Confirmed Mosquito Count","Daily Detections per Active Trap","Completed Interventions"',
     );
     for (const pt of vectorTrend) {
       const intvNames = pt.interventions
@@ -590,14 +595,14 @@ export default function ReportsAnalyticsPage() {
       {/* 2. 4 KPI SUMMARY CARDS                                               */}
       {/* ==================================================================== */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* KPI 1: Average Daily Vector Index (DVI) */}
+        {/* KPI 1: Average daily detections per active trap */}
         <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
           <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
           <CardContent className="p-5 pt-6">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Average Daily Vector Index (DVI)
+                  Avg. Mosquitoes per Active Trap per Day
                 </p>
                 {isLoading ? (
                   <Skeleton className="h-9 w-24 mt-1" />
@@ -632,8 +637,8 @@ export default function ReportsAnalyticsPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-               Mosq. count ÷ {kpis.activeDeployedTraps} active deployed traps ÷{" "}
-              {kpis.periodDays} days
+              Total mosquitoes ÷ {kpis.activeDeployedTraps} active deployed traps ÷{" "}
+              {kpis.periodDays} days. This is the average count per trap each day.
             </p>
           </CardContent>
         </Card>
@@ -645,7 +650,7 @@ export default function ReportsAnalyticsPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Total Confirmed Vectors
+                  Total Mosquitoes Detected
                 </p>
                 {isLoading ? (
                   <Skeleton className="h-9 w-28 mt-1" />
@@ -675,8 +680,7 @@ export default function ReportsAnalyticsPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Cumulative detections across {kpis.totalReadingsCount.toLocaleString()}{" "}
-              ovitrap readings
+              Total mosquito detections across {kpis.totalReadingsCount.toLocaleString()} readings
             </p>
           </CardContent>
         </Card>
@@ -715,8 +719,7 @@ export default function ReportsAnalyticsPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Barangays in <code className="text-[11px]">risk_assessments</code>{" "}
-              at High or Critical tier
+              Barangays currently rated High or Critical for the selected period
             </p>
           </CardContent>
         </Card>
@@ -751,8 +754,7 @@ export default function ReportsAnalyticsPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Completed field interventions in{" "}
-              <code className="text-[11px]">action_triage_log</code>
+              Completed field interventions in the selected time period
             </p>
           </CardContent>
         </Card>
@@ -889,7 +891,7 @@ export default function ReportsAnalyticsPage() {
             <div className="border-t border-slate-100 pt-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Completed Intervention Markers (action_triage_log)
+                  Completed Intervention Markers
                 </span>
                 <span className="text-[11px] text-slate-500">
                   {reportData?.interventions.length ?? 0} logged in period
@@ -932,8 +934,7 @@ export default function ReportsAnalyticsPage() {
               Intervention Distribution
             </CardTitle>
             <CardDescription className="text-xs text-slate-500">
-              Task breakdown across <code className="text-[11px]">action_triage_log</code>{" "}
-              and <code className="text-[11px]">request_actions</code>.
+              Breakdown of field actions and mosquito-control work.
             </CardDescription>
           </CardHeader>
 
@@ -1028,15 +1029,24 @@ export default function ReportsAnalyticsPage() {
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
             <CardTitle className="text-base font-bold text-slate-900">
-              Barangay Risk Ranking Table
+              Barangay Risk Ranking · {DATE_RANGE_LABELS[dateRange]}
             </CardTitle>
-            <CardDescription className="text-xs text-slate-500 mt-0.5">
-              Aggregated surveillance ranking joining{" "}
-              <code className="text-[11px]">barangays</code>,{" "}
-              <code className="text-[11px]">ovitrap_devices</code>,{" "}
-              <code className="text-[11px]">ovitrap_readings</code>, and{" "}
-              <code className="text-[11px]">risk_assessments</code> /{" "}
-              <code className="text-[11px]">risk_levels</code>.
+            <CardDescription className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+              <span className="font-medium text-slate-600">{rankingScopeLabel}</span>
+              {" · "}
+              Based on the selected {DATE_RANGE_LABELS[dateRange].toLowerCase()}.
+              <br />
+              <span className="text-slate-500">
+                Average mosquitoes per active trap per day = total detections ÷ active traps ÷ {kpis.periodDays} days.
+              </span>
+              <br />
+              <span className="text-slate-500">
+                Danger levels:{" "}
+                <span className="text-emerald-600 font-medium">Low (0–5)</span>,{" "}
+                <span className="text-amber-600 font-medium">Moderate (6–15)</span>,{" "}
+                <span className="text-orange-600 font-medium">High (16–29)</span>,{" "}
+                <span className="text-rose-600 font-medium">Critical (30+ for 3 consecutive days)</span>.
+              </span>
             </CardDescription>
           </div>
           <Badge
@@ -1058,8 +1068,8 @@ export default function ReportsAnalyticsPage() {
             <Table>
               <caption id="barangay-risk-ranking-caption" className="sr-only">
                 Barangay Risk Ranking Table showing rank, barangay name, active
-                traps, total detections, calculated DVI score, risk level badge,
-                and 7-day trend.
+                traps, total detections, average mosquitoes per active trap per day,
+                danger level, and 7-day trend.
               </caption>
               <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                 <TableRow className="hover:bg-transparent border-slate-100">
@@ -1076,10 +1086,10 @@ export default function ReportsAnalyticsPage() {
                     Total Detections
                   </TableHead>
                   <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Calculated Score (DVI)
+                    Avg. Mosquitoes / Trap / Day
                   </TableHead>
                   <TableHead className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Risk Level Badge
+                    Danger Level
                   </TableHead>
                   <TableHead className="pr-6 text-right text-xs font-bold uppercase tracking-wider text-slate-500">
                     7-Day Trend
@@ -1165,7 +1175,7 @@ export default function ReportsAnalyticsPage() {
                         </span>
                       </TableCell>
 
-                      {/* Calculated Score (DVI) */}
+                      {/* Average mosquitoes per active trap per day */}
                       <TableCell className="py-3.5 text-right font-mono font-bold tabular-nums text-slate-800">
                         {row.calculatedScoreDvi.toFixed(2)}
                       </TableCell>

@@ -42,6 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ROUTES } from "@/utils/navigation";
 import { useAdminDashboardData } from "@/hooks/useAdminDashboardData";
 import { formatDateTime, formatVoltage } from "@/utils/format";
+import { getDangerTier } from "@/utils/dangerTiers";
 
 // ─── Priority badge styles ───────────────────────────────────────────────────
 const priorityConfig = {
@@ -223,8 +224,9 @@ export default function AdminDashboard() {
       const code = device.device_code || `TRAP-${device.id.slice(0, 4)}`;
       const count = reading?.mosquito_count ?? 0;
       const battery = reading?.battery_level ?? null;
+      const dangerTier = getDangerTier(count);
 
-      if (count >= 30) {
+      if (dangerTier === "High" || dangerTier === "Critical") {
         list.push({
           id: `trap-high-${device.id}`,
           priority: "High",
@@ -242,7 +244,7 @@ export default function AdminDashboard() {
           status: "Low Voltage Alert",
           sortOrder: 1,
         });
-      } else if (count >= 10) {
+      } else if (dangerTier === "Moderate") {
         list.push({
           id: `trap-med-${device.id}`,
           priority: "Med",

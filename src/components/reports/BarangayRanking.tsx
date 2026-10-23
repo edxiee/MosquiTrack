@@ -14,6 +14,10 @@ export default function BarangayRanking({
     <Card>
       <CardHeader>
         <CardTitle>Barangay Risk Ranking</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Risk levels come from saved barangay assessments; numeric cutoffs may
+          vary by assessment.
+        </p>
       </CardHeader>
       <CardContent>
         {isLoading ? (

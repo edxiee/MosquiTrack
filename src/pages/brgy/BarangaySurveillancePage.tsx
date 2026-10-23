@@ -618,21 +618,21 @@ export default function BarangaySurveillancePage() {
         {/* ======================================================== */}
         <div className="flex-1 relative rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden min-h-[500px] flex flex-col">
           {/* Floating Risk Tier Legend */}
-          <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200 shadow-md text-xs font-semibold text-slate-600">
+          <div className="absolute top-3.5 right-3.5 z-20 flex flex-wrap justify-end items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200 shadow-md text-xs font-semibold text-slate-600">
             <span className="text-slate-400 text-[11px] uppercase mr-1">
-              Risk Tier:
+              Daily Risk Tier:
             </span>
             <span className="flex items-center gap-1 text-emerald-700">
-              <div className="size-2.5 rounded-full bg-emerald-500" /> Low
+              <div className="size-2.5 rounded-full bg-emerald-500" /> Low (0-5)
             </span>
             <span className="flex items-center gap-1 text-amber-700">
-              <div className="size-2.5 rounded-full bg-amber-500" /> Mod
+              <div className="size-2.5 rounded-full bg-amber-500" /> Moderate (6-15)
             </span>
             <span className="flex items-center gap-1 text-orange-700">
-              <div className="size-2.5 rounded-full bg-orange-500" /> High
+              <div className="size-2.5 rounded-full bg-orange-500" /> High (16-29)
             </span>
             <span className="flex items-center gap-1 text-rose-700">
-              <div className="size-2.5 rounded-full bg-rose-500" /> Critical
+              <div className="size-2.5 rounded-full bg-rose-500" /> Critical (30+, 3 days)
             </span>
           </div>
 

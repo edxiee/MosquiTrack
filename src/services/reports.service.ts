@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { getDangerTier } from "@/utils/dangerTiers";
 import type {
   BarangayRankingEntry,
   BarangayRiskTableRow,
@@ -268,8 +269,11 @@ function getPeriodDays(preset: DateRangePreset): number {
 function classifyInterventionCategory(
   text: string,
   priority?: string | null,
-): "Solution Misting" | "Clean-up Drive" | "Monitoring Personnel" {
+): "Solution Misting" | "Clean-up Drive" | "Monitoring Personnel" | null {
   const lower = text.toLowerCase();
+  if (/\b(deploy(?:ment|ed|ing)?|pick[\s-]?up|retriev(?:e|al|ed)|collect(?:ion|ed)?)\b/.test(lower)) {
+    return null;
+  }
   if (
     lower.includes("mist") ||
     lower.includes("fog") ||
@@ -294,8 +298,7 @@ function classifyInterventionCategory(
     lower.includes("personnel") ||
     lower.includes("inspect") ||
     lower.includes("survey") ||
-    lower.includes("field") ||
-    lower.includes("deploy")
+    lower.includes("field")
   ) {
     return "Monitoring Personnel";
   }
@@ -307,41 +310,23 @@ function classifyInterventionCategory(
   return "Monitoring Personnel";
 }
 
-function inferRiskFromDvi(dvi: number, totalDetections: number): {
+function inferRiskFromDvi(dvi: number, consecutiveCriticalDays: number): {
   levelName: string;
   displayColor: string;
   priority: number;
 } {
-  if (dvi >= 15 || totalDetections >= 150) {
-    return { levelName: "Critical", displayColor: "#e11d48", priority: 4 };
-  }
-  if (dvi >= 8 || totalDetections >= 75) {
-    return { levelName: "High", displayColor: "#f97316", priority: 3 };
-  }
-  if (dvi >= 3 || totalDetections >= 25) {
-    return { levelName: "Moderate", displayColor: "#eab308", priority: 2 };
-  }
-  return { levelName: "Low", displayColor: "#10b981", priority: 1 };
-}
-
-function normalizeRiskPriority(levelName: string, dbPriority?: number | null): number {
-  if (typeof dbPriority === "number" && dbPriority > 0) return dbPriority;
-  const lower = levelName.toLowerCase();
-  if (lower.includes("critical") || lower.includes("red")) return 4;
-  if (lower.includes("high") || lower.includes("orange")) return 3;
-  if (lower.includes("moderate") || lower.includes("medium") || lower.includes("yellow")) return 2;
-  return 1;
-}
-
-function normalizeDisplayColor(displayColor: string | null | undefined, levelName: string): string {
-  if (displayColor && displayColor.trim().length > 0) {
-    return displayColor.trim();
-  }
-  const lower = levelName.toLowerCase();
-  if (lower.includes("critical") || lower.includes("red")) return "#e11d48";
-  if (lower.includes("high") || lower.includes("orange")) return "#f97316";
-  if (lower.includes("moderate") || lower.includes("medium") || lower.includes("yellow")) return "#eab308";
-  return "#10b981";
+  const levelName = getDangerTier(dvi, consecutiveCriticalDays);
+  const priority =
+    levelName === "Critical" ? 4 : levelName === "High" ? 3 : levelName === "Moderate" ? 2 : 1;
+  const displayColor =
+    levelName === "Critical"
+      ? "#e11d48"
+      : levelName === "High"
+        ? "#f97316"
+        : levelName === "Moderate"
+          ? "#eab308"
+          : "#10b981";
+  return { levelName, displayColor, priority };
 }
 
 function isDeviceDeployedAndActive(device: any): boolean {
@@ -387,8 +372,11 @@ export async function fetchEpidemiologicalReportData(params: {
   const { barangayId, dateRange } = params;
   const periodDays = getPeriodDays(dateRange);
   const now = Date.now();
-  const currentPeriodStartMs = now - periodDays * DAY_MS;
-  const prevPeriodStartMs = now - periodDays * 2 * DAY_MS;
+  const periodStart = new Date(now);
+  periodStart.setUTCHours(0, 0, 0, 0);
+  periodStart.setUTCDate(periodStart.getUTCDate() - (periodDays - 1));
+  const currentPeriodStartMs = periodStart.getTime();
+  const prevPeriodStartMs = currentPeriodStartMs - periodDays * DAY_MS;
   const sevenDaysAgoMs = now - 7 * DAY_MS;
   const fourteenDaysAgoMs = now - 14 * DAY_MS;
 
@@ -608,6 +596,7 @@ export async function fetchEpidemiologicalReportData(params: {
       prev7DayDetections: number;
     }
   >();
+  const barangayDailyDetectionsMap = new Map<string, Map<string, number>>();
 
   for (const b of allBarangays) {
     barangayStatsMap.set(b.id, {
@@ -629,8 +618,12 @@ export async function fetchEpidemiologicalReportData(params: {
     // Update per-barangay stats (across municipality)
     if (brgyId && barangayStatsMap.has(brgyId)) {
       const bStat = barangayStatsMap.get(brgyId)!;
-      if (ts >= currentPeriodStartMs) {
+      const dayKey = new Date(ts).toISOString().slice(0, 10);
+      if (ts >= currentPeriodStartMs && ts <= now) {
         bStat.periodDetections += count;
+        const dailyCounts = barangayDailyDetectionsMap.get(brgyId) ?? new Map<string, number>();
+        dailyCounts.set(dayKey, (dailyCounts.get(dayKey) ?? 0) + count);
+        barangayDailyDetectionsMap.set(brgyId, dailyCounts);
       }
       if (ts >= sevenDaysAgoMs) {
         bStat.recent7DayDetections += count;
@@ -725,6 +718,7 @@ export async function fetchEpidemiologicalReportData(params: {
       "Municipal";
     const textToClassify = `${t.trigger_source || ""} ${t.remarks || ""}`;
     const category = classifyInterventionCategory(textToClassify, t.priority);
+    if (!category) continue;
 
     const marker: InterventionMarker = {
       id: `triage-${t.id}`,
@@ -766,6 +760,7 @@ export async function fetchEpidemiologicalReportData(params: {
     const brgyName = (brgyId ? barangayMap.get(brgyId) : null) || "Municipal";
     const textToClassify = `${req.request || ""} ${req.descriptions || ""} ${req.notes || ""}`;
     const category = classifyInterventionCategory(textToClassify);
+    if (!category) continue;
 
     if (dailyBuckets.has(dateKey)) {
       const marker: InterventionMarker = {
@@ -794,6 +789,7 @@ export async function fetchEpidemiologicalReportData(params: {
   for (const t of scopedTriage) {
     const text = `${t.trigger_source || ""} ${t.remarks || ""}`;
     const cat = classifyInterventionCategory(text, t.priority);
+    if (!cat) continue;
     distCounters[cat].total += 1;
     if (String(t.status || "").toLowerCase() === "completed") {
       distCounters[cat].completed += 1;
@@ -803,6 +799,7 @@ export async function fetchEpidemiologicalReportData(params: {
   for (const req of scopedRequests) {
     const text = `${req.request || ""} ${req.descriptions || ""} ${req.notes || ""}`;
     const cat = classifyInterventionCategory(text);
+    if (!cat) continue;
     distCounters[cat].total += 1;
     const st = String(
       req.status || (req.approved_at ? "Approved" : ""),
@@ -926,30 +923,28 @@ export async function fetchEpidemiologicalReportData(params: {
       );
 
       const latestRisk = latestRiskByBarangay.get(b.id);
-      const rawRiskLevel = latestRisk?.risk_level
-        ? Array.isArray(latestRisk.risk_level)
-          ? latestRisk.risk_level[0]
-          : latestRisk.risk_level
-        : null;
 
-      const inferred = inferRiskFromDvi(computedDvi, bStat.periodDetections);
+      const dailyCounts = barangayDailyDetectionsMap.get(b.id);
+      const dailyAverages = Array.from({ length: periodDays }, (_, offset) => {
+        const day = new Date(now);
+        day.setUTCHours(0, 0, 0, 0);
+        day.setUTCDate(day.getUTCDate() - (periodDays - 1 - offset));
+        return (dailyCounts?.get(day.toISOString().slice(0, 10)) ?? 0) /
+          Math.max(1, devCounts.active || devCounts.total || 1);
+      });
+      let consecutiveCriticalDays = 0;
+      let criticalDayStreak = 0;
+      for (const dailyAverage of dailyAverages) {
+        criticalDayStreak = dailyAverage >= 30 ? criticalDayStreak + 1 : 0;
+        consecutiveCriticalDays = Math.max(consecutiveCriticalDays, criticalDayStreak);
+      }
+      const inferred = inferRiskFromDvi(computedDvi, consecutiveCriticalDays);
 
-      const riskLevelName: string =
-        rawRiskLevel?.level_name ?? inferred.levelName;
-      const displayColor: string = normalizeDisplayColor(
-        rawRiskLevel?.display_color,
-        riskLevelName,
-      );
-      const riskPriority: number = normalizeRiskPriority(
-        riskLevelName,
-        rawRiskLevel?.priority ?? inferred.priority,
-      );
+      const riskLevelName = inferred.levelName;
+      const displayColor = inferred.displayColor;
+      const riskPriority = inferred.priority;
 
-      const calculatedScoreDvi: number =
-        latestRisk?.calculated_score != null &&
-        Number(latestRisk.calculated_score) > 0
-          ? Number(Number(latestRisk.calculated_score).toFixed(2))
-          : computedDvi;
+      const calculatedScoreDvi = computedDvi;
 
       let trend7DayPct: number | null = null;
       if (bStat.prev7DayDetections > 0) {

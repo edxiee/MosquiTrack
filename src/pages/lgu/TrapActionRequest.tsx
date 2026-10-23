@@ -28,6 +28,7 @@ import { getErrorMessage } from "@/utils/errorHelpers";
 import { SuccessModal } from "@/components/reports/modals/SuccessModal";
 import { ErrorModal } from "@/components/reports/modals/ErrorModal";
 import TrapReportDropdown, { getTrapDangerLevel } from "@/components/lgu/TrapReportDropdown";
+import { getDangerTier } from "@/utils/dangerTiers";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -85,7 +86,11 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
       setDescription(device.description || device.notes || "");
       setNotes("");
       setRequestType("");
-      setPriority("");
+      const tier = getDangerTier(
+        device.today_mosquito_count,
+        device.consecutive_critical_days,
+      );
+      setPriority(tier === "Moderate" ? "Medium" : tier);
       setError(null);
     }
   }, [open, device]);
@@ -397,8 +402,11 @@ export default function PrescriptiveAnalyticsPage() {
                 {filteredDevices.map((device) => {
                   const hasLocation = device.latitude != null;
                   const isExpanded = expandedTrapIds.has(device.id);
-                  const countForDanger = device.today_mosquito_count && device.today_mosquito_count > 0 ? device.today_mosquito_count : device.latest_mosquito_count;
-                  const danger = getTrapDangerLevel(countForDanger);
+                  const countForDanger = device.today_mosquito_count ?? 0;
+                  const danger = getTrapDangerLevel(
+                    countForDanger,
+                    device.consecutive_critical_days,
+                  );
                   return (
                     <Fragment key={device.id}>
                       <tr onClick={() => toggleExpand(device.id)} className={cn("cursor-pointer transition-colors border-b border-slate-100", isExpanded ? "bg-emerald-50/40 hover:bg-emerald-50/60" : "hover:bg-slate-50/70")}>
