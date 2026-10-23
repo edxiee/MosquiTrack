@@ -6,8 +6,12 @@ import UsersTable from "@/components/accounts/UsersTable";
 import CreateUserDialog from "@/components/accounts/CreateUserDialog";
 import EditUserDialog from "@/components/accounts/EditUserDialog";
 import type { DatabaseUser } from "@/types/user.types";
-import { getUsers } from "@/services/get-users.service";
-import { deleteUser, setUserStatus } from "@/services/users.service";
+import {
+  getUsers,
+  deleteUser,
+  setUserStatus,
+  resendConfirmationEmail,
+} from "@/services/users.service";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function UserAccessControlPage() {
@@ -103,7 +107,6 @@ export default function UserAccessControlPage() {
     setSelectedUser(user);
     setIsEditDialogOpen(true);
   }
-  
 
   function canEditUser(user: DatabaseUser) {
     if (!profile || user.id === profile.id) return true;
@@ -197,12 +200,11 @@ export default function UserAccessControlPage() {
 
   async function handleResendConfirmation(user: DatabaseUser) {
     const confirmed = window.confirm(
-      `Resend confirmation email to ${user.email}?`
+      `Resend confirmation email to ${user.email}?`,
     );
     if (!confirmed) return;
 
     try {
-      const { resendConfirmationEmail } = await import("@/services/users.service");
       await resendConfirmationEmail(user.email);
       window.alert(`Confirmation email resent to ${user.email}.`);
     } catch (err) {

@@ -16,7 +16,7 @@ import type {
   UserFormErrors,
   DatabaseUser,
 } from "@/types/user.types";
-import { updateUser } from "@/services/update-user.service";
+import { updateUser } from "@/services/users.service";
 
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -84,7 +84,7 @@ export default function EditUserDialog({
 
   function updateForm<K extends keyof UpdateUserForm>(
     field: K,
-    value: UpdateUserForm[K]
+    value: UpdateUserForm[K],
   ) {
     setFormData((previous) => ({
       ...previous,
