@@ -1,19 +1,19 @@
-import { lazy } from "react";
 import type { RouteObject } from "react-router-dom";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import RoleGuard from "@/components/layout/RoleGuard";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { ROLES } from "@/constants/roles";
 import RequestActionsOverviewPage from "@/pages/shared/RequestActionsOverviewPage";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
-const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
-const UserAccessControlPage = lazy(() => import("@/pages/admin/UserAccessControlPage"));
-const TrapLocation = lazy(() => import("@/pages/admin/TrapLocation"));
-const TrapManagement = lazy(() => import("@/pages/admin/TrapManagement"));
-const TrapDataOverview = lazy(() => import("@/pages/admin/TrapDataOverview"));
-const LiveMonitoringPage = lazy(() => import("@/pages/admin/LiveMonitoringPage"));
-const Announcements = lazy(() => import("@/pages/admin/Announcements"));
-const SystemControls = lazy(() => import("@/pages/admin/SystemControls"));
+const AdminDashboard = lazyWithRetry(() => import("@/pages/admin/AdminDashboard"));
+const UserAccessControlPage = lazyWithRetry(() => import("@/pages/admin/UserAccessControlPage"));
+const TrapLocation = lazyWithRetry(() => import("@/pages/admin/TrapLocation"));
+const TrapManagement = lazyWithRetry(() => import("@/pages/admin/TrapManagement"));
+const TrapDataOverview = lazyWithRetry(() => import("@/pages/admin/TrapDataOverview"));
+const LiveMonitoringPage = lazyWithRetry(() => import("@/pages/admin/LiveMonitoringPage"));
+const Announcements = lazyWithRetry(() => import("@/pages/admin/Announcements"));
+const SystemControls = lazyWithRetry(() => import("@/pages/admin/SystemControls"));
 
 export const adminRoutes: RouteObject[] = [
   {
@@ -31,9 +31,9 @@ export const adminRoutes: RouteObject[] = [
         element: <AdminDashboard />,
       },
       {
-    path: "request-actions-overview",
-    element: <RequestActionsOverviewPage />,
-  },
+        path: "request-actions-overview",
+        element: <RequestActionsOverviewPage />,
+      },
       {
         path: "users",
         element: <UserAccessControlPage />,

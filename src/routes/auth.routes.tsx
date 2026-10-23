@@ -1,9 +1,9 @@
-import { lazy } from "react";
 import type { RouteObject } from "react-router-dom";
 import AuthLayout from "@/components/layout/AuthLayout";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
-const LoginPage = lazy(() => import("@/pages/LoginPage"));
-const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
+const LoginPage = lazyWithRetry(() => import("@/pages/LoginPage"));
+const ForgotPasswordPage = lazyWithRetry(() => import("@/pages/ForgotPasswordPage"));
 
 export const authRoutes: RouteObject[] = [
   {

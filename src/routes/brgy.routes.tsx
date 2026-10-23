@@ -1,14 +1,14 @@
-import { lazy } from "react";
 import type { RouteObject } from "react-router-dom";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import RoleGuard from "@/components/layout/RoleGuard";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { ROLES } from "@/constants/roles";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
-const BhwDashboard = lazy(() => import("@/pages/brgy/BhwDashboard"));
-const BarangaySurveillancePage = lazy(() => import("@/pages/brgy/BarangaySurveillancePage"));
-const TrapsOverview = lazy(() => import("@/pages/brgy/TrapsOverview"));
-const ActionLogs = lazy(() => import("@/pages/brgy/ActionLogs"));
+const BhwDashboard = lazyWithRetry(() => import("@/pages/brgy/BhwDashboard"));
+const BarangaySurveillancePage = lazyWithRetry(() => import("@/pages/brgy/BarangaySurveillancePage"));
+const TrapsOverview = lazyWithRetry(() => import("@/pages/brgy/TrapsOverview"));
+const ActionLogs = lazyWithRetry(() => import("@/pages/brgy/ActionLogs"));
 
 export const brgyRoutes: RouteObject[] = [
   {

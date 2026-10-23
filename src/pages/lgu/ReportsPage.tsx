@@ -495,7 +495,7 @@ export default function ReportsAnalyticsPage() {
             {reportData?.municipality ? ` • ${reportData.municipality}` : ""}
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            Epidemiological Reports
+            Epidemiological Reports 
           </h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
             Macro-level vector surveillance trends, barangay risk rankings, and
