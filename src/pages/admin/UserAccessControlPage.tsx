@@ -48,25 +48,59 @@ export default function UserAccessControlPage() {
   // Built from whatever values actually exist right now — there's no
   // fixed municipality/barangay lookup table, these are free-text
   // fields on the user record.
+
+  // Role sort order
+  const ROLE_ORDER: Record<string, number> = {
+    SYS_ADMIN: 0,
+    ADMIN: 1,
+    MHO: 2,
+    BHW: 3,
+  };
+  
+  // Users the current viewer is allowed to see
+  const visibleUsers = useMemo(() => {
+    const currentRole = profile?.role?.role_code;
+
+    let list = allUsers;
+
+    // ADMIN cannot see SYS_ADMIN accounts
+    if (currentRole === "ADMIN") {
+      list = list.filter((u) => u.role !== "SYS_ADMIN");
+    }
+
+    // Sort by role, then by name
+    return [...list].sort((a, b) => {
+      const roleA = ROLE_ORDER[a.role] ?? 99;
+      const roleB = ROLE_ORDER[b.role] ?? 99;
+      if (roleA !== roleB) return roleA - roleB;
+
+      const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+      const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [allUsers, profile?.role?.role_code]);
+
+  // Municipality / barangay options from visible users only
   const municipalityOptions = useMemo(() => {
     const values = new Set(
-      allUsers
+      visibleUsers
         .map((u) => u.municipality)
         .filter((v): v is string => Boolean(v)),
     );
     return Array.from(values).sort();
-  }, [allUsers]);
+  }, [visibleUsers]);
 
   const barangayOptions = useMemo(() => {
     const values = new Set(
-      allUsers.map((u) => u.barangay).filter((v): v is string => Boolean(v)),
+      visibleUsers.map((u) => u.barangay).filter((v): v is string => Boolean(v)),
     );
     return Array.from(values).sort();
-  }, [allUsers]);
+  }, [visibleUsers]);
 
+  // Search / filters run on visible users
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allUsers.filter((u) => {
+    return visibleUsers.filter((u) => {
       const matchesSearch =
         q === "" ||
         `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) ||
@@ -86,16 +120,17 @@ export default function UserAccessControlPage() {
         matchesBarangay
       );
     });
-  }, [allUsers, search, role, status, municipality, barangay]);
+  }, [visibleUsers, search, role, status, municipality, barangay]);
 
+  // Stats from visible users (SYS_ADMIN excluded for ADMIN viewers)
   const stats = useMemo(
     () => ({
-      total: allUsers.length,
-      active: allUsers.filter((u) => u.status === "ACTIVE").length,
-      inactive: allUsers.filter((u) => u.status === "INACTIVE").length,
-      pending: allUsers.filter((u) => u.status === "PENDING").length,
+      total: visibleUsers.length,
+      active: visibleUsers.filter((u) => u.status === "ACTIVE").length,
+      inactive: visibleUsers.filter((u) => u.status === "INACTIVE").length,
+      pending: visibleUsers.filter((u) => u.status === "PENDING").length,
     }),
-    [allUsers],
+    [visibleUsers],
   );
 
   function handleCreateUser() {
