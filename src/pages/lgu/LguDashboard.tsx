@@ -55,25 +55,25 @@ const TIER_STYLES: Record<
   { label: string; badge: string; dot: string; bar: string }
 > = {
   green: {
-    label: "Low",
+    label: "Low (0-5)",
     badge: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     dot: "bg-emerald-500",
     bar: "bg-emerald-500",
   },
   yellow: {
-    label: "Moderate",
+    label: "Moderate (6-15)",
     badge: "bg-yellow-50 text-yellow-800 ring-yellow-200",
     dot: "bg-yellow-400",
     bar: "bg-yellow-400",
   },
   orange: {
-    label: "High",
+    label: "High (16-29)",
     badge: "bg-orange-50 text-orange-700 ring-orange-200",
     dot: "bg-orange-500",
     bar: "bg-orange-500",
   },
   red: {
-    label: "Critical",
+    label: "Critical (3 Consecutive Days, 30+)",
     badge: "bg-rose-50 text-rose-700 ring-rose-200",
     dot: "bg-rose-500 animate-pulse",
     bar: "bg-rose-500",
