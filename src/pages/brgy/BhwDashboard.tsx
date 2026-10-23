@@ -2,10 +2,12 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   BatteryLow,
-  ClipboardList,
   Droplets,
   MapPinned,
   MonitorDown,
+  ShieldAlert,
+  ShieldCheck,
+  Siren,
   TriangleAlert,
 } from "lucide-react";
 
@@ -30,26 +32,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBhwDashboardData } from "@/hooks/useBhwDashboardData";
 import { ROUTES } from "@/utils/navigation";
 
-const quickLinks = [
-  {
-    label: "Localized Surveillance",
-    description: "Review barangay maps and alert points.",
-    href: ROUTES.bhw.surveillance,
-    icon: MapPinned,
-  },
-  {
-    label: "Node & Battery Diagnostics",
-    description: "Inspect trap health and voltage status.",
-    href: ROUTES.bhw.trapOverview,
-    icon: BatteryLow,
-  },
-  {
-    label: "Action Triage Log",
-    description: "Open the field action logging workflow.",
-    href: ROUTES.bhw.actionLogs,
-    icon: ClipboardList,
-  },
-] as const;
+const severityStyles: Record<string, string> = {
+  critical: "border-rose-200 bg-rose-50 text-rose-700",
+  high: "border-orange-200 bg-orange-50 text-orange-700",
+  moderate: "border-yellow-200 bg-yellow-50 text-yellow-800",
+  low: "border-emerald-200 bg-emerald-50 text-emerald-700",
+};
+
+function severityLabel(level: string) {
+  const key = level.trim().toLowerCase();
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function severityClass(level: string) {
+  return (
+    severityStyles[level.trim().toLowerCase()] ??
+    "border-slate-200 bg-slate-50 text-slate-700"
+  );
+}
 
 function MetricCard({
   icon: Icon,
@@ -65,25 +65,27 @@ function MetricCard({
   accent?: "emerald" | "amber" | "sky" | "slate";
 }) {
   const accentStyles = {
-    emerald: "border-emerald-200 bg-emerald-50/80 text-emerald-700",
-    amber: "border-amber-200 bg-amber-50/80 text-amber-700",
-    sky: "border-sky-200 bg-sky-50/80 text-sky-700",
-    slate: "border-slate-200 bg-slate-50/80 text-slate-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    sky: "bg-sky-50 text-sky-700",
+    slate: "bg-slate-100 text-slate-700",
   }[accent];
 
   return (
-    <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-      <CardContent className="flex items-start gap-4 p-6">
-        <div className={`rounded-2xl border p-3 ${accentStyles}`}>
-          <Icon className="size-5" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+      <CardContent className="flex items-start justify-between gap-4 p-6">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            {label}
+          </p>
+          <div className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
             {value}
           </div>
-          <p className="mt-1 text-sm text-slate-500">{detail}</p>
+          <p className="mt-2 text-sm text-slate-500">{detail}</p>
+        </div>
+
+        <div className={`rounded-xl p-3 ${accentStyles}`}>
+          <Icon className="size-5" />
         </div>
       </CardContent>
     </Card>
@@ -92,10 +94,15 @@ function MetricCard({
 
 export default function BhwDashboard() {
   const { profile } = useAuth();
-  const { data: metrics, isLoading: metricsLoading } = useBhwDashboardData();
+  const {
+    data: metrics,
+    isLoading: metricsLoading,
+    isError,
+    error,
+  } = useBhwDashboardData();
 
   const recentAlerts = metrics?.recentAlerts ?? [];
-  const actionLog = metrics?.actionLog ?? [];
+  const actionLog = (metrics?.actionLog ?? []).slice(0, 2);
 
   const heroMetrics = {
     barangayDvi: metricsLoading ? "..." : (metrics?.barangayDvi ?? 0).toFixed(1),
@@ -104,83 +111,117 @@ export default function BhwDashboard() {
     openTriageActions: metricsLoading ? "..." : String(metrics?.openTriageActions ?? 0),
   };
 
+  const criticalNodes = metrics?.criticalNodes ?? 0;
+  const openTriageActions = metrics?.openTriageActions ?? 0;
+
+  const banner =
+    criticalNodes > 0
+      ? {
+          level: "Critical alert",
+          text: `${criticalNodes} trap node${criticalNodes === 1 ? " is" : "s are"} in critical state. Prioritize immediate on-site checks and battery replacement.`,
+          style: "border-rose-200 bg-gradient-to-r from-rose-50 to-white text-rose-900",
+          icon: Siren,
+          iconStyle: "bg-rose-100 text-rose-600",
+        }
+      : openTriageActions > 0
+        ? {
+            level: "Action required",
+            text: `${openTriageActions} triage action${openTriageActions === 1 ? " is" : "s are"} still open. Keep field follow-ups moving to closure.`,
+            style: "border-orange-200 bg-gradient-to-r from-orange-50 to-white text-orange-900",
+            icon: ShieldAlert,
+            iconStyle: "bg-orange-100 text-orange-600",
+          }
+        : {
+            level: "All clear",
+            text: "No critical nodes and no open triage actions right now.",
+            style: "border-emerald-200 bg-gradient-to-r from-emerald-50 to-white text-emerald-900",
+            icon: ShieldCheck,
+            iconStyle: "bg-emerald-100 text-emerald-600",
+          };
+  const BannerIcon = banner.icon;
+
   return (
-    <div className="space-y-8">
-      <section className="overflow-hidden rounded-3xl border border-emerald-200 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_35%),linear-gradient(135deg,_rgba(255,255,255,0.98),_rgba(236,253,245,0.95))] p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">
-              <Droplets className="size-3.5" />
-              BARANGAY HEALTH WORKER
-            </div>
-
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 lg:text-5xl">
-              Barangay overview
-            </h1>
-
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              {profile
-                ? `Welcome back, ${profile.first_name}. Monitor trap nodes, track breeding hotspots, and log field actions for your barangay.`
-                : "Welcome back. Monitor trap nodes, track breeding hotspots, and log field actions for your barangay."}
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button asChild size="sm" className="rounded-full px-4 bg-emerald-600 hover:bg-emerald-700 text-white">
-                <Link to={ROUTES.bhw.surveillance}>
-                  View barangay map
-                  <ArrowRight className="size-4 ml-1" />
-                </Link>
-              </Button>
-
-              <Button asChild size="sm" variant="outline" className="rounded-full px-4">
-                <Link to={ROUTES.bhw.actionLogs}>
-                  Log action
-                  <MonitorDown className="size-4 ml-1" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          <Card className="w-full max-w-md border-emerald-200 bg-white/90 shadow-sm backdrop-blur">
-            <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle className="text-lg">Live snapshot</CardTitle>
-              <CardDescription>
-                Barangay-scoped metrics from Supabase.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Barangay DVI</span>
-                <span className="text-lg font-semibold text-slate-950">
-                  {heroMetrics.barangayDvi}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Active trap nodes</span>
-                <span className="text-lg font-semibold text-slate-950">
-                  {heroMetrics.activeTrapNodes}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Low-battery nodes</span>
-                <span className="text-lg font-semibold text-slate-950">
-                  {heroMetrics.lowBatteryNodes}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Open triage actions</span>
-                <span className="text-lg font-semibold text-slate-950">
-                  {heroMetrics.openTriageActions}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+    <div className="space-y-6">
+      {isError && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error instanceof Error
+            ? error.message
+            : "Failed to load barangay dashboard metrics."}
         </div>
+      )}
+
+      {/* Page header */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+            Barangay Health Worker
+          </p>
+          <h1 className="mt-1 text-4xl font-bold tracking-tight text-slate-950">
+            Barangay overview
+          </h1>
+          <p className="mt-1 text-base text-slate-600">
+            {profile
+              ? `Welcome back, ${profile.first_name}. Monitor trap nodes, track breeding hotspots, and log field actions for your barangay.`
+              : "Welcome back. Monitor trap nodes, track breeding hotspots, and log field actions for your barangay."}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            asChild
+            size="sm"
+            className="rounded-full bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+          >
+            <Link to={ROUTES.bhw.surveillance}>
+              <MapPinned className="mr-1 size-4" />
+              View barangay map
+            </Link>
+          </Button>
+
+          <Button asChild size="sm" variant="outline" className="rounded-full px-4">
+            <Link to={ROUTES.bhw.actionLogs}>
+              <MonitorDown className="mr-1 size-4" />
+              Log action
+            </Link>
+          </Button>
+        </div>
+      </header>
+
+      {/* Status banner */}
+      <section
+        role="status"
+        className={`flex items-center gap-4 rounded-2xl border p-5 shadow-sm ${banner.style}`}
+      >
+        <div className={`rounded-xl p-3 ${banner.iconStyle}`}>
+          <BannerIcon className="size-6" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-wide opacity-80">
+            {metricsLoading ? "Checking barangay status..." : banner.level}
+          </p>
+          <p className="mt-0.5 text-sm font-medium sm:text-base">
+            {metricsLoading
+              ? "Loading latest trap and triage updates."
+              : banner.text}
+          </p>
+        </div>
+
+        {(criticalNodes > 0 || openTriageActions > 0) && (
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="hidden rounded-full sm:inline-flex"
+          >
+            <Link to={ROUTES.bhw.actionLogs}>
+              Review <ArrowRight className="ml-1 size-4" />
+            </Link>
+          </Button>
+        )}
       </section>
 
+      {/* Metric cards */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={Droplets}
@@ -208,57 +249,16 @@ export default function BhwDashboard() {
 
         <MetricCard
           icon={TriangleAlert}
-          label="Open triage actions"
+          label="Open actions"
           value={heroMetrics.openTriageActions}
           detail="Unresolved or pending log items."
           accent="slate"
         />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="border-emerald-200 bg-emerald-50/80 shadow-sm">
-          <CardContent className="p-5 text-emerald-800">
-            <p className="text-sm font-medium opacity-80">Breeding hotspot</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">
-              {metricsLoading ? "..." : String(metrics?.hotspotCount ?? 0)}
-            </p>
-            <p className="mt-1 text-sm opacity-80">Sites flagged for inspection.</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-yellow-200 bg-yellow-50/80 shadow-sm">
-          <CardContent className="p-5 text-yellow-900">
-            <p className="text-sm font-medium opacity-80">Queue risk</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">
-              {metricsLoading ? "..." : String(metrics?.queueRisk ?? 0)}
-            </p>
-            <p className="mt-1 text-sm opacity-80">Items needing same-day follow-up.</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-orange-200 bg-orange-50/80 shadow-sm">
-          <CardContent className="p-5 text-orange-800">
-            <p className="text-sm font-medium opacity-80">Field spots</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">
-              {metricsLoading ? "..." : String(metrics?.fieldSpots ?? 0)}
-            </p>
-            <p className="mt-1 text-sm opacity-80">Active hotspots under monitoring.</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-rose-200 bg-rose-50/80 shadow-sm">
-          <CardContent className="p-5 text-rose-800">
-            <p className="text-sm font-medium opacity-80">Critical nodes</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">
-              {metricsLoading ? "..." : String(metrics?.criticalNodes ?? 0)}
-            </p>
-            <p className="mt-1 text-sm opacity-80">Nodes requiring immediate attention.</p>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+      {/* Recent field alerts + triage log */}
+      <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle>Recent field alerts</CardTitle>
             <CardDescription>
@@ -270,22 +270,38 @@ export default function BhwDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Location</TableHead>
-                  <TableHead>Alert type</TableHead>
+                  <TableHead>Risk level</TableHead>
                   <TableHead>Timestamp</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentAlerts.map((item) => (
-                  <TableRow key={`${item.location}-${item.timestamp}`}>
-                    <TableCell className="font-medium text-slate-950">
-                      {item.location}
+                {metricsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
+                      Loading recent alerts...
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="destructive">{item.type}</Badge>
-                    </TableCell>
-                    <TableCell>{item.timestamp}</TableCell>
                   </TableRow>
-                ))}
+                ) : recentAlerts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
+                      No recent field alerts.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  recentAlerts.map((item) => (
+                    <TableRow key={`${item.location}-${item.timestamp}`}>
+                      <TableCell className="font-medium text-slate-950">
+                        {item.location}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={severityClass(item.type)}>
+                          {severityLabel(item.type)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{item.timestamp}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -301,34 +317,46 @@ export default function BhwDashboard() {
             </Button>
           </div>
         </Card>
-
-        <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle>Action Triage Log</CardTitle>
+            <CardTitle>Action Log</CardTitle>
             <CardDescription>
-              Triage log entries and field action statuses.
+              Action log entries and field action statuses.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
-            {actionLog.map((item) => (
-              <div
-                key={`${item.action}-${item.timestamp}`}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-slate-950">{item.action}</p>
-                    <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
-                  </div>
-                  <Badge variant="outline">Logged</Badge>
-                </div>
-                <p className="mt-3 text-xs uppercase tracking-[0.2em] text-slate-400">
-                  {item.timestamp}
-                </p>
+            {metricsLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                Loading action log...
               </div>
-            ))}
+            ) : actionLog.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                No recent Action logs.
+              </div>
+            ) : (
+              actionLog.map((item) => (
+                <div
+                  key={`${item.action}-${item.timestamp}`}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-slate-950">{item.action}</p>
+                      <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
+                    </div>
+                    <Badge variant="outline">Logged</Badge>
+                  </div>
+                  <p className="mt-3 text-xs uppercase tracking-[0.2em] text-slate-400">
+                    {item.timestamp}
+                  </p>
+                </div>
+              ))
+            )}
 
-            <Button asChild className="w-full justify-between rounded-full bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button
+              asChild
+              className="w-full justify-between rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
+            >
               <Link to={ROUTES.bhw.actionLogs}>
                 Log new action
                 <ArrowRight className="size-4" />
@@ -336,35 +364,6 @@ export default function BhwDashboard() {
             </Button>
           </CardContent>
         </Card>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        {quickLinks.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <Button
-              key={item.href}
-              asChild
-              variant="outline"
-              className="h-auto justify-start rounded-2xl border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50/40"
-            >
-              <Link to={item.href}>
-                <div className="flex w-full items-start gap-4">
-                  <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-700">
-                    <Icon className="size-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-950">{item.label}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      {item.description}
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            </Button>
-          );
-        })}
       </section>
     </div>
   );

@@ -31,6 +31,13 @@ export function useBhwDashboardData() {
     queryFn: async (): Promise<BhwDashboardMetrics> => {
       const surveillanceData = await fetchBarangaySurveillanceData();
 
+      const trapLocationByCode = new Map(
+        surveillanceData.traps.map((trap) => [
+          trap.device_code,
+          trap.location || surveillanceData.barangayName,
+        ]),
+      );
+
       const { count, error } = await supabase
         .from("action_triage_log")
         .select("id", { count: "exact", head: true })
@@ -61,16 +68,32 @@ export function useBhwDashboardData() {
         (trap) => trap.activityLevel === "Critical" || (trap.battery ?? 100) < 15,
       ).length;
 
-      const recentAlerts = surveillanceData.latestDetections.slice(0, 3).map((item) => ({
-        location: item.location || surveillanceData.barangayName,
-        type:
-          item.count >= 20
-            ? "High mosquito detection"
-            : item.status === "Unverified"
-              ? "Unverified detection"
-              : "Surveillance alert",
-        timestamp: item.time || "—",
-      }));
+      const recentAlerts = surveillanceData.latestDetections.slice(0, 3).map((item) => {
+        const fallbackFromTrap = trapLocationByCode.get(item.trapId);
+        const locationText = (item.location || "").trim();
+        const normalizedLocation = locationText.toLowerCase();
+        const isGenericLocation =
+          !locationText ||
+          normalizedLocation === "monitoring node" ||
+          normalizedLocation === "monitoring station";
+
+        let riskLevel = "Low";
+        if (item.count >= 50) {
+          riskLevel = "Critical";
+        } else if (item.count >= 30) {
+          riskLevel = "High";
+        } else if (item.count >= 10) {
+          riskLevel = "Moderate";
+        }
+
+        return {
+          location: isGenericLocation
+            ? fallbackFromTrap || surveillanceData.barangayName
+            : locationText,
+          type: riskLevel,
+          timestamp: item.time || "—",
+        };
+      });
 
       const actionLog = surveillanceData.recentActions.slice(0, 3).map((item) => ({
         action: item.triggerSource || "Field action",
