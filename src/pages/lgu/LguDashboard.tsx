@@ -234,18 +234,6 @@ export default function LguDashboard() {
   const avg3 = metrics?.dviAverage3Day ?? 0;
   const prev3 = metrics?.dviAveragePrev3Day ?? 0;
   const overallChange = prev3 > 0 ? ((avg3 - prev3) / prev3) * 100 : null;
-  const actionMetrics = metrics as
-    | {
-        pendingActions?: number;
-        inProgressActions?: number;
-        completedActions?: number;
-        cancelledActions?: number;
-      }
-    | undefined;
-  const pendingActions = actionMetrics?.pendingActions ?? 0;
-  const inProgressActions = actionMetrics?.inProgressActions ?? 0;
-  const completedActions = actionMetrics?.completedActions ?? 0;
-  const cancelledActions = actionMetrics?.cancelledActions ?? 0;
 
   const watchlist = barangayStatus.filter(
     (b) => b.tier === "red" || b.tier === "orange",
@@ -395,35 +383,42 @@ export default function LguDashboard() {
           tone="bg-sky-50 text-sky-700"
           detail={`${risingBarangays.length} showing a rising trend`}
         />
-        <KpiCard
-          icon={ClipboardList}
-          label="Response Actions"
-          value=""
-          tone="bg-amber-50 text-amber-700"
-          detail={
-            <div className="mt-2 grid w-full grid-cols-4 divide-x divide-gray-200">
-              <div className="min-w-0 px-1 text-center">
-                <p className="text-xs font-medium text-amber-700">Pending</p>
-                <p className="text-lg font-bold">{show(String(pendingActions))}</p>
-              </div>
-
-              <div className="min-w-0 px-1 text-center">
-                <p className="text-xs font-medium text-blue-700">In Progress</p>
-                <p className="text-lg font-bold">{show(String(inProgressActions))}</p>
-              </div>
-
-              <div className="min-w-0 px-1 text-center">
-                <p className="text-xs font-medium text-emerald-700">Completed</p>
-                <p className="text-lg font-bold">{show(String(completedActions))}</p>
-              </div>
-
-              <div className="min-w-0 px-1 text-center">
-                <p className="text-xs font-medium text-red-700">Cancelled</p>
-                <p className="text-lg font-bold">{show(String(cancelledActions))}</p>
+        
+        {/* REPLACED: Standalone Response Actions Card */}
+        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Response Actions
+              </p>
+              <div className="rounded-xl p-2 bg-amber-50 text-amber-700">
+                <ClipboardList className="size-4" />
               </div>
             </div>
-          }
-        />
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Pending */}
+              <div className="rounded-lg bg-amber-50/60 border border-amber-100 p-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800/80 mb-0.5">Pending</p>
+                <p className="text-xl font-bold text-amber-900 tabular-nums leading-tight">{show(String(metrics?.pendingActions ?? 0))}</p>
+              </div>
+              {/* In Progress */}
+              <div className="rounded-lg bg-indigo-50/60 border border-indigo-100 p-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-800/80 mb-0.5">In Progress</p>
+                <p className="text-xl font-bold text-indigo-900 tabular-nums leading-tight">{show(String(metrics?.inProgressActions ?? 0))}</p>
+              </div>
+              {/* Completed */}
+              <div className="rounded-lg bg-emerald-50/60 border border-emerald-100 p-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800/80 mb-0.5">Completed</p>
+                <p className="text-xl font-bold text-emerald-900 tabular-nums leading-tight">{show(String(metrics?.completedActions ?? 0))}</p>
+              </div>
+              {/* Cancelled */}
+              <div className="rounded-lg bg-slate-50/60 border border-slate-200 p-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">Cancelled</p>
+                <p className="text-xl font-bold text-slate-800 tabular-nums leading-tight">{show(String(metrics?.cancelledActions ?? 0))}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       {/* Trend + tier distribution */}
