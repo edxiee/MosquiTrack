@@ -157,9 +157,13 @@ export default function LiveMonitoringPage() {
       const allDevices = (data as unknown as OvitrapDevice[]) ?? [];
       setDevices(allDevices);
 
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
       const { data: readings } = await supabase
         .from("ovitrap_readings")
         .select("device_id, battery_level, captured_at, created_at")
+        .gte("captured_at", sevenDaysAgo.toISOString())
         .order("created_at", { ascending: false })
         .limit(1000);
 

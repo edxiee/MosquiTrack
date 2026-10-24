@@ -73,11 +73,16 @@ async function fetchDevices() {
 }
 
 async function fetchRecentReadings() {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+  sevenDaysAgo.setUTCHours(0, 0, 0, 0);
+
   const { data, error } = await supabase
     .from("ovitrap_readings")
     .select(
       "id, device_id, mosquito_count, battery_level, captured_at, created_at, humidity_percent, temperature_c, ai_confidence, image_path"
     )
+    .gte("captured_at", sevenDaysAgo.toISOString())
     .order("captured_at", { ascending: false })
     .limit(RECENT_FEED_LIMIT);
 

@@ -30,6 +30,12 @@ import type { OvitrapDevice, DeviceStatus, Barangay } from "@/types/device.types
 import { getErrorMessage } from "@/utils/errorHelpers";
 import { supabase } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function NodeProvisioningPage() {
   const navigate = useNavigate();
@@ -442,90 +448,96 @@ export default function NodeProvisioningPage() {
       />
 
       {/* Delete Confirmation Modal */}
-      {deletingDevice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-            onClick={closeDeleteConfirm}
-          />
-
-          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
+      <Dialog
+        open={!!deletingDevice}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteConfirm();
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-md p-0 gap-0 rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+        >
+          {deletingDevice && (
+            <>
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-base font-bold text-slate-900">
+                      Delete Trap
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                      Permanent removal confirmation
+                    </DialogDescription>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    Delete Trap
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Permanent removal confirmation
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={closeDeleteConfirm}
-                disabled={isDeleting}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              {deleteError && (
-                <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs px-3 py-2">
-                  {deleteError}
-                </div>
-              )}
-
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Are you sure you want to delete{" "}
-                <span className="font-semibold text-slate-900">
-                  {deletingDevice.device_code}
-                </span>
-                {deletingDevice.barangays?.barangay_name
-                  ? ` in Barangay ${deletingDevice.barangays.barangay_name}`
-                  : ""}
-                ? This action cannot be undone and will permanently remove the
-                trap and its associated records.
-              </p>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <Button
+                <button
                   type="button"
-                  variant="outline"
                   onClick={closeDeleteConfirm}
                   disabled={isDeleting}
-                  className="h-9 px-4 text-sm"
+                  aria-label="Close modal"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
                 >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleConfirmDelete}
-                  disabled={isDeleting}
-                  className="h-9 px-4 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium gap-1.5"
-                >
-                  {isDeleting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Deleting…
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      Delete Trap
-                    </>
-                  )}
-                </Button>
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+
+              <div className="px-6 py-5 space-y-4">
+                {deleteError && (
+                  <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs px-3 py-2">
+                    {deleteError}
+                  </div>
+                )}
+
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Are you sure you want to delete{" "}
+                  <span className="font-semibold text-slate-900">
+                    {deletingDevice.device_code}
+                  </span>
+                  {deletingDevice.barangays?.barangay_name
+                    ? ` in Barangay ${deletingDevice.barangays.barangay_name}`
+                    : ""}
+                  ? This action cannot be undone and will permanently remove the
+                  trap and its associated records.
+                </p>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={closeDeleteConfirm}
+                    disabled={isDeleting}
+                    className="h-9 px-4 text-sm"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    disabled={isDeleting}
+                    className="h-9 px-4 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium gap-1.5"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Deleting…
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        Delete Trap
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Floating Success Toast Notification */}
       {toast && (

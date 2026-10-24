@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail } from "lucide-react";
+import { AlertCircle, CheckCircle2, Mail, X } from "lucide-react";
+import { toast } from "sonner";
 import EmailField from "@/components/forms/EmailField";
 import PasswordField from "@/components/forms/PasswordField";
 import RememberMe from "@/components/forms/RememberMe";
@@ -17,6 +18,8 @@ import {
 export default function LoginForm() {
   const { login } = useAuth();
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
 
   const [searchParams] = useSearchParams();
@@ -38,6 +41,8 @@ export default function LoginForm() {
 
   async function onSubmit(data: LoginSchema) {
     setUnconfirmedEmail(null);
+    setAuthError(null);
+    setResendSuccess(null);
     try {
       await login(data);
     } catch (error) {
@@ -45,10 +50,10 @@ export default function LoginForm() {
         if (error.message.includes("Email not confirmed")) {
           setUnconfirmedEmail(data.email);
         } else {
-          alert(error.message);
+          setAuthError(error.message);
         }
       } else {
-        alert("An unexpected error occurred.");
+        setAuthError("An unexpected error occurred while signing in.");
       }
     }
   }
@@ -56,12 +61,17 @@ export default function LoginForm() {
   async function handleResend() {
     if (!unconfirmedEmail) return;
     setResending(true);
+    setAuthError(null);
     try {
       await resendConfirmationEmail(unconfirmedEmail);
-      alert("Confirmation email resent successfully! Please check your inbox.");
+      const msg = "Confirmation email resent successfully! Please check your inbox.";
+      setResendSuccess(msg);
+      toast.success(msg);
       setUnconfirmedEmail(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to resend email.");
+      const msg = error instanceof Error ? error.message : "Failed to resend email.";
+      setAuthError(msg);
+      toast.error(msg);
     } finally {
       setResending(false);
     }
@@ -82,6 +92,46 @@ export default function LoginForm() {
       }}
       className="space-y-5"
     >
+      {authError && (
+        <div
+          role="alert"
+          className="flex items-start justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-800"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-600" />
+            <span>{authError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAuthError(null)}
+            aria-label="Dismiss error"
+            className="rounded p-0.5 text-rose-500 transition-colors hover:bg-rose-100 hover:text-rose-700"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
+      {resendSuccess && (
+        <div
+          role="status"
+          className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800"
+        >
+          <div className="flex items-start gap-2.5">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+            <span>{resendSuccess}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setResendSuccess(null)}
+            aria-label="Dismiss notice"
+            className="rounded p-0.5 text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-800"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
       <EmailField register={register} error={errors.email} />
       <PasswordField register={register} error={errors.password} />
 
@@ -100,7 +150,10 @@ export default function LoginForm() {
       </div>
 
       {unconfirmedEmail && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
+        <div
+          role="alert"
+          className="p-4 bg-amber-50 border border-amber-200 rounded-md"
+        >
           <p className="text-sm text-amber-800 mb-3">
             Your email address has not been confirmed yet. Please check your inbox for the confirmation link.
           </p>

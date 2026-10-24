@@ -271,41 +271,52 @@ export async function fetchBarangaySurveillanceData(
     }
   }
 
-  // 7. Query ovitrap_readings for devices belonging to this barangay
+  // 7. Query ovitrap_readings bounded to a 7-day window (plus RPC summary if available)
   const deviceIds = rawDevices.map((d) => d.id).filter(Boolean);
 
   let readings: any[] = [];
-  let criticalWindowReadings: Array<{
-    device_id: string;
-    captured_at: string | null;
-    created_at: string | null;
-    mosquito_count: number | null;
-  }> = [];
-  if (deviceIds.length > 0) {
-    const criticalWindowStart = new Date();
-    criticalWindowStart.setUTCHours(0, 0, 0, 0);
-    criticalWindowStart.setUTCDate(criticalWindowStart.getUTCDate() - 2);
+  let rpcSummaries: Map<
+    string,
+    {
+      latest_reading_at: string | null;
+      latest_mosquito_count: number | null;
+      today_count: number;
+      consecutiveCriticalDays: number;
+    }
+  > | null = null;
 
-    const { data: readingsData, error: readingsError } = await supabase
-      .from("ovitrap_readings")
-      .select(
-        `
-        id,
-        device_id,
-        captured_at,
-        created_at,
-        mosquito_count,
-        battery_level,
-        ai_confidence,
-        temperature_c,
-        humidity_percent,
-        image_path,
-        device:ovitrap_devices ( id, device_code, description, notes )
-      `
-      )
-      .in("device_id", deviceIds)
-      .order("captured_at", { ascending: false })
-      .limit(300);
+  if (deviceIds.length > 0) {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+    sevenDaysAgo.setUTCHours(0, 0, 0, 0);
+
+    const [{ data: readingsData, error: readingsError }, { data: rpcData, error: rpcError }] =
+      await Promise.all([
+        supabase
+          .from("ovitrap_readings")
+          .select(
+            `
+            id,
+            device_id,
+            captured_at,
+            created_at,
+            mosquito_count,
+            battery_level,
+            ai_confidence,
+            temperature_c,
+            humidity_percent,
+            image_path,
+            device:ovitrap_devices ( id, device_code, description, notes )
+          `
+          )
+          .in("device_id", deviceIds)
+          .gte("captured_at", sevenDaysAgo.toISOString())
+          .order("captured_at", { ascending: false })
+          .limit(500),
+        supabase.rpc("get_device_surveillance_summary", {
+          p_device_ids: deviceIds,
+        }),
+      ]);
 
     if (readingsError) {
       console.error("Failed to fetch ovitrap readings:", readingsError);
@@ -313,16 +324,31 @@ export async function fetchBarangaySurveillanceData(
       readings = readingsData ?? [];
     }
 
-    const { data: criticalReadingsData, error: criticalReadingsError } = await supabase
-      .from("ovitrap_readings")
-      .select("device_id, captured_at, created_at, mosquito_count")
-      .in("device_id", deviceIds)
-      .gte("captured_at", criticalWindowStart.toISOString());
-
-    if (criticalReadingsError) {
-      console.error("Failed to fetch three-day risk readings:", criticalReadingsError);
-    } else {
-      criticalWindowReadings = criticalReadingsData ?? [];
+    if (!rpcError && Array.isArray(rpcData)) {
+      rpcSummaries = new Map();
+      for (const row of rpcData as Array<{
+        device_id: string;
+        latest_reading_at: string | null;
+        latest_mosquito_count: number | null;
+        today_count: number | null;
+        day_0_count: number | null;
+        day_1_count: number | null;
+        day_2_count: number | null;
+      }>) {
+        rpcSummaries.set(row.device_id, {
+          latest_reading_at: row.latest_reading_at ?? null,
+          latest_mosquito_count:
+            row.latest_mosquito_count != null
+              ? Number(row.latest_mosquito_count)
+              : null,
+          today_count: Number(row.today_count ?? 0),
+          consecutiveCriticalDays: getConsecutiveCriticalDays([
+            Number(row.day_0_count ?? 0),
+            Number(row.day_1_count ?? 0),
+            Number(row.day_2_count ?? 0),
+          ]),
+        });
+      }
     }
   }
 
@@ -421,22 +447,21 @@ export async function fetchBarangaySurveillanceData(
       latestReadingsMap.set(r.device_id, r);
     }
 
-    if (readingTime && readingTime.startsWith(todayStartStr)) {
-      const current = todayReadingsMap.get(r.device_id) ?? 0;
+    if (readingTime) {
+      const day = readingTime.slice(0, 10);
       const countVal = r.mosquito_count ?? 0;
-      todayReadingsMap.set(r.device_id, current + countVal);
-    }
-  }
 
-  for (const reading of criticalWindowReadings) {
-    const readingTime = reading.captured_at || reading.created_at;
-    if (!readingTime) continue;
-    const day = readingTime.slice(0, 10);
-    const count = reading.mosquito_count ?? 0;
-    const deviceDays = dailyReadingsMap.get(reading.device_id) ?? new Map<string, number>();
-    deviceDays.set(day, (deviceDays.get(day) ?? 0) + count);
-    dailyReadingsMap.set(reading.device_id, deviceDays);
-    dailyTotalsMap.set(day, (dailyTotalsMap.get(day) ?? 0) + count);
+      if (day === todayStartStr) {
+        const current = todayReadingsMap.get(r.device_id) ?? 0;
+        todayReadingsMap.set(r.device_id, current + countVal);
+      }
+
+      const deviceDays =
+        dailyReadingsMap.get(r.device_id) ?? new Map<string, number>();
+      deviceDays.set(day, (deviceDays.get(day) ?? 0) + countVal);
+      dailyReadingsMap.set(r.device_id, deviceDays);
+      dailyTotalsMap.set(day, (dailyTotalsMap.get(day) ?? 0) + countVal);
+    }
   }
 
   const validLats: number[] = [];
@@ -449,17 +474,27 @@ export async function fetchBarangaySurveillanceData(
     const statusName = rawStatus?.status_name ?? "Offline";
 
     const latestReading = latestReadingsMap.get(d.id);
-    const todayCountForDevice = todayReadingsMap.get(d.id) ?? 0;
-    const consecutiveCriticalDays = getConsecutiveCriticalDays(
-      Array.from({ length: 3 }, (_, offset) => {
-        const day = new Date();
-        day.setUTCDate(day.getUTCDate() - offset);
-        return dailyReadingsMap.get(d.id)?.get(day.toISOString().slice(0, 10)) ?? 0;
-      }),
-    );
+    const rpcSummary = rpcSummaries?.get(d.id);
+
+    const todayCountForDevice =
+      rpcSummary?.today_count ?? todayReadingsMap.get(d.id) ?? 0;
+    const consecutiveCriticalDays =
+      rpcSummary?.consecutiveCriticalDays ??
+      getConsecutiveCriticalDays(
+        Array.from({ length: 3 }, (_, offset) => {
+          const day = new Date();
+          day.setUTCDate(day.getUTCDate() - offset);
+          return (
+            dailyReadingsMap.get(d.id)?.get(day.toISOString().slice(0, 10)) ?? 0
+          );
+        })
+      );
 
     const readingCommDate =
-      latestReading?.captured_at || latestReading?.created_at || null;
+      rpcSummary?.latest_reading_at ||
+      latestReading?.captured_at ||
+      latestReading?.created_at ||
+      null;
     const deviceSeenDate = d.last_seen_at || null;
     let lastCommDate: string | null = readingCommDate || deviceSeenDate;
     if (readingCommDate && deviceSeenDate) {

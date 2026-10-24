@@ -74,11 +74,16 @@ function flattenReading(row: any): TelemetryReading {
   };
 }
 
-/** Most recent readings, newest first. */
+/** Most recent readings bounded to a 7-day window, newest first. */
 export async function getTelemetry(limit = 200): Promise<TelemetryReading[]> {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+  sevenDaysAgo.setUTCHours(0, 0, 0, 0);
+
   const { data, error } = await supabase
     .from("ovitrap_readings")
     .select(READING_SELECT)
+    .gte("captured_at", sevenDaysAgo.toISOString())
     .order("captured_at", { ascending: false })
     .limit(limit);
 
@@ -103,18 +108,23 @@ export interface DeviceReadingSummary {
   status_name?: string | null;
 }
 
-/** Latest readings for a single trap, newest first. */
+/** Latest readings for a single trap bounded to a 7-day window, newest first. */
 export async function getDeviceReadings(
   deviceId: string,
   limit = 100,
 ): Promise<DeviceReadingSummary[]> {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+  sevenDaysAgo.setUTCHours(0, 0, 0, 0);
+
   const { data, error } = await supabase
     .from("ovitrap_readings")
     .select(
       "id, device_id, captured_at, created_at, updated_at, mosquito_count, battery_level, temperature_c, humidity_percent, ai_confidence, image_path",
     )
     .eq("device_id", deviceId)
-    .order("created_at", { ascending: false })
+    .gte("captured_at", sevenDaysAgo.toISOString())
+    .order("captured_at", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
@@ -133,16 +143,22 @@ export interface DeviceMosquitoStats {
 }
 
 /**
- * Calculates accurate mosquito counts and ping metrics directly from ovitrap_readings table for a device.
+ * Calculates mosquito counts and ping metrics from ovitrap_readings bounded to a 7-day window.
  */
 export async function getDeviceMosquitoStats(
   deviceId: string,
 ): Promise<DeviceMosquitoStats> {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+  sevenDaysAgo.setUTCHours(0, 0, 0, 0);
+
   const { data, error } = await supabase
     .from("ovitrap_readings")
     .select("captured_at, created_at, mosquito_count")
     .eq("device_id", deviceId)
-    .order("created_at", { ascending: false });
+    .gte("captured_at", sevenDaysAgo.toISOString())
+    .order("captured_at", { ascending: false })
+    .limit(500);
 
   if (error) {
     console.error("Failed to fetch device mosquito stats:", error);

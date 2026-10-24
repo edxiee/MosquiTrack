@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import UserPageHeader from "@/components/accounts/UserPageHeader";
 import UserStatistics from "@/components/accounts/UserStatistics";
 import UserToolbar from "@/components/accounts/UserToolbar";
@@ -173,10 +174,11 @@ export default function UserAccessControlPage() {
 
     try {
       await deleteUser(user.id);
+      toast.success(`Deleted user ${user.first_name} ${user.last_name}.`);
       await loadUsers();
     } catch (err) {
       console.error("Failed to delete user:", err);
-      window.alert("Failed to delete user. Please try again.");
+      toast.error("Failed to delete user. Please try again.");
     }
   }
 
@@ -191,10 +193,13 @@ export default function UserAccessControlPage() {
 
     try {
       await setUserStatus(user.id, action);
+      toast.success(
+        `User ${user.first_name} ${user.last_name} ${action}d successfully.`,
+      );
       await loadUsers();
     } catch (err) {
       console.error("Failed to update user status:", err);
-      window.alert("Failed to update user status. Please try again.");
+      toast.error("Failed to update user status. Please try again.");
     }
   }
 
@@ -206,10 +211,10 @@ export default function UserAccessControlPage() {
 
     try {
       await resendConfirmationEmail(user.email);
-      window.alert(`Confirmation email resent to ${user.email}.`);
+      toast.success(`Confirmation email resent to ${user.email}.`);
     } catch (err) {
       console.error("Failed to resend email:", err);
-      window.alert("Failed to resend confirmation email. Please try again.");
+      toast.error("Failed to resend confirmation email. Please try again.");
     }
   }
 

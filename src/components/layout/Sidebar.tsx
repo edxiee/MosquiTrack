@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { LogOut, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SIDEBAR_CONFIG } from "@/utils/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -66,7 +67,7 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
         error instanceof Error
           ? error.message
           : "An unexpected error occurred.";
-      window.alert(message);
+      toast.error(message);
     }
   }
 

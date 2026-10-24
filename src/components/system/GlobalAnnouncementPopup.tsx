@@ -3,7 +3,13 @@ import { getActiveAnnouncements, logAnnouncementView } from "@/services/announce
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import type { Announcement } from "@/types/announcement.types";
-import { Megaphone, X } from "lucide-react";
+import { Megaphone } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function GlobalAnnouncementPopup() {
   const { profile } = useAuth();
@@ -111,28 +117,32 @@ export default function GlobalAnnouncementPopup() {
   }[current.level];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className={`w-full max-w-md rounded-2xl border-t-4 ${themeColors.border} bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-300`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-4">
-            <div className={`rounded-full ${themeColors.bg} p-2 ${themeColors.text} mt-0.5 shrink-0`}>
-              <Megaphone className="size-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-900 text-lg leading-tight pr-2">{current.title}</h4>
-              <p className="mt-2 text-sm text-slate-600 whitespace-pre-wrap">{current.message}</p>
-            </div>
+    <Dialog
+      open={!!current}
+      onOpenChange={(isOpen) => {
+        if (!isOpen && current) {
+          handleDismiss(current.id);
+        }
+      }}
+    >
+      <DialogContent
+        className={`sm:max-w-md rounded-2xl border-t-4 ${themeColors.border} bg-white p-6 shadow-2xl`}
+      >
+        <div className="flex items-start gap-4 pr-6">
+          <div className={`rounded-full ${themeColors.bg} p-2 ${themeColors.text} mt-0.5 shrink-0`}>
+            <Megaphone className="size-5" />
           </div>
-          <button
-            onClick={() => handleDismiss(current.id)}
-            className="text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-md p-1 transition-colors shrink-0"
-            title="Dismiss Announcement"
-          >
-            <X className="size-5" />
-          </button>
+          <div>
+            <DialogTitle className="font-bold text-slate-900 text-lg leading-tight">
+              {current.title}
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-sm text-slate-600 whitespace-pre-wrap">
+              {current.message}
+            </DialogDescription>
+          </div>
         </div>
         
-        <div className="mt-6 flex items-center gap-2 border-t border-slate-100 pt-4">
+        <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
           <span
             className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
               current.level === "critical"
@@ -145,10 +155,10 @@ export default function GlobalAnnouncementPopup() {
             {current.level}
           </span>
           <span className="text-xs text-slate-400 font-medium">
-            {new Date(current.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {new Date(current.start_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

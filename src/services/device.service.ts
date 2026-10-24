@@ -3,6 +3,117 @@ import type { OvitrapDevice, DeviceStatus, Barangay, UserName } from "@/types/de
 import { getConsecutiveCriticalDays } from "@/utils/dangerTiers";
 import { isSameLocalDay } from "@/utils/dateHelpers";
 
+interface DeviceSurveillanceSummary {
+  latestTimestamp: string | null;
+  latestCount: number | null;
+  todayCount: number;
+  consecutiveCriticalDays: number;
+}
+
+/**
+ * Fetches each device's latest reading and 3-day daily sums.
+ * Uses the `get_device_surveillance_summary` PostgreSQL RPC when deployed,
+ * and falls back to a bounded 7-day `.gte("captured_at", ...)` query.
+ */
+export async function getDeviceSurveillanceSummary(
+  deviceIds: string[]
+): Promise<Map<string, DeviceSurveillanceSummary>> {
+  const summaryMap = new Map<string, DeviceSurveillanceSummary>();
+  if (deviceIds.length === 0) return summaryMap;
+
+  // 1. Try single-query PostgreSQL RPC if available
+  const { data: rpcData, error: rpcError } = await supabase.rpc(
+    "get_device_surveillance_summary",
+    { p_device_ids: deviceIds }
+  );
+
+  if (!rpcError && Array.isArray(rpcData)) {
+    for (const row of rpcData as Array<{
+      device_id: string;
+      latest_reading_at: string | null;
+      latest_mosquito_count: number | null;
+      today_count: number | null;
+      day_0_count: number | null;
+      day_1_count: number | null;
+      day_2_count: number | null;
+    }>) {
+      const days = [
+        Number(row.day_0_count ?? 0),
+        Number(row.day_1_count ?? 0),
+        Number(row.day_2_count ?? 0),
+      ];
+      summaryMap.set(row.device_id, {
+        latestTimestamp: row.latest_reading_at ?? null,
+        latestCount:
+          row.latest_mosquito_count != null
+            ? Number(row.latest_mosquito_count)
+            : null,
+        todayCount: Number(row.today_count ?? 0),
+        consecutiveCriticalDays: getConsecutiveCriticalDays(days),
+      });
+    }
+    return summaryMap;
+  }
+
+  // 2. Bounded 7-day query fallback
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+  sevenDaysAgo.setUTCHours(0, 0, 0, 0);
+
+  const { data: readingsData } = await supabase
+    .from("ovitrap_readings")
+    .select("device_id, captured_at, created_at, mosquito_count")
+    .in("device_id", deviceIds)
+    .gte("captured_at", sevenDaysAgo.toISOString())
+    .order("captured_at", { ascending: false })
+    .limit(2000);
+
+  const latestReadingMap = new Map<string, string>();
+  const latestCountMap = new Map<string, number | null>();
+  const todayCountMap = new Map<string, number>();
+  const dailyCountMap = new Map<string, Map<string, number>>();
+
+  if (readingsData) {
+    for (const r of readingsData) {
+      const time = r.captured_at || r.created_at;
+      if (!time) continue;
+      const existing = latestReadingMap.get(r.device_id);
+      if (!existing || new Date(time).getTime() > new Date(existing).getTime()) {
+        latestReadingMap.set(r.device_id, time);
+        latestCountMap.set(r.device_id, r.mosquito_count ?? null);
+      }
+
+      if (isSameLocalDay(time)) {
+        const cur = todayCountMap.get(r.device_id) ?? 0;
+        todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
+      }
+
+      const day = time.slice(0, 10);
+      const deviceDays =
+        dailyCountMap.get(r.device_id) ?? new Map<string, number>();
+      deviceDays.set(day, (deviceDays.get(day) ?? 0) + (r.mosquito_count ?? 0));
+      dailyCountMap.set(r.device_id, deviceDays);
+    }
+  }
+
+  for (const id of deviceIds) {
+    const days = Array.from({ length: 3 }, (_, offset) => {
+      const day = new Date();
+      day.setUTCDate(day.getUTCDate() - offset);
+      return dailyCountMap.get(id)?.get(day.toISOString().slice(0, 10)) ?? 0;
+    });
+
+    summaryMap.set(id, {
+      latestTimestamp: latestReadingMap.get(id) ?? null,
+      latestCount: latestCountMap.get(id) ?? null,
+      todayCount: todayCountMap.get(id) ?? 0,
+      consecutiveCriticalDays: getConsecutiveCriticalDays(days),
+    });
+  }
+
+  return summaryMap;
+}
+
 export async function fetchDevices(): Promise<OvitrapDevice[]> {
   let { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
@@ -77,17 +188,11 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
     new Set(devicesData.map((d) => d.deployed_by).filter(Boolean))
   ) as string[];
 
-  const [profilesRes, readingsRes] = await Promise.all([
+  const [profilesRes, summaryMap] = await Promise.all([
     userIds.length > 0
       ? supabase.from("profiles").select("id, first_name, last_name").in("id", userIds)
       : Promise.resolve({ data: null }),
-    deviceIds.length > 0
-      ? supabase
-          .from("ovitrap_readings")
-          .select("device_id, captured_at, created_at, mosquito_count")
-          .in("device_id", deviceIds)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: null }),
+    getDeviceSurveillanceSummary(deviceIds),
   ]);
 
   const userMap = new Map<string, UserName>();
@@ -100,37 +205,20 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
     }
   }
 
-  const latestReadingMap = new Map<string, string>();
-  const latestCountMap = new Map<string, number | null>();
-  const todayCountMap = new Map<string, number>();
-  const dailyCountMap = new Map<string, Map<string, number>>();
-
-  if (readingsRes.data) {
-    for (const r of readingsRes.data) {
-      const time = r.captured_at || r.created_at;
-      if (!time) continue;
-      const existing = latestReadingMap.get(r.device_id);
-      if (!existing || new Date(time).getTime() > new Date(existing).getTime()) {
-        latestReadingMap.set(r.device_id, time);
-        latestCountMap.set(r.device_id, r.mosquito_count ?? null);
-      }
-
-      if (isSameLocalDay(time)) {
-        const cur = todayCountMap.get(r.device_id) ?? 0;
-        todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
-      }
-
-      const day = time.slice(0, 10);
-      const deviceDays = dailyCountMap.get(r.device_id) ?? new Map<string, number>();
-      deviceDays.set(day, (deviceDays.get(day) ?? 0) + (r.mosquito_count ?? 0));
-      dailyCountMap.set(r.device_id, deviceDays);
-    }
-  }
-
   const ONLINE_THRESHOLD_MS = 16 * 60 * 1000;
 
   return devicesData.map((d: any) => {
-    const latestTimestamp = latestReadingMap.get(d.id) || d.last_seen_at || null;
+    const summary = summaryMap.get(d.id);
+    const readingTs = summary?.latestTimestamp ?? null;
+    const deviceTs = d.last_seen_at ?? null;
+    let latestTimestamp: string | null = readingTs || deviceTs;
+    if (readingTs && deviceTs) {
+      latestTimestamp =
+        new Date(deviceTs).getTime() > new Date(readingTs).getTime()
+          ? deviceTs
+          : readingTs;
+    }
+
     const isOnline = latestTimestamp
       ? Date.now() - new Date(latestTimestamp).getTime() <= ONLINE_THRESHOLD_MS
       : false;
@@ -152,22 +240,17 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
       computedStatusName = "Offline";
     }
 
-    const todayCount = todayCountMap.get(d.id);
-    const displayCount = todayCount != null && todayCount > 0 ? todayCount : latestCountMap.get(d.id) ?? 0;
+    const todayCount = summary?.todayCount ?? 0;
+    const displayCount =
+      todayCount > 0 ? todayCount : summary?.latestCount ?? 0;
 
     const rawBarangay = d.barangays;
     return {
       ...d,
       last_seen_at: latestTimestamp,
       latest_mosquito_count: displayCount,
-      today_mosquito_count: todayCount ?? 0,
-      consecutive_critical_days: getConsecutiveCriticalDays(
-        Array.from({ length: 3 }, (_, offset) => {
-          const day = new Date();
-          day.setUTCDate(day.getUTCDate() - offset);
-          return dailyCountMap.get(d.id)?.get(day.toISOString().slice(0, 10)) ?? 0;
-        }),
-      ),
+      today_mosquito_count: todayCount,
+      consecutive_critical_days: summary?.consecutiveCriticalDays ?? 0,
       device_statuses: statusObj
         ? { ...statusObj, status_name: computedStatusName }
         : { id: "unknown", status_name: computedStatusName, description: null },
@@ -447,23 +530,17 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
   if (devicesError) throw devicesError;
   if (!devicesData || devicesData.length === 0) return [];
 
-  // 5. Hydrate user profiles & latest readings
+  // 5. Hydrate user profiles & bounded reading summaries
   const deviceIds = devicesData.map((d: any) => d.id);
   const userIds = Array.from(
     new Set(devicesData.map((d) => d.deployed_by).filter(Boolean))
   ) as string[];
 
-  const [profilesRes, readingsRes] = await Promise.all([
+  const [profilesRes, summaryMap] = await Promise.all([
     userIds.length > 0
       ? supabase.from("profiles").select("id, first_name, last_name").in("id", userIds)
       : Promise.resolve({ data: null }),
-    deviceIds.length > 0
-      ? supabase
-          .from("ovitrap_readings")
-          .select("device_id, captured_at, created_at, mosquito_count")
-          .in("device_id", deviceIds)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: null }),
+    getDeviceSurveillanceSummary(deviceIds),
   ]);
 
   const userMap = new Map<string, UserName>();
@@ -476,37 +553,20 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     }
   }
 
-  const latestReadingMap = new Map<string, string>();
-  const latestCountMap = new Map<string, number | null>();
-  const todayCountMap = new Map<string, number>();
-  const dailyCountMap = new Map<string, Map<string, number>>();
-
-  if (readingsRes.data) {
-    for (const r of readingsRes.data) {
-      const time = r.captured_at || r.created_at;
-      if (!time) continue;
-      const existing = latestReadingMap.get(r.device_id);
-      if (!existing || new Date(time).getTime() > new Date(existing).getTime()) {
-        latestReadingMap.set(r.device_id, time);
-        latestCountMap.set(r.device_id, r.mosquito_count ?? null);
-      }
-
-      if (isSameLocalDay(time)) {
-        const cur = todayCountMap.get(r.device_id) ?? 0;
-        todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
-      }
-
-      const day = time.slice(0, 10);
-      const deviceDays = dailyCountMap.get(r.device_id) ?? new Map<string, number>();
-      deviceDays.set(day, (deviceDays.get(day) ?? 0) + (r.mosquito_count ?? 0));
-      dailyCountMap.set(r.device_id, deviceDays);
-    }
-  }
-
   const ONLINE_THRESHOLD_MS = 16 * 60 * 1000;
 
   return devicesData.map((d: any) => {
-    const latestTimestamp = latestReadingMap.get(d.id) || d.last_seen_at || null;
+    const summary = summaryMap.get(d.id);
+    const readingTs = summary?.latestTimestamp ?? null;
+    const deviceTs = d.last_seen_at ?? null;
+    let latestTimestamp: string | null = readingTs || deviceTs;
+    if (readingTs && deviceTs) {
+      latestTimestamp =
+        new Date(deviceTs).getTime() > new Date(readingTs).getTime()
+          ? deviceTs
+          : readingTs;
+    }
+
     const isOnline = latestTimestamp
       ? Date.now() - new Date(latestTimestamp).getTime() <= ONLINE_THRESHOLD_MS
       : false;
@@ -528,22 +588,17 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
       computedStatusName = "Offline";
     }
 
-    const todayCount = todayCountMap.get(d.id);
-    const displayCount = todayCount != null && todayCount > 0 ? todayCount : latestCountMap.get(d.id) ?? 0;
+    const todayCount = summary?.todayCount ?? 0;
+    const displayCount =
+      todayCount > 0 ? todayCount : summary?.latestCount ?? 0;
 
     const rawBarangay = d.barangays;
     return {
       ...d,
       last_seen_at: latestTimestamp,
       latest_mosquito_count: displayCount,
-      today_mosquito_count: todayCount ?? 0,
-      consecutive_critical_days: getConsecutiveCriticalDays(
-        Array.from({ length: 3 }, (_, offset) => {
-          const day = new Date();
-          day.setUTCDate(day.getUTCDate() - offset);
-          return dailyCountMap.get(d.id)?.get(day.toISOString().slice(0, 10)) ?? 0;
-        }),
-      ),
+      today_mosquito_count: todayCount,
+      consecutive_critical_days: summary?.consecutiveCriticalDays ?? 0,
       device_statuses: statusObj
         ? { ...statusObj, status_name: computedStatusName }
         : { id: "unknown", status_name: computedStatusName, description: null },
@@ -621,23 +676,17 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
 
   if (filtered.length === 0) return [];
 
-  // Hydrate users + latest readings (same logic as fetchDevices)
+  // Hydrate users + bounded reading summaries
   const deviceIds = filtered.map((d: any) => d.id);
   const userIds = Array.from(
     new Set(filtered.map((d: any) => d.deployed_by).filter(Boolean))
   ) as string[];
 
-  const [profilesRes, readingsRes] = await Promise.all([
+  const [profilesRes, summaryMap] = await Promise.all([
     userIds.length > 0
       ? supabase.from("profiles").select("id, first_name, last_name").in("id", userIds)
       : Promise.resolve({ data: null }),
-    deviceIds.length > 0
-      ? supabase
-          .from("ovitrap_readings")
-          .select("device_id, captured_at, created_at, mosquito_count")
-          .in("device_id", deviceIds)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: null }),
+    getDeviceSurveillanceSummary(deviceIds),
   ]);
 
   const userMap = new Map<string, any>();
@@ -650,37 +699,20 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
     }
   }
 
-  const latestReadingMap = new Map<string, string>();
-  const latestCountMap = new Map<string, number | null>();
-  const todayCountMap = new Map<string, number>();
-  const dailyCountMap = new Map<string, Map<string, number>>();
-
-  if (readingsRes.data) {
-    for (const r of readingsRes.data) {
-      const time = r.captured_at || r.created_at;
-      if (!time) continue;
-      const existing = latestReadingMap.get(r.device_id);
-      if (!existing || new Date(time).getTime() > new Date(existing).getTime()) {
-        latestReadingMap.set(r.device_id, time);
-        latestCountMap.set(r.device_id, r.mosquito_count ?? null);
-      }
-
-      if (isSameLocalDay(time)) {
-        const cur = todayCountMap.get(r.device_id) ?? 0;
-        todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
-      }
-
-      const day = time.slice(0, 10);
-      const deviceDays = dailyCountMap.get(r.device_id) ?? new Map<string, number>();
-      deviceDays.set(day, (deviceDays.get(day) ?? 0) + (r.mosquito_count ?? 0));
-      dailyCountMap.set(r.device_id, deviceDays);
-    }
-  }
-
   const ONLINE_THRESHOLD_MS = 16 * 60 * 1000;
 
   return filtered.map((d: any) => {
-    const latestTimestamp = latestReadingMap.get(d.id) || d.last_seen_at || null;
+    const summary = summaryMap.get(d.id);
+    const readingTs = summary?.latestTimestamp ?? null;
+    const deviceTs = d.last_seen_at ?? null;
+    let latestTimestamp: string | null = readingTs || deviceTs;
+    if (readingTs && deviceTs) {
+      latestTimestamp =
+        new Date(deviceTs).getTime() > new Date(readingTs).getTime()
+          ? deviceTs
+          : readingTs;
+    }
+
     const isOnline = latestTimestamp
       ? Date.now() - new Date(latestTimestamp).getTime() <= ONLINE_THRESHOLD_MS
       : false;
@@ -702,8 +734,9 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
       computedStatusName = "Offline";
     }
 
-    const todayCount = todayCountMap.get(d.id);
-    const displayCount = todayCount != null && todayCount > 0 ? todayCount : latestCountMap.get(d.id) ?? 0;
+    const todayCount = summary?.todayCount ?? 0;
+    const displayCount =
+      todayCount > 0 ? todayCount : summary?.latestCount ?? 0;
 
     const rawBarangay = d.barangays;
 
@@ -711,14 +744,8 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
       ...d,
       last_seen_at: latestTimestamp,
       latest_mosquito_count: displayCount,
-      today_mosquito_count: todayCount ?? 0,
-      consecutive_critical_days: getConsecutiveCriticalDays(
-        Array.from({ length: 3 }, (_, offset) => {
-          const day = new Date();
-          day.setUTCDate(day.getUTCDate() - offset);
-          return dailyCountMap.get(d.id)?.get(day.toISOString().slice(0, 10)) ?? 0;
-        }),
-      ),
+      today_mosquito_count: todayCount,
+      consecutive_critical_days: summary?.consecutiveCriticalDays ?? 0,
       device_statuses: statusObj
         ? { ...statusObj, status_name: computedStatusName }
         : { id: "unknown", status_name: computedStatusName, description: null },
@@ -728,7 +755,6 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
     };
   }) as unknown as OvitrapDevice[];
 }
-
 
 export async function deleteDevice(deviceId: string): Promise<void> {
   // Clean up dependent records first in case foreign keys do not cascade

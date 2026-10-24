@@ -20,6 +20,12 @@ import { ROUTES } from "@/utils/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatDeployedBy } from "@/utils/deviceHelpers";
 import { fetchDevicesForCurrentMunicipality } from "@/services/device.service";
 import type { OvitrapDevice } from "@/types/device.types";
@@ -127,15 +133,22 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+    <Dialog
+      open={open && !!device}
+      onOpenChange={(isOpen) => {
+        if (!isOpen && !saving) onClose();
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-lg p-0 gap-0 rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Post Request Action</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Submit a prescribed action for this active node</p>
+            <DialogTitle className="text-lg font-bold text-slate-900">Post Request Action</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 mt-0.5">Submit a prescribed action for this active node</DialogDescription>
           </div>
-          <button onClick={onClose} disabled={saving} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50">
+          <button type="button" aria-label="Close modal" onClick={onClose} disabled={saving} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -178,8 +191,8 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -598,51 +611,63 @@ export default function PrescriptiveAnalyticsPage() {
       <ErrorModal open={errorOpen} onClose={() => { setErrorOpen(false); setErrorMessage(null); }} errorMessage={errorMessage} />
 
       {/* Simple Details Modal for Triage Log */}
-      {myRequestDetailOpen && selectedMyRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMyRequestDetailOpen(false)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-900">Request Details</h3>
-              <button onClick={() => setMyRequestDetailOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Request ID</span>
-                <span className="font-mono font-semibold text-slate-900">{selectedMyRequest.id}</span>
+      <Dialog
+        open={myRequestDetailOpen && !!selectedMyRequest}
+        onOpenChange={setMyRequestDetailOpen}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl p-6 gap-0"
+        >
+          {selectedMyRequest && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <DialogTitle className="text-lg font-bold text-slate-900">Request Details</DialogTitle>
+                  <DialogDescription className="sr-only">
+                    Triage request details for {selectedMyRequest.id}
+                  </DialogDescription>
+                </div>
+                <button type="button" aria-label="Close modal" onClick={() => setMyRequestDetailOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Type</span>
-                <span className="font-medium text-slate-900">{selectedMyRequest.trigger_source}</span>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500">Request ID</span>
+                  <span className="font-mono font-semibold text-slate-900">{selectedMyRequest.id}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500">Type</span>
+                  <span className="font-medium text-slate-900">{selectedMyRequest.trigger_source}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500">Priority</span>
+                  <span className="font-medium text-slate-900">{selectedMyRequest.priority}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500">Location</span>
+                  <span className="font-medium text-slate-900">{selectedMyRequest.barangay_name || "—"}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500">Status</span>
+                  <span className="font-medium text-slate-900">{selectedMyRequest.status}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500">Due Date</span>
+                  <span className="font-medium text-slate-900">{selectedMyRequest.due_date ? new Date(`${selectedMyRequest.due_date}T00:00:00`).toLocaleDateString() : "—"}</span>
+                </div>
+                <div className="py-2">
+                  <span className="text-slate-500 block mb-1">Remarks:</span>
+                  <p className="text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs whitespace-pre-wrap">
+                    {selectedMyRequest.remarks || "No remarks provided."}
+                  </p>
+                </div>
               </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Priority</span>
-                <span className="font-medium text-slate-900">{selectedMyRequest.priority}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Location</span>
-                <span className="font-medium text-slate-900">{selectedMyRequest.barangay_name || "—"}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Status</span>
-                <span className="font-medium text-slate-900">{selectedMyRequest.status}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Due Date</span>
-                <span className="font-medium text-slate-900">{selectedMyRequest.due_date ? new Date(`${selectedMyRequest.due_date}T00:00:00`).toLocaleDateString() : "—"}</span>
-              </div>
-              <div className="py-2">
-                <span className="text-slate-500 block mb-1">Remarks:</span>
-                <p className="text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs whitespace-pre-wrap">
-                  {selectedMyRequest.remarks || "No remarks provided."}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

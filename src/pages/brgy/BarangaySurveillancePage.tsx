@@ -2,6 +2,12 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   MapContainer,
@@ -734,137 +740,133 @@ export default function BarangaySurveillancePage() {
       {/* ======================================================== */}
       {/* MODAL: Detailed Trap Diagnostics & Status Modal       */}
       {/* ======================================================== */}
-      {isDetailsModalOpen && selectedTrap && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-slate-900">
-                    {selectedTrap.device_code}
-                  </h2>
-                  <Badge
-                    className={cn(
-                      "border-none text-[10px]",
-                      selectedTrap.status === "Online"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-100 text-slate-600"
-                    )}
+      <Dialog open={isDetailsModalOpen && !!selectedTrap} onOpenChange={setIsDetailsModalOpen}>
+        <DialogContent className="sm:max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+          {selectedTrap && (
+            <>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 pr-8">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <DialogTitle className="text-lg font-bold text-slate-900">
+                      {selectedTrap.device_code}
+                    </DialogTitle>
+                    <Badge
+                      className={cn(
+                        "border-none text-[10px]",
+                        selectedTrap.status === "Online"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-slate-100 text-slate-600"
+                      )}
+                    >
+                      {selectedTrap.status}
+                    </Badge>
+                  </div>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                    Hardware Node Diagnostics & Real-time Status Data
+                  </DialogDescription>
+                </div>
+              </div>
+
+              <div className="space-y-4 mt-2 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <p className="text-slate-400 uppercase font-semibold text-[10px]">
+                      Today's Mosquito Count
+                    </p>
+                    <p className="text-xl font-bold text-rose-600 mt-0.5">
+                      {selectedTrap.count}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <p className="text-slate-400 uppercase font-semibold text-[10px]">
+                      Battery Status
+                    </p>
+                    <p className="text-xl font-bold text-emerald-600 mt-0.5">
+                      {selectedTrap.battery}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Location:</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTrap.location}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">
+                      GPS Coordinates:
+                    </span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {hasValidCoords(selectedTrap)
+                        ? `${selectedTrap.lat.toFixed(5)}, ${selectedTrap.lng.toFixed(5)}`
+                        : "Not available"}
+                    </span>
+                  </div>
+                  {selectedTrap.temperature !== null && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">
+                        Ambient Temperature:
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedTrap.temperature}°C
+                      </span>
+                    </div>
+                  )}
+                  {selectedTrap.humidity !== null && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">
+                        Relative Humidity:
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedTrap.humidity}%
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">
+                      Last Ingested Communication:
+                    </span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedTrap.lastComm}
+                    </span>
+                  </div>
+                  {selectedTrap.deployed_by_name && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">
+                        Deployed By:
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedTrap.deployed_by_name}
+                      </span>
+                    </div>
+                  )}
+                  {selectedTrap.installation_date && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">
+                        Installation Date:
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedTrap.installation_date}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    onClick={() => setIsDetailsModalOpen(false)}
+                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs h-9 px-4"
                   >
-                    {selectedTrap.status}
-                  </Badge>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Hardware Node Diagnostics & Real-time Status Data
-                </p>
-              </div>
-              <button
-                onClick={() => setIsDetailsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4 mt-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-slate-400 uppercase font-semibold text-[10px]">
-                    Today's Mosquito Count
-                  </p>
-                  <p className="text-xl font-bold text-rose-600 mt-0.5">
-                    {selectedTrap.count}
-                  </p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-slate-400 uppercase font-semibold text-[10px]">
-                    Battery Status
-                  </p>
-                  <p className="text-xl font-bold text-emerald-600 mt-0.5">
-                    {selectedTrap.battery}%
-                  </p>
+                    Close
+                  </Button>
                 </div>
               </div>
-
-              <div className="space-y-2.5 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">Location:</span>
-                  <span className="font-semibold text-slate-800">
-                    {selectedTrap.location}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">
-                    GPS Coordinates:
-                  </span>
-                  <span className="font-mono font-semibold text-slate-800">
-                    {hasValidCoords(selectedTrap)
-                      ? `${selectedTrap.lat.toFixed(5)}, ${selectedTrap.lng.toFixed(5)}`
-                      : "Not available"}
-                  </span>
-                </div>
-                {selectedTrap.temperature !== null && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">
-                      Ambient Temperature:
-                    </span>
-                    <span className="font-semibold text-slate-800">
-                      {selectedTrap.temperature}°C
-                    </span>
-                  </div>
-                )}
-                {selectedTrap.humidity !== null && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">
-                      Relative Humidity:
-                    </span>
-                    <span className="font-semibold text-slate-800">
-                      {selectedTrap.humidity}%
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">
-                    Last Ingested Communication:
-                  </span>
-                  <span className="font-semibold text-slate-800">
-                    {selectedTrap.lastComm}
-                  </span>
-                </div>
-                {selectedTrap.deployed_by_name && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">
-                      Deployed By:
-                    </span>
-                    <span className="font-semibold text-slate-800">
-                      {selectedTrap.deployed_by_name}
-                    </span>
-                  </div>
-                )}
-                {selectedTrap.installation_date && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">
-                      Installation Date:
-                    </span>
-                    <span className="font-semibold text-slate-800">
-                      {selectedTrap.installation_date}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <Button
-                  onClick={() => setIsDetailsModalOpen(false)}
-                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs h-9 px-4"
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

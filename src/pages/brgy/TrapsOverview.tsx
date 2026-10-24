@@ -17,6 +17,12 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { fetchDevicesForCurrentUser } from "@/services/device.service";
 import { formatDeployedBy } from "@/utils/deviceHelpers";
 import type { OvitrapDevice } from "@/types/device.types";
@@ -560,129 +566,136 @@ export default function HardwareNodesPage() {
       />
 
       {/* Request Action Modal */}
-      {modalOpen && selectedDevice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-            onClick={closeModal}
-          />
-
-          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Submit Request Action
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Create a new entry in request_actions
-                </p>
-              </div>
-              <button
-                onClick={closeModal}
-                disabled={saving}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitRequest} className="px-6 py-5 space-y-4">
-              {modalError && (
-                <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">
-                  {modalError}
+      <Dialog
+        open={modalOpen && !!selectedDevice}
+        onOpenChange={(open) => {
+          if (!open) closeModal();
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-lg p-0 gap-0 rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+        >
+          {selectedDevice && (
+            <>
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div>
+                  <DialogTitle className="text-lg font-bold text-slate-900">
+                    Submit Request Action
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                    Create a new entry in request_actions
+                  </DialogDescription>
                 </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-600">
-                  Device ID <span className="text-rose-500">*</span>
-                </Label>
-                <Input
-                  value={selectedDevice.device_code}
-                  readOnly
-                  className="h-9 text-sm bg-slate-50 text-slate-600 cursor-not-allowed"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-600">
-                  Request Type <span className="text-rose-500">*</span>
-                </Label>
-                <select
-                  value={requestType}
-                  onChange={(e) =>
-                    setRequestType(e.target.value as RequestType | "")
-                  }
-                  className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                >
-                  <option value="" disabled>
-                    Select request type…
-                  </option>
-                  {REQUEST_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-600">
-                  Description
-                </Label>
-                <Input
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe the situation or observation"
-                  className="h-9 text-sm"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-600">
-                  Notes
-                </Label>
-                <Input
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Additional notes (optional)"
-                  className="h-9 text-sm"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <Button
+                <button
                   type="button"
-                  variant="outline"
                   onClick={closeModal}
                   disabled={saving}
-                  className="h-9 px-4 text-sm"
+                  aria-label="Close modal"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
                 >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={saving || !requestType}
-                  className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium gap-1.5"
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Submitting…
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      Submit Request
-                    </>
-                  )}
-                </Button>
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+              <form onSubmit={handleSubmitRequest} className="px-6 py-5 space-y-4">
+                {modalError && (
+                  <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">
+                    {modalError}
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Device ID <span className="text-rose-500">*</span>
+                  </Label>
+                  <Input
+                    value={selectedDevice.device_code}
+                    readOnly
+                    className="h-9 text-sm bg-slate-50 text-slate-600 cursor-not-allowed"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Request Type <span className="text-rose-500">*</span>
+                  </Label>
+                  <select
+                    value={requestType}
+                    onChange={(e) =>
+                      setRequestType(e.target.value as RequestType | "")
+                    }
+                    className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    required
+                  >
+                    <option value="" disabled>
+                      Select request type…
+                    </option>
+                    {REQUEST_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Description
+                  </Label>
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Describe the situation or observation"
+                    className="h-9 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Notes
+                  </Label>
+                  <Input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Additional notes (optional)"
+                    className="h-9 text-sm"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={closeModal}
+                    disabled={saving}
+                    className="h-9 px-4 text-sm"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={saving || !requestType}
+                    className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium gap-1.5"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Submitting…
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Submit Request
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

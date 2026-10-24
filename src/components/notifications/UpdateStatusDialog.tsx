@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -51,10 +52,11 @@ export default function UpdateStatusDialog({
     setIsSaving(true);
     try {
       await onSubmit(action.id, status, remarks);
+      toast.success("Action status updated.");
       onOpenChange(false);
     } catch (err) {
       console.error("Failed to update action:", err);
-      window.alert("Failed to update action. Please try again.");
+      toast.error("Failed to update action. Please try again.");
     } finally {
       setIsSaving(false);
     }

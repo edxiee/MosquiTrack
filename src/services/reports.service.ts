@@ -69,6 +69,10 @@ export async function getFilteredReadings(
 
   if (filters.dateFrom) {
     query = query.gte("captured_at", `${filters.dateFrom}T00:00:00`);
+  } else {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    query = query.gte("captured_at", sevenDaysAgo.toISOString());
   }
   if (filters.dateTo) {
     query = query.lte("captured_at", `${filters.dateTo}T23:59:59`);

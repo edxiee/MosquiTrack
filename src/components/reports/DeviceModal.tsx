@@ -3,14 +3,19 @@ import {
   Plus,
   Pencil,
   Loader2,
-  X,
   CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { emptyDeviceForm } from "@/constants/device";
-import { formatBarangayLabel } from "@/utils/deviceHelpers";
+import { formatBarangayLabel, getNextDeviceCode } from "@/utils/deviceHelpers";
 import {
   createDevice,
   updateDevice,
@@ -21,8 +26,6 @@ import type {
   Barangay,
   DeviceFormData,
 } from "@/types/device.types";
-
-import { getNextDeviceCode } from "@/utils/deviceHelpers";
 
 interface DeviceModalProps {
   open: boolean;
@@ -89,9 +92,8 @@ export default function DeviceModal({
     prevOpenRef.current = open;
   }, [open, mode, device, statuses, existingDevices]);
 
-  if (!open) return null;
-
   const handleClose = () => {
+    if (saving) return;
     setCreatedResult(null);
     onClose();
   };
@@ -151,37 +153,26 @@ export default function DeviceModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-        onClick={handleClose}
-      />
-
-      <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+      <DialogContent className="sm:max-w-lg rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10 pr-12">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">
+            <DialogTitle className="text-lg font-bold text-slate-900">
               {createdResult
                 ? "Trap Created"
                 : mode === "create"
                 ? "Create Node"
                 : "Edit Trap"}
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 mt-0.5">
               {createdResult
                 ? "New trap successfully registered"
                 : mode === "create"
                 ? "Add a new ovitrap device"
                 : `Editing ${device?.device_code}`}
-            </p>
+            </DialogDescription>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Success Confirmation Modal View when Created */}
@@ -214,7 +205,10 @@ export default function DeviceModal({
           /* Create / Edit Form View */
           <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
             {error && (
-              <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">
+              <div
+                role="alert"
+                className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2"
+              >
                 {error}
               </div>
             )}
@@ -256,7 +250,9 @@ export default function DeviceModal({
                 className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 required
               >
-                <option value="" disabled selected>Select barangay…</option>
+                <option value="" disabled>
+                  Select barangay…
+                </option>
                 {barangays.map((b) => (
                   <option key={b.id} value={b.id}>
                     {formatBarangayLabel(b)}
@@ -322,7 +318,7 @@ export default function DeviceModal({
             </div>
           </form>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
