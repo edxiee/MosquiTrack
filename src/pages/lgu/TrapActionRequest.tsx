@@ -386,12 +386,12 @@ export default function PrescriptiveAnalyticsPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* ==================================================================== */}
-      {/* FIRST CONTAINER: EXISTING TRAPS REPORTS & REQUESTS                   */}
+      {/* FIRST CONTAINER: EXISTING TRAPS LIST & REQUESTS                   */}
       {/* ==================================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Traps Reports & Requests</h1>
-          <p className="text-sm text-slate-500 mt-1">Active Traps ready for Reports and Request actions. Click any trap to expand detailed reports.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Traps List & Requests</h1>
+          <p className="text-sm text-slate-500 mt-1">Active Traps ready for Listing and Request actions. Click any trap to expand detailed list.</p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-64">

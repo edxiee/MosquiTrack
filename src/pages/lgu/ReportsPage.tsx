@@ -429,7 +429,7 @@ export default function ReportsAnalyticsPage() {
       `"Critical / High-Risk Zones","${kpis.criticalHighRiskZones}","${kpis.criticalCount} Critical, ${kpis.highRiskCount} High-Risk"`,
     );
     lines.push(
-      `"Triage Completion Rate","${kpis.triageCompletionRate}%","${kpis.completedTriageCount} of ${kpis.totalTriageCount} completed"`,
+      `"Action Completion Rate","${kpis.triageCompletionRate}%","${kpis.completedTriageCount} of ${kpis.totalTriageCount} completed"`,
     );
     lines.push("");
 
@@ -731,7 +731,7 @@ export default function ReportsAnalyticsPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Triage Completion Rate
+                  Action Completion Rate
                 </p>
                 {isLoading ? (
                   <Skeleton className="h-9 w-24 mt-1" />
