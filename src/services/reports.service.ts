@@ -689,6 +689,10 @@ export async function fetchEpidemiologicalReportData(params: {
   //    - Completed Intervention Markers on AreaChart
   //    - Intervention Distribution Donut Chart
   const scopedTriage = rawTriage.filter((t) => {
+    if (String(t.status || "").toLowerCase() === "cancelled") {
+      return false;
+    }
+
     if (isFilteredByBarangay) {
       return t.barangay_id && scopedBarangayIds.has(t.barangay_id);
     }
@@ -801,13 +805,19 @@ export async function fetchEpidemiologicalReportData(params: {
   }
 
   for (const req of scopedRequests) {
-    const text = `${req.request || ""} ${req.descriptions || ""} ${req.notes || ""}`;
-    const cat = classifyInterventionCategory(text);
-    if (!cat) continue;
-    distCounters[cat].total += 1;
     const st = String(
       req.status || (req.approved_at ? "Approved" : ""),
     ).toLowerCase();
+
+    // Exclude cancelled requests from distribution totals
+    if (st === "cancelled") continue;
+
+    const text = `${req.request || ""} ${req.descriptions || ""} ${req.notes || ""}`;
+    const cat = classifyInterventionCategory(text);
+    if (!cat) continue;
+
+    distCounters[cat].total += 1;
+
     if (st === "approved" || st === "completed") {
       distCounters[cat].completed += 1;
     }

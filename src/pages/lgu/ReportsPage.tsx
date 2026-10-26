@@ -771,7 +771,7 @@ export default function ReportsAnalyticsPage() {
               <div>
                 <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <Activity className="size-4 text-emerald-600" />
-                  Mosquito population Growth Trend & Intervention Impact
+                  Mosquito Population Growth Trend & Intervention Impact
                 </CardTitle>
                 <CardDescription className="mt-0.5 text-xs text-slate-500">
                   Daily confirmed mosquito counts {" "}
@@ -843,7 +843,7 @@ export default function ReportsAnalyticsPage() {
                       axisLine={false}
                       allowDecimals={false}
                     />
-                    <Tooltip content={<VectorTrendTooltip />} />
+                    <Tooltip content={<VectorTrendTooltip />} wrapperStyle={{ zIndex: 50 }}/>
 
                     {/* Reference lines & dots for completed misting / clean-up interventions */}
                     {interventionPoints.map((pt) => (
@@ -964,7 +964,7 @@ export default function ReportsAnalyticsPage() {
                         />
                       ))}
                     </Pie>
-                    <Tooltip content={<InterventionPieTooltip />} />
+                    <Tooltip content={<InterventionPieTooltip />} wrapperStyle={{ zIndex: 50 }}/>
                   </PieChart>
                 </ResponsiveContainer>
 
