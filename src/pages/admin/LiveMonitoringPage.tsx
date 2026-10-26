@@ -34,6 +34,13 @@ import { getConsecutiveCriticalDays, getDangerTier } from "@/utils/dangerTiers";
 
 import "leaflet/dist/leaflet.css";
 
+// --- HARD CODED SIM NETWORK MAP ---
+// This allows us to set TRAP-001 to "GoMo" without needing a database migration.
+// You can easily add other devices here in the future (e.g., "TRAP-002": "Smart LTE").
+const DEVICE_SIM_NETWORK: Record<string, string> = {
+  "TRAP-001": "GoMo",
+};
+
 function formatTimeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return "Never";
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -287,7 +294,7 @@ export default function LiveMonitoringPage() {
         console.error("Failed to fetch device telemetry:", err);
       }
     }
-        fetchDeviceTelemetry();
+    fetchDeviceTelemetry();
 
     const selectedDeviceChannel = supabase
       .channel(`selected-device-readings-${deviceId}`)
@@ -657,24 +664,29 @@ export default function LiveMonitoringPage() {
                           {status.state}
                         </Badge>
                       </div>
+                      
+                      {/* UPDATED DEVICE INFORMATION GRID */}
                       <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
-                        {[
-                          ["Trap ID", selectedDevice.device_code],
-                          ["Last Seen", formatTimeAgo(lastHttpPostStr)],
-                          ["Battery", hasBatteryData ? `${batteryValue}%` : "Waiting for first telemetry"],
-                          ["Signal Strength", hasTelemetry ? "Excellent (-68 dBm)" : "Waiting for first telemetry"],
-                          ["Firmware Version", hasTelemetry ? "v2.4.1" : "N/A"],
-                          ["SIM Network", hasTelemetry ? "Smart LTE" : "N/A"],
-                          ["Temperature", latestReading?.temperature_c != null ? `${latestReading.temperature_c}°C` : "N/A"],
-                          ["Humidity", latestReading?.humidity_percent != null ? `${latestReading.humidity_percent}%` : "N/A"],
-                          ["Deployment Date", selectedDevice.installation_date ? String(selectedDevice.installation_date).split("T")[0] : "N/A"],
-                          ["Last Trap Data Update", lastHttpPostStr ? new Date(lastHttpPostStr).toLocaleString() : "Waiting for first trap data"],
-                        ].map(([label, value]) => (
-                          <div key={label}>
-                            <p className="text-xs text-slate-400 font-medium">{label}</p>
-                            <p className="font-semibold text-slate-700 mt-0.5 truncate pr-2">{value}</p>
-                          </div>
-                        ))}
+                        {(() => {
+                          const simNetwork = DEVICE_SIM_NETWORK[selectedDevice.device_code] ?? "N/A";
+                          return [
+                            ["Trap ID", selectedDevice.device_code],
+                            ["Last Seen", formatTimeAgo(lastHttpPostStr)],
+                            ["Battery", hasBatteryData ? `${batteryValue}%` : "N/A"],
+                            ["Signal Strength", "N/A"], // No DB column exists, so we must show N/A
+                            ["Firmware Version", "N/A"], // No DB column exists, so we must show N/A
+                            ["SIM Network", simNetwork], // Hardcoded via our config map above
+                            ["Temperature", latestReading?.temperature_c != null ? `${latestReading.temperature_c}°C` : "N/A"],
+                            ["Humidity", latestReading?.humidity_percent != null ? `${latestReading.humidity_percent}%` : "N/A"],
+                            ["Deployment Date", selectedDevice.installation_date ? new Date(selectedDevice.installation_date).toLocaleDateString() : "N/A"],
+                            ["Last Telemetry Upload", lastHttpPostStr ? new Date(lastHttpPostStr).toLocaleString() : "N/A"],
+                          ].map(([label, value]) => (
+                            <div key={label}>
+                              <p className="text-xs text-slate-400 font-medium">{label}</p>
+                              <p className="font-semibold text-slate-700 mt-0.5 truncate pr-2">{value}</p>
+                            </div>
+                          ));
+                        })()}
                       </div>
                     </CardContent>
                   </Card>
