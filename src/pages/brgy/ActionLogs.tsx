@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { computeTriageStats } from "@/utils/triageHelpers";
 import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
+import { useAuth } from "@/contexts/AuthContext";
 
 const DEFAULT_FILTERS: TriageFilterValues = {
   search: "",
@@ -30,8 +31,6 @@ const DEFAULT_FILTERS: TriageFilterValues = {
   dateTo: "",
 };
 
-const CURRENT_USER_ID: string | undefined = undefined;
-
 export default function ActionTriageLogPage() {
   const [actions, setActions] = useState<TriageAction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,11 +39,20 @@ export default function ActionTriageLogPage() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<TriageAction | null>(null);
+  const { profile, loading: authLoading } = useAuth();
+  const isSysAdmin =
+    profile?.role?.role_code === "SYS_ADMIN" ||
+    profile?.role?.role_code === "ADMIN";
+  const scopedBarangayId = isSysAdmin ? undefined : profile?.barangay?.id;
+  const scopedBarangayName = isSysAdmin
+    ? undefined
+    : profile?.barangay?.barangay_name;
 
-  async function loadActions() {
+  async function loadActions(barangayId: string | undefined, barangayName: string | undefined) {
+    if (authLoading || !profile) return;
     setIsLoading(true);
     try {
-      const data = await getAssignedActions(CURRENT_USER_ID);
+      const data = await getAssignedActions({ barangayId, barangayName });
       setActions(data);
     } catch (err) {
       console.error("Failed to load action items:", err);
@@ -54,34 +62,87 @@ export default function ActionTriageLogPage() {
   }
 
   useEffect(() => {
-    loadActions();
-    getBarangayOptions()
-      .then(setBarangayOptions)
-      .catch((err) => console.error("Failed to load barangays:", err));
+    if (authLoading || !profile) return;
 
-    // Realtime channel for synchronized action log items
+    let cancelled = false;
+
+    // Barangay changed: drop old rows and any stale barangay filter right away
+    setActions([]);
+    setFilters((prev) => ({ ...prev, barangay: "all" }));
+    setIsLoading(true);
+
+    getAssignedActions({ barangayId: scopedBarangayId, barangayName: scopedBarangayName })
+      .then((data) => {
+        if (!cancelled) setActions(data);
+      })
+      .catch((err) => console.error("Failed to load action items:", err))
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    // Only fetch all barangay options for SYS_ADMIN.
+    // For barangay-scoped users (BHW, etc.) restrict the list strictly to their own barangay.
+    if (!isSysAdmin && scopedBarangayName) {
+      setBarangayOptions([scopedBarangayName]);
+    } else if (isSysAdmin) {
+      getBarangayOptions()
+        .then(setBarangayOptions)
+        .catch((err) => console.error("Failed to load barangays:", err));
+    }
+
     const channel = supabase
       .channel("action_triage_log_page_realtime")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "action_triage_log" },
+        {
+          event: "*",
+          schema: "public",
+          table: "action_triage_log",
+          ...(scopedBarangayId
+            ? { filter: `barangay_id=eq.${scopedBarangayId}` }
+            : {}),
+        },
         async (payload) => {
           if (payload.eventType === "INSERT" && payload.new && (payload.new as { id?: string }).id) {
             const newId = (payload.new as { id: string }).id;
             const newAction = await getActionById(newId);
             if (newAction) {
+              const matchesScope =
+                isSysAdmin ||
+                (scopedBarangayId && newAction.barangayId === scopedBarangayId) ||
+                (scopedBarangayName &&
+                  newAction.barangayName.trim().toLowerCase() ===
+                    scopedBarangayName.trim().toLowerCase());
+              if (!matchesScope) return;
+
               setActions((prev) => {
                 if (prev.some((a) => a.id === newAction.id)) return prev;
                 return [newAction, ...prev];
               });
               if (newAction.status === "Pending") {
-                dispatchTriageStatusChange(newAction.id, "Pending");
+                dispatchTriageStatusChange(
+                  newAction.id,
+                  "Pending",
+                  undefined,
+                  newAction.barangayId
+                );
               }
             }
           } else if (payload.eventType === "UPDATE" && payload.new && (payload.new as { id?: string }).id) {
             const updatedId = (payload.new as { id: string }).id;
             const updated = await getActionById(updatedId);
             if (updated) {
+              const matchesScope =
+                isSysAdmin ||
+                (scopedBarangayId && updated.barangayId === scopedBarangayId) ||
+                (scopedBarangayName &&
+                  updated.barangayName.trim().toLowerCase() ===
+                    scopedBarangayName.trim().toLowerCase());
+              if (!matchesScope) {
+                setActions((prev) => prev.filter((a) => a.id !== updated.id));
+                return;
+              }
+
               setActions((prev) =>
                 prev.map((a) => (a.id === updated.id ? updated : a))
               );
@@ -95,9 +156,10 @@ export default function ActionTriageLogPage() {
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [authLoading, scopedBarangayId, scopedBarangayName, isSysAdmin, profile]);
 
   const filteredActions = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
@@ -114,6 +176,18 @@ export default function ActionTriageLogPage() {
       Low: 3,
     };
     return actions.filter((a) => {
+      // Hard scope guard: when the user is not a system administrator,
+      // strictly focus ONLY on their assigned barangay.
+      // Under no circumstances should actions from other barangays be visible.
+      const matchesScope = isSysAdmin
+        ? true
+        : Boolean(
+            (scopedBarangayId && a.barangayId === scopedBarangayId) ||
+            (scopedBarangayName &&
+              a.barangayName.trim().toLowerCase() ===
+                scopedBarangayName.trim().toLowerCase())
+          );
+
       const matchesSearch =
         q === "" ||
         a.barangayName.toLowerCase().includes(q) ||
@@ -132,6 +206,7 @@ export default function ActionTriageLogPage() {
         !filters.dateTo || (actionDate !== "" && actionDate <= filters.dateTo);
 
       return (
+        matchesScope &&
         matchesSearch &&
         matchesPriority &&
         matchesStatus &&
@@ -141,11 +216,11 @@ export default function ActionTriageLogPage() {
       );
     }).sort((a, b) =>
       (statusOrder[a.status] ?? Number.MAX_SAFE_INTEGER) -
-        (statusOrder[b.status] ?? Number.MAX_SAFE_INTEGER) ||
+      (statusOrder[b.status] ?? Number.MAX_SAFE_INTEGER) ||
       (priorityOrder[a.priority] ?? Number.MAX_SAFE_INTEGER) -
-        (priorityOrder[b.priority] ?? Number.MAX_SAFE_INTEGER),
+      (priorityOrder[b.priority] ?? Number.MAX_SAFE_INTEGER),
     );
-  }, [actions, filters]);
+  }, [actions, filters, scopedBarangayId, scopedBarangayName, isSysAdmin]);
 
   const stats = useMemo(
     () => computeTriageStats(filteredActions),
@@ -172,16 +247,16 @@ export default function ActionTriageLogPage() {
   ) {
     const prev = actions.find((a) => a.id === actionId);
     if (prev?.status === "Pending" && status !== "Pending") {
-      dispatchTriageStatusChange(actionId, status, prev.status);
+      dispatchTriageStatusChange(actionId, status, prev.status, prev.barangayId);
     }
     await updateActionStatus(actionId, { status, remarks });
-    await loadActions();
+    await loadActions(scopedBarangayId, scopedBarangayName);
   }
 
   async function handleQuickStatus(action: TriageAction, status: TriageStatus) {
     // Immediate optimistic decrement for the sidebar notification badge
     if (action.status === "Pending" && status !== "Pending") {
-      dispatchTriageStatusChange(action.id, status, action.status);
+      dispatchTriageStatusChange(action.id, status, action.status, action.barangayId);
     }
 
     // optimistic update in table
@@ -193,10 +268,10 @@ export default function ActionTriageLogPage() {
         status,
         ...(action.remarks ? { remarks: action.remarks } : {}),
       });
-      await loadActions();
+      await loadActions(scopedBarangayId, scopedBarangayName);
     } catch (err) {
       console.error("Failed to update action:", err);
-      await loadActions();
+      await loadActions(scopedBarangayId, scopedBarangayName);
     }
   }
 
@@ -222,7 +297,7 @@ export default function ActionTriageLogPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => loadActions()}
+            onClick={() => loadActions(scopedBarangayId, scopedBarangayName)}
             disabled={isLoading}
             className="h-9 px-3 gap-1.5 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
           >
@@ -264,6 +339,7 @@ export default function ActionTriageLogPage() {
               filters={filters}
               onFiltersChange={setFilters}
               barangayOptions={barangayOptions}
+              hideBarangayFilter={!isSysAdmin}
             />
           </div>
         </div>

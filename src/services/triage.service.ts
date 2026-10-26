@@ -51,7 +51,7 @@ function flattenAction(row: RawActionRow): TriageAction {
   return {
     id: row.id,
     barangayId: row.barangay_id,
-    barangayName: row.barangay?.barangay_name ?? "Unknown",   
+    barangayName: row.barangay?.barangay_name ?? "Unknown",
     municipalityName: row.barangay?.municipality ?? null,
     deviceId: null,
     deviceCode: null,
@@ -77,16 +77,54 @@ function flattenAction(row: RawActionRow): TriageAction {
  * specific BHW (e.g. from your AuthContext's profile.id) — otherwise
  * this returns everything the caller's RLS policy allows.
  */
-export async function getAssignedActions(
-  currentUserId?: string,
-): Promise<TriageAction[]> {
+export async function getAssignedActions(options?: {
+  assignedTo?: string | undefined;
+  barangayId?: string | undefined;
+  barangayName?: string | undefined;
+}): Promise<TriageAction[]> {
+  let targetBarangayId = options?.barangayId;
+
+  // If barangayId is not provided but a specific barangayName was specified,
+  // resolve its UUID from the barangays table so we can filter directly on barangay_id.
+  if (
+    !targetBarangayId &&
+    options?.barangayName &&
+    options.barangayName.trim().toLowerCase() !== "all"
+  ) {
+    try {
+      const { data: bData } = await supabase
+        .from("barangays")
+        .select("id")
+        .ilike("barangay_name", options.barangayName.trim())
+        .limit(1)
+        .maybeSingle();
+
+      if (bData?.id) {
+        targetBarangayId = bData.id;
+      } else {
+        // Barangay name was specified but does not exist in DB: return empty array rather than leaking records
+        return [];
+      }
+    } catch {
+      return [];
+    }
+  }
+
   let query = supabase
     .from("action_triage_log")
     .select(ACTION_SELECT)
     .order("assigned_date", { ascending: false });
 
-  if (currentUserId) {
-    query = query.eq("assigned_to", currentUserId);
+  if (options?.assignedTo) {
+    query = query.eq("assigned_to", options.assignedTo);
+  }
+  if (targetBarangayId) {
+    query = query.eq("barangay_id", targetBarangayId);
+  } else if (
+    options?.barangayName &&
+    options.barangayName.trim().toLowerCase() !== "all"
+  ) {
+    return [];
   }
 
   const { data, error } = await query;

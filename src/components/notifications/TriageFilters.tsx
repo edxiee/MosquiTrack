@@ -14,6 +14,7 @@ interface TriageFiltersProps {
   filters: TriageFilterValues;
   onFiltersChange: (filters: TriageFilterValues) => void;
   barangayOptions: string[];
+  hideBarangayFilter?: boolean;
 }
 
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
@@ -23,6 +24,7 @@ export default function TriageFilters({
   filters,
   onFiltersChange,
   barangayOptions,
+  hideBarangayFilter = false,
 }: TriageFiltersProps) {
   function update(partial: Partial<TriageFilterValues>) {
     onFiltersChange({ ...filters, ...partial });
@@ -74,23 +76,24 @@ export default function TriageFilters({
         </SelectContent>
       </Select>
 
-      <Select
-        value={filters.barangay}
-        onValueChange={(value) => update({ barangay: value })}
-      >
-        <SelectTrigger className="w-full md:w-48">
-          <SelectValue placeholder="All Barangays" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Barangays</SelectItem>
-          {barangayOptions.map((name) => (
-            <SelectItem key={name} value={name}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
+      {!hideBarangayFilter && (
+        <Select
+          value={filters.barangay}
+          onValueChange={(value) => update({ barangay: value })}
+        >
+          <SelectTrigger className="w-full md:w-48">
+            <SelectValue placeholder="All Barangays" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Barangays</SelectItem>
+            {barangayOptions.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       <DateRangePicker
         dateFrom={filters.dateFrom}
         dateTo={filters.dateTo}

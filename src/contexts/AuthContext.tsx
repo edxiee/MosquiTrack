@@ -104,6 +104,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, []);
 
+  // Watch for admin-side profile changes (e.g. barangay reassignment).
+  // When any field on the current user's profiles row is updated by an
+  // admin, refresh our local profile so that scoped pages (Action Logs,
+  // Dashboard) automatically react to the new barangay without a reload.
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`profile_changes_${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${user.id}`,
+        },
+        () => {
+          refreshProfile();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   return (
     <AuthContext.Provider
       value={{
