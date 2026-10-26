@@ -149,7 +149,7 @@ export default function LiveMonitoringPage() {
            latitude, longitude, device_status_id, notes,
            installation_date, last_seen_at, created_at, deployed_by,
            device_statuses (id, status_name, description),
-           barangays (id, barangay_name)`
+           barangays (id, barangay_name, municipality)`
         )
         .order("device_code");
 
@@ -389,7 +389,8 @@ export default function LiveMonitoringPage() {
       q === "" ||
       d.device_code.toLowerCase().includes(q) ||
       (d.description ?? "").toLowerCase().includes(q) ||
-      (d.barangays?.barangay_name ?? "").toLowerCase().includes(q);
+      (d.barangays?.barangay_name ?? "").toLowerCase().includes(q) ||
+      (d.barangays?.municipality ?? "").toLowerCase().includes(q);
 
     const matchesStatus = statusFilter === "All" || d.computedStatus.state === statusFilter;
     return matchesSearch && matchesStatus;
@@ -536,7 +537,7 @@ export default function LiveMonitoringPage() {
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 truncate mt-0.5">
-                        {d.description || d.barangays?.barangay_name || "N/A"}
+                        {[d.barangays?.barangay_name, d.barangays?.municipality].filter(Boolean).join(", ") || d.description || "N/A"}
                       </p>
                       <div className="flex items-center justify-between mt-2">
                         <p className="text-[10px] text-slate-400">
@@ -645,6 +646,7 @@ export default function LiveMonitoringPage() {
                       <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
                         {[
                           ["Trap ID", selectedDevice.device_code],
+                          ["Location", [selectedDevice.barangays?.barangay_name, selectedDevice.barangays?.municipality].filter(Boolean).join(", ") || "N/A"],
                           ["Last Seen", formatTimeAgo(lastHttpPostStr)],
                           ["Battery", hasBatteryData ? `${batteryValue}%` : "Waiting for first telemetry"],
                           ["Signal Strength", hasTelemetry ? "Excellent (-68 dBm)" : "Waiting for first telemetry"],

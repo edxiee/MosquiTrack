@@ -14,6 +14,7 @@ export interface TelemetryReading {
   latitude: number | null;
   longitude: number | null;
   barangay_name: string | null;
+  municipality?: string | null;
   status_name: string | null;
 }
 

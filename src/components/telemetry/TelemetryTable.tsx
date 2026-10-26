@@ -66,7 +66,7 @@ export default function TelemetryTable({
               <TableRow className="hover:bg-transparent border-slate-100">
                 <TableHead className="font-semibold text-slate-500">Timestamp</TableHead>
                 <TableHead className="font-semibold text-slate-500">Trap ID</TableHead>
-                <TableHead className="font-semibold text-slate-500">Barangay</TableHead>
+                <TableHead className="font-semibold text-slate-500">Barangay / Municipality</TableHead>
                 <TableHead className="font-semibold text-slate-500">Mosquito Count</TableHead>
                 <TableHead className="font-semibold text-slate-500">Temp (°C)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Humidity (%)</TableHead>
@@ -100,7 +100,22 @@ export default function TelemetryTable({
                     <TableCell className="font-bold text-slate-800">
                       {reading.device_code}
                     </TableCell>
-                    <TableCell className="text-slate-600">{reading.barangay_name ?? "—"}</TableCell>
+                    <TableCell className="text-slate-600">
+                      {reading.barangay_name ? (
+                        <div>
+                          <span className="font-medium text-slate-800 block">
+                            {reading.barangay_name}
+                          </span>
+                          {reading.municipality && (
+                            <span className="text-xs text-slate-400 block">
+                              {reading.municipality}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell className="font-semibold text-slate-700">{reading.mosquito_count ?? "0"}</TableCell>
                     <TableCell className="text-slate-600">
                       {reading.temperature_c != null ? `${reading.temperature_c}°C` : "—"}
