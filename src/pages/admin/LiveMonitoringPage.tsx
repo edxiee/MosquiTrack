@@ -139,6 +139,7 @@ export default function LiveMonitoringPage() {
   const [lastDataSync, setLastDataSync] = useState<Date | null>(null);
   const [lastSyncLabel, setLastSyncLabel] = useState<string>("Loading...");
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [deviceSevenDayCount, setDeviceSevenDayCount] = useState<number | null>(null);
 
   const fetchDevices = useCallback(async () => {
     try {
@@ -202,11 +203,13 @@ export default function LiveMonitoringPage() {
       setLatestReading(null);
       setLatestBatteryReading(null);
       setDeviceTodayCount(null);
+      setDeviceSevenDayCount(null);
       setDeviceCriticalDays(0);
       return;
     }
 
     let isMounted = true;
+    const deviceId = selectedDevice.id;
 
     async function fetchDeviceTelemetry() {
       try {
@@ -214,14 +217,14 @@ export default function LiveMonitoringPage() {
           supabase
             .from("ovitrap_readings")
             .select("battery_level, mosquito_count, temperature_c, humidity_percent, captured_at, created_at, updated_at")
-            .eq("device_id", selectedDevice!.id)
+            .eq("device_id", deviceId)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
           supabase
             .from("ovitrap_readings")
             .select("battery_level, captured_at, created_at, updated_at")
-            .eq("device_id", selectedDevice!.id)
+            .eq("device_id", deviceId)
             .not("battery_level", "is", null)
             .order("created_at", { ascending: false })
             .limit(1)
@@ -229,6 +232,7 @@ export default function LiveMonitoringPage() {
         ]);
 
         if (!isMounted) return;
+
         setLatestReading(latest ?? null);
         setLatestBatteryReading(
           latestBattery && latestBattery.battery_level != null
@@ -243,46 +247,57 @@ export default function LiveMonitoringPage() {
 
         const todayStart = new Date();
         todayStart.setUTCHours(0, 0, 0, 0);
-        const threeDayStart = new Date(todayStart);
-        threeDayStart.setUTCDate(threeDayStart.getUTCDate() - 2);
+
+        const sevenDayStart = new Date(todayStart);
+        sevenDayStart.setUTCDate(sevenDayStart.getUTCDate() - 6);
 
         const { data: recentReadings } = await supabase
           .from("ovitrap_readings")
           .select("mosquito_count, captured_at, created_at")
-          .eq("device_id", selectedDevice!.id)
-          .gte("captured_at", threeDayStart.toISOString());
+          .eq("device_id", deviceId)
+          .gte("captured_at", sevenDayStart.toISOString());
 
         if (!isMounted) return;
+
         const dailyCounts = new Map<string, number>();
+        let sevenDayTotal = 0;
+
         for (const reading of recentReadings ?? []) {
           const timestamp = reading.captured_at || reading.created_at;
           if (!timestamp) continue;
+
+          const count = reading.mosquito_count ?? 0;
+          sevenDayTotal += count;
+
           const day = timestamp.slice(0, 10);
-          dailyCounts.set(day, (dailyCounts.get(day) ?? 0) + (reading.mosquito_count ?? 0));
+          dailyCounts.set(day, (dailyCounts.get(day) ?? 0) + count);
         }
+
+        // Last 3 days for critical streak (newest first)
         const days = Array.from({ length: 3 }, (_, offset) => {
           const day = new Date(todayStart);
           day.setUTCDate(day.getUTCDate() - offset);
           return dailyCounts.get(day.toISOString().slice(0, 10)) ?? 0;
         });
+
         setDeviceTodayCount(days[0] ?? 0);
+        setDeviceSevenDayCount(sevenDayTotal);
         setDeviceCriticalDays(getConsecutiveCriticalDays(days));
       } catch (err) {
         console.error("Failed to fetch device telemetry:", err);
       }
     }
-
-    fetchDeviceTelemetry();
+        fetchDeviceTelemetry();
 
     const selectedDeviceChannel = supabase
-      .channel(`selected-device-readings-${selectedDevice.id}`)
+      .channel(`selected-device-readings-${deviceId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "ovitrap_readings",
-          filter: `device_id=eq.${selectedDevice.id}`,
+          filter: `device_id=eq.${deviceId}`,
         },
         () => {
           fetchDeviceTelemetry();
@@ -417,7 +432,7 @@ export default function LiveMonitoringPage() {
             </h1>
           </div>
           <p className="text-sm text-slate-500 mt-0.5">
-            Monitor the operational status and real-time telemetry streaming of deployed Smart Ovi Trap devices.
+            Monitor the current status and real-time trap data of deployed Smart Trap devices.
           </p>
         </div>
 
@@ -465,7 +480,7 @@ export default function LiveMonitoringPage() {
         <Card className="border-l-4 border-l-sky-500">
           <CardContent className="flex items-center justify-between p-5">
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Last Data Sync</p>
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Last Data Updated</p>
               <h2 className="mt-1 text-lg font-bold text-sky-600">{lastSyncLabel}</h2>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50">
@@ -653,7 +668,7 @@ export default function LiveMonitoringPage() {
                           ["Temperature", latestReading?.temperature_c != null ? `${latestReading.temperature_c}°C` : "N/A"],
                           ["Humidity", latestReading?.humidity_percent != null ? `${latestReading.humidity_percent}%` : "N/A"],
                           ["Deployment Date", selectedDevice.installation_date ? String(selectedDevice.installation_date).split("T")[0] : "N/A"],
-                          ["Last Telemetry Upload", lastHttpPostStr ? new Date(lastHttpPostStr).toLocaleString() : "Waiting for first telemetry"],
+                          ["Last Trap Data Update", lastHttpPostStr ? new Date(lastHttpPostStr).toLocaleString() : "Waiting for first trap data"],
                         ].map(([label, value]) => (
                           <div key={label}>
                             <p className="text-xs text-slate-400 font-medium">{label}</p>
@@ -697,7 +712,7 @@ export default function LiveMonitoringPage() {
                 <div className="grid gap-5 xl:grid-cols-2">
                   <Card>
                     <CardContent className="p-5 flex flex-col h-full">
-                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Latest Telemetry</h3>
+                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Latest Trap Data</h3>
                       
                       {!hasTelemetry ? (
                         <div className="flex-1 flex items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -712,9 +727,9 @@ export default function LiveMonitoringPage() {
                             </p>
                           </div>
                           <div className="rounded-lg bg-slate-50 p-4 text-center border border-slate-100">
-                            <p className="text-xs text-slate-500 font-medium">Daily Vector Index (DVI)</p>
+                            <p className="text-xs text-slate-500 font-medium">7-days Mosquito Count</p>
                             <p className="text-3xl font-bold text-slate-800 mt-1">
-                              {deviceTodayCount !== null ? (deviceTodayCount / 50).toFixed(2) : "0.00"}
+                              {deviceSevenDayCount !== null ? deviceSevenDayCount : "—"}
                             </p>
                           </div>
                           <div className="rounded-lg bg-slate-50 p-4 text-center border border-slate-100">
