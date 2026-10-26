@@ -581,7 +581,7 @@ export default function LiveMonitoringPage() {
                 </div>
                 <h3 className="text-lg font-medium text-slate-600">No Trap Selected</h3>
                 <p className="text-sm leading-relaxed">
-                  Select a deployed Smart Ovi Trap from the list to view its latest telemetry, device health, battery status, LTE connectivity, mosquito detections, and communication history.
+                  Select a deployed Smart Ovi Trap from the list to view its latest trap data, device health, battery status, LTE connectivity, mosquito detections, and data history.
                 </p>
               </div>
             </Card>

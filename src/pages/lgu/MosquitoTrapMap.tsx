@@ -329,7 +329,7 @@ export default function MacroGeospatialHeatmapPage() {
       <div className="flex flex-col items-center justify-center min-h-[450px] gap-3">
         <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
         <p className="text-sm font-medium text-slate-600">
-          Loading Mosquito Trap GIS Map…
+          Loading Mosquito Trap Geographic Information System Map…
         </p>
       </div>
     );
@@ -369,7 +369,7 @@ export default function MacroGeospatialHeatmapPage() {
               )}
             </div>
             <p className="text-[11px] text-slate-500">
-              {municipality ? `${municipality} Municipal` : "Municipal"} GIS field deployment map & IoT monitoring station
+              {municipality ? `${municipality} Municipal` : "Municipal"} Geographic Information System field deployment map & IoT monitoring station
             </p>
           </div>
         </div>

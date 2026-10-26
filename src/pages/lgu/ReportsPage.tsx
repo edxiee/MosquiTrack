@@ -503,7 +503,7 @@ export default function ReportsAnalyticsPage() {
             Epidemiological Reports 
           </h1>
           <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-            Macro-level vector surveillance trends, barangay risk rankings, and
+            In-depth mosquito population surveillance trends, barangay risk rankings, and
             intervention efficacy.
           </p>
         </div>
@@ -602,7 +602,7 @@ export default function ReportsAnalyticsPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Avg. Mosquitoes per Active Trap per Day
+                  Avg. Mosquitoes per Active Trap per Day (7 Days)
                 </p>
                 {isLoading ? (
                   <Skeleton className="h-9 w-24 mt-1" />
@@ -771,10 +771,10 @@ export default function ReportsAnalyticsPage() {
               <div>
                 <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <Activity className="size-4 text-emerald-600" />
-                  Vector Growth Trend & Intervention Impact
+                  Mosquito population Growth Trend & Intervention Impact
                 </CardTitle>
                 <CardDescription className="mt-0.5 text-xs text-slate-500">
-                  Daily confirmed <code className="text-[11px]">mosquito_count</code>{" "}
+                  Daily confirmed mosquito counts {" "}
                   with markers for completed misting & clean-up interventions.
                 </CardDescription>
               </div>
@@ -796,7 +796,7 @@ export default function ReportsAnalyticsPage() {
               <Skeleton className="h-72 w-full rounded-xl" />
             ) : vectorTrend.length === 0 ? (
               <div className="flex h-72 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-sm text-slate-500">
-                No vector telemetry recorded for the selected period.
+                No Mosquito count data recorded for the selected period.
               </div>
             ) : (
               <div className="h-72 w-full">

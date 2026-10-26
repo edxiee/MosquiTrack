@@ -216,7 +216,7 @@ export default function NodeProvisioningPage() {
             Trap Management
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Manage ovitrap devices and view their hardware GPS locations.
+            Manage ovitrap devices and view their trap GPS locations.
           </p>
         </div>
 
