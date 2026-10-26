@@ -299,7 +299,7 @@ export default function BarangaySurveillancePage() {
       <div className="flex flex-col items-center justify-center min-h-[450px] gap-3">
         <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
         <p className="text-sm font-medium text-slate-600">
-          Loading Barangay Surveillance GIS Map…
+          Loading Barangay Surveillance Geographic Information System Map…
         </p>
       </div>
     );
@@ -334,7 +334,7 @@ export default function BarangaySurveillancePage() {
               )}
             </div>
             <p className="text-[11px] text-slate-500">
-              Live GIS field deployment map & IoT monitoring station
+              Live Geographic Information System field deployment map & IoT monitoring page
             </p>
           </div>
         </div>
@@ -469,7 +469,7 @@ export default function BarangaySurveillancePage() {
                 <p className="text-xs text-slate-400 max-w-xs mx-auto">
                   {search.trim()
                     ? "Try adjusting your search terms or filters."
-                    : "Traps must be deployed in Trap Overview to appear on the surveillance map."}
+                    : "Traps must be deployed in Trap Deployment to appear on the surveillance map."}
                 </p>
               </div>
             ) : (

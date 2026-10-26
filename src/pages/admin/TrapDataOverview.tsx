@@ -77,7 +77,7 @@ export default function RawTelemetryHubPage() {
       } catch (err) {
         console.error("Failed to load telemetry:", err);
         if (!isMounted) return;
-        setError(getErrorMessage(err, "Failed to load telemetry from database."));
+        setError(getErrorMessage(err, "Failed to load data from database."));
       } finally {
         if (isMounted) setIsLoading(false);
       }

@@ -47,7 +47,7 @@ export default function TelemetryTable({
     return (
       <Card>
         <CardContent className="py-12 text-center text-slate-500 font-medium">
-          Loading telemetry stream...
+          Loading Trap Data stream...
         </CardContent>
       </Card>
     );

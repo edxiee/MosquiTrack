@@ -359,7 +359,7 @@ export default function TrapReportDropdown({
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="font-bold text-base text-slate-900 tracking-tight">
-              Trap Telemetry & Field Reports
+              Trap Data & Field Reports
             </span>
             <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold border border-slate-200">
               {device.device_code}
@@ -448,7 +448,7 @@ export default function TrapReportDropdown({
           )}
         >
           <Activity className="size-3.5" />
-          <span>Telemetry Readings</span>
+          <span>Trap Data Readings</span>
           <span className="rounded-full bg-slate-200/70 px-1.5 py-0.2 text-[10px] text-slate-700 font-bold">
             {readings.length}
           </span>
