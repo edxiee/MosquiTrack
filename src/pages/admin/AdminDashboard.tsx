@@ -360,7 +360,7 @@ export default function AdminDashboard() {
         <div>
           <div className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
             <LayoutDashboard className="size-3" />
-            IoT Command Center
+            IoT Management Center
           </div>
 
           <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
@@ -369,8 +369,8 @@ export default function AdminDashboard() {
 
           <p className="mt-1.5 max-w-2xl text-sm text-slate-500">
             {profile
-              ? `Welcome back, ${profile.first_name}. Monitor node uptime, detection events, and hardware alerts.`
-              : "Monitor node uptime, detection events, and hardware alerts from a single operations view."}
+              ? `Welcome back, ${profile.first_name}. Monitor trap uptime, detection events, and trap alerts.`
+              : "Monitor trap uptime, detection events, and trap alerts from a single operations view."}
           </p>
         </div>
 
@@ -394,13 +394,13 @@ export default function AdminDashboard() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             icon={Wifi}
-            label="Active Nodes"
+            label="Active Traps"
             value={
               loading
                 ? "—"
                 : `${counts.onlineNodes} of ${counts.registeredNodes} Online`
             }
-            detail="Nodes seen within the last 15 min."
+            detail="traps seen within the last 15 min."
             accent="emerald"
           />
 
@@ -414,15 +414,15 @@ export default function AdminDashboard() {
 
           <MetricCard
             icon={BarChart3}
-            label="Telemetry Packets 24h"
+            label="Trap Data 24h"
             value={loading ? "—" : `${counts.telemetry24h}`}
-            detail="Packets received in the last 24 hours."
+            detail="Data received in the last 24 hours."
             accent="slate"
           />
 
           <MetricCard
             icon={BatteryLow}
-            label="Hardware Alerts"
+            label="Trap Alerts"
             value={
               loading
                 ? "—"
@@ -430,7 +430,7 @@ export default function AdminDashboard() {
                 ? "0 Critical"
                 : `${counts.lowBatteryNodes} Critical`
             }
-            detail="Low-battery nodes below 3.40 V."
+            detail="Low-battery traps below 3.40 V."
             accent={counts.lowBatteryNodes > 0 ? "amber" : "slate"}
           />
         </div>
@@ -447,9 +447,9 @@ export default function AdminDashboard() {
                   <Activity className="size-4" />
                 </div>
                 <div>
-                  <CardTitle>Recent telemetry feed</CardTitle>
+                  <CardTitle>Recent trap data feed</CardTitle>
                   <CardDescription className="mt-0.5">
-                    Live raw packets received from deployed ovitraps.
+                    Live trap data received from deployed ovitraps.
                   </CardDescription>
                 </div>
               </div>
@@ -458,10 +458,10 @@ export default function AdminDashboard() {
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                   <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50">
-                    <TableHead className="font-semibold text-slate-600 text-xs py-3 pl-5">TRAP NODE</TableHead>
+                    <TableHead className="font-semibold text-slate-600 text-xs py-3 pl-5">TRAP #</TableHead>
                     <TableHead className="font-semibold text-slate-600 text-xs py-3">COUNT</TableHead>
                     <TableHead className="font-semibold text-slate-600 text-xs py-3">BATTERY</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-xs py-3 pr-5 text-right">CAPTURED</TableHead>
+                    <TableHead className="font-semibold text-slate-600 text-xs py-3 pr-5 text-right">CAPTURED AT</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
@@ -471,7 +471,7 @@ export default function AdminDashboard() {
                         colSpan={4}
                         className="py-12 text-center text-slate-500"
                       >
-                        No telemetry rows available.
+                        No trap data rows available.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -547,7 +547,7 @@ export default function AdminDashboard() {
                     No pending triage actions
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    All trap nodes are reporting normal baseline metrics.
+                    All traps are reporting normal baseline metrics.
                   </p>
                 </div>
               ) : (
@@ -593,10 +593,10 @@ export default function AdminDashboard() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Network className="size-4 text-emerald-600" />
-                    7-Day Detection Trend
+                    7-Day Histogram of Mosquito Detections
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Daily mosquito detection counts across all active trap nodes
+                    Daily mosquito detection counts across all active traps
                     over the past week.
                   </CardDescription>
                 </div>

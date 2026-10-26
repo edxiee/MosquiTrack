@@ -236,7 +236,7 @@ export default function RequestActionsOverviewPage() {
             Request Actions Overview
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Review submitted trap requests and take operational action.
+            Review submitted trap deployment requests.
           </p>
         </div>
 
