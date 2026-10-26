@@ -18,7 +18,7 @@ interface RawActionRow {
   remarks: string | null;
   created_at: string;
   created_by?: string | null;
-  barangay: { barangay_name: string } | null;
+  barangay: { barangay_name: string; municipality: string | null } | null;
   assignee: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
   requester?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
 }
@@ -36,7 +36,7 @@ const ACTION_SELECT = `
   remarks,
   created_at,
   created_by,
-  barangay:barangays ( barangay_name ),
+  barangay:barangays ( barangay_name, municipality ),
   assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name ),
   requester:profiles!action_triage_log_created_by_fkey ( first_name, last_name )
 `;
@@ -51,7 +51,8 @@ function flattenAction(row: RawActionRow): TriageAction {
   return {
     id: row.id,
     barangayId: row.barangay_id,
-    barangayName: row.barangay?.barangay_name ?? "Unknown",
+    barangayName: row.barangay?.barangay_name ?? "Unknown",   
+    municipalityName: row.barangay?.municipality ?? null,
     deviceId: null,
     deviceCode: null,
     triggerSource: row.trigger_source,

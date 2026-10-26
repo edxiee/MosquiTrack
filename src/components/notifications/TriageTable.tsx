@@ -161,10 +161,15 @@ export default function TriageTable({
                       )}
                     </TableCell>
                     <TableCell>
-                      <p className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-                        <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                        {action.barangayName}
-                      </p>
+                    <p
+  className="flex items-center gap-1.5 text-sm font-medium text-slate-700"
+  title={[action.municipalityName, action.barangayName].filter(Boolean).join(", ")}
+>
+  <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+  <span>
+    {[action.municipalityName, action.barangayName].filter(Boolean).join(", ")}
+  </span>
+</p>
                       {action.deviceCode && (
                         <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
                           <Cpu className="h-3.5 w-3.5 text-slate-400" />

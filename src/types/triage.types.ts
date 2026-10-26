@@ -5,6 +5,7 @@ export interface TriageAction {
   id: string;
   barangayId: string;
   barangayName: string;
+  municipalityName?: string | null;
   deviceId: string | null;
   deviceCode: string | null;
   triggerSource: string;
