@@ -77,18 +77,18 @@ function getRiskClassification(count: number | null, consecutiveCriticalDays = 0
 }
 
 const createCustomMarker = (status: ConnectionState) => {
-  const colorMap: Record<ConnectionState, string> = {
-    "Online": "emerald",
-    "Offline": "rose",
-    "Not Connected": "slate",
+  const colorMap: Record<ConnectionState, { ring: string; icon: string }> = {
+    Online: { ring: "bg-emerald-500", icon: "text-emerald-600" },
+    Offline: { ring: "bg-slate-400", icon: "text-slate-500" },
+    "Not Connected": { ring: "bg-slate-400", icon: "text-slate-500" },
   };
-  const bg = colorMap[status] ?? colorMap["Not Connected"];
+  const colors = colorMap[status] ?? colorMap["Not Connected"];
   return L.divIcon({
     className: "custom-div-icon",
     html: `
       <div class="relative w-8 h-8 flex items-center justify-center">
-        <div class="absolute inset-0 bg-${bg}-500 rounded-full opacity-25"></div>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7 text-${bg}-600 relative z-10 drop-shadow-md">
+        <div class="absolute inset-0 ${colors.ring} rounded-full opacity-25"></div>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7 ${colors.icon} relative z-10 drop-shadow-md">
           <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
         </svg>
       </div>

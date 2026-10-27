@@ -126,15 +126,24 @@ const getHexColor = (colorName: string) => {
   }
 };
 
-const createCustomMarker = (activity: string) => {
-  const bg = getActivityColor(activity);
+const markerColorClasses: Record<string, { ring: string; icon: string }> = {
+  rose: { ring: "bg-rose-500", icon: "text-rose-600" },
+  orange: { ring: "bg-orange-500", icon: "text-orange-600" },
+  amber: { ring: "bg-amber-500", icon: "text-amber-600" },
+  emerald: { ring: "bg-emerald-500", icon: "text-emerald-600" },
+  slate: { ring: "bg-slate-400", icon: "text-slate-500" },
+};
+
+const createCustomMarker = (activity: string, isOffline: boolean = false) => {
+  const colorKey = isOffline ? "slate" : getActivityColor(activity);
+  const colors = markerColorClasses[colorKey] ?? markerColorClasses.slate!;
   return L.divIcon({
     className: "custom-div-icon",
     html: `
       <div class="relative w-8 h-8 flex items-center justify-center">
-        <div class="absolute inset-0 bg-${bg}-500 rounded-full opacity-30 animate-ping"></div>
-        <div class="absolute inset-0 bg-${bg}-500 rounded-full opacity-20"></div>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-${bg}-600 relative z-10 drop-shadow-sm">
+        ${!isOffline ? `<div class="absolute inset-0 ${colors.ring} rounded-full opacity-30 animate-ping"></div>` : ""}
+        <div class="absolute inset-0 ${colors.ring} rounded-full opacity-20"></div>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 ${colors.icon} relative z-10 drop-shadow-sm">
           <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
         </svg>
       </div>
@@ -689,6 +698,9 @@ export default function MacroGeospatialHeatmapPage() {
             <span className="flex items-center gap-1 text-rose-700">
               <div className="size-2.5 rounded-full bg-rose-500" /> Critical (30+, 3 days)
             </span>
+            <span className="flex items-center gap-1 text-slate-500">
+              <div className="size-2.5 rounded-full bg-slate-400" /> Offline
+            </span>
           </div>
 
           {/* Map Component */}
@@ -712,8 +724,9 @@ export default function MacroGeospatialHeatmapPage() {
 
                 {/* Markers & Radars for Deployed Traps */}
                 {deployedTraps.filter(hasValidCoords).map((trap) => {
+                  const isOffline = trap.status !== "Online";
                   const aColor = getActivityColor(trap.activityLevel);
-                  const hexColor = getHexColor(aColor);
+                  const hexColor = getHexColor(isOffline ? "slate" : aColor);
 
                   return (
                     <div key={trap.id}>
@@ -736,7 +749,7 @@ export default function MacroGeospatialHeatmapPage() {
                           markerRefs.current[trap.id] = r;
                         }}
                         position={[trap.lat, trap.lng]}
-                        icon={createCustomMarker(trap.activityLevel)}
+                        icon={createCustomMarker(trap.activityLevel, isOffline)}
                         eventHandlers={{
                           click: () => setSelectedTrap(trap),
                         }}

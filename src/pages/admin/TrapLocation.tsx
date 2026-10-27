@@ -33,17 +33,55 @@ import { formatRelativeTime } from "@/utils/dateHelpers";
 import "leaflet/dist/leaflet.css";
 
 interface MarkerColorConfig {
-  bg: string;
+  pingBg: string;
+  innerBg: string;
+  border: string;
+  selectedBorder: string;
   text: string;
   ping: boolean;
 }
 
 const colorMap: Record<string, MarkerColorConfig> = {
-  Active: { bg: "emerald", text: "text-emerald-600", ping: true },
-  Online: { bg: "emerald", text: "text-emerald-600", ping: true },
-  Maintenance: { bg: "amber", text: "text-amber-600", ping: false },
-  Offline: { bg: "rose", text: "text-rose-600", ping: false },
-  Default: { bg: "sky", text: "text-sky-600", ping: false },
+  Active: {
+    pingBg: "bg-emerald-500",
+    innerBg: "bg-emerald-100",
+    border: "border-emerald-400",
+    selectedBorder: "border-emerald-600 ring-4 ring-emerald-400/40",
+    text: "text-emerald-600",
+    ping: true,
+  },
+  Online: {
+    pingBg: "bg-emerald-500",
+    innerBg: "bg-emerald-100",
+    border: "border-emerald-400",
+    selectedBorder: "border-emerald-600 ring-4 ring-emerald-400/40",
+    text: "text-emerald-600",
+    ping: true,
+  },
+  Maintenance: {
+    pingBg: "bg-amber-500",
+    innerBg: "bg-amber-100",
+    border: "border-amber-400",
+    selectedBorder: "border-amber-600 ring-4 ring-amber-400/40",
+    text: "text-amber-600",
+    ping: false,
+  },
+  Offline: {
+    pingBg: "bg-slate-400",
+    innerBg: "bg-slate-100",
+    border: "border-slate-400",
+    selectedBorder: "border-slate-600 ring-4 ring-slate-400/40",
+    text: "text-slate-500",
+    ping: false,
+  },
+  Default: {
+    pingBg: "bg-sky-500",
+    innerBg: "bg-sky-100",
+    border: "border-sky-400",
+    selectedBorder: "border-sky-600 ring-4 ring-sky-400/40",
+    text: "text-sky-600",
+    ping: false,
+  },
 };
 
 // Status → colour mapping for map markers
@@ -55,8 +93,8 @@ const createCustomMarker = (status: string, isSelected: boolean = false) => {
     html: `
       <div class="flex items-center justify-center -translate-y-4 ${isSelected ? "scale-125 z-50" : "hover:scale-110 transition-transform"}">
         <div class="relative w-11 h-11 flex items-center justify-center">
-          ${config.ping ? `<div class="absolute inset-0 bg-${config.bg}-500 rounded-full opacity-40 animate-ping"></div>` : ""}
-          <div class="absolute inset-1.5 bg-${config.bg}-100 rounded-full shadow-inner border-2 ${isSelected ? "border-emerald-600 ring-4 ring-emerald-400/40" : `border-${config.bg}-400`}"></div>
+          ${config.ping ? `<div class="absolute inset-0 ${config.pingBg} rounded-full opacity-40 animate-ping"></div>` : ""}
+          <div class="absolute inset-1.5 ${config.innerBg} rounded-full shadow-inner border-2 ${isSelected ? config.selectedBorder : config.border}"></div>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7 ${config.text} relative z-10 filter drop-shadow-md">
             <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
           </svg>
@@ -487,7 +525,7 @@ export default function StaticGeoreferencingPage() {
 
             {deployedTraps.map((trap) => {
               const isSelected = selectedTrapId === trap.id;
-              const statusName = trap.device_statuses?.status_name ?? "Active";
+              const markerStatus = isDeviceActive(trap) ? "Online" : "Offline";
 
               return (
                 <Marker
@@ -496,7 +534,7 @@ export default function StaticGeoreferencingPage() {
                     markerRefs.current[trap.id] = r;
                   }}
                   position={[Number(trap.latitude), Number(trap.longitude)]}
-                  icon={createCustomMarker(statusName, isSelected)}
+                  icon={createCustomMarker(markerStatus, isSelected)}
                   eventHandlers={{
                     click: () => {
                       setSelectedTrapId(trap.id);
