@@ -25,14 +25,14 @@ export default function TelemetryStatistics({
 }: TelemetryStatisticsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-      <Card className="border-l-4 border-l-sky-500">
+      <Card className="border-l-4 border-l-emerald-500">
         <CardContent className="flex items-center justify-between p-6">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Packets Today</p>
-            <h2 className="mt-2 text-3xl font-bold text-sky-600">{stats.totalPacketsToday}</h2>
+            <h2 className="mt-2 text-3xl font-bold text-emerald-600">{stats.totalPacketsToday}</h2>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50">
-            <Activity className="h-6 w-6 text-sky-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+            <Activity className="h-6 w-6 text-emerald-600" />
           </div>
         </CardContent>
       </Card>
@@ -47,36 +47,36 @@ export default function TelemetryStatistics({
           </div>
         </CardContent>
       </Card>
-      <Card className="border-l-4 border-l-rose-500">
+      <Card className="border-l-4 border-l-emerald-500">
         <CardContent className="flex items-center justify-between p-6">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Failed Uploads</p>
-            <h2 className="mt-2 text-3xl font-bold text-rose-600">{stats.failedUploads}</h2>
+            <h2 className="mt-2 text-3xl font-bold text-emerald-600">{stats.failedUploads}</h2>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-50">
-            <XCircle className="h-6 w-6 text-rose-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+            <XCircle className="h-6 w-6 text-emerald-600" />
           </div>
         </CardContent>
       </Card>
-      <Card className="border-l-4 border-l-indigo-500">
+      <Card className="border-l-4 border-l-emerald-500">
         <CardContent className="flex items-center justify-between p-6">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Latest Packet</p>
-            <h2 className="mt-2 text-xl font-bold text-indigo-600">{formatTimeAgo(stats.latestPacketTime)}</h2>
+            <h2 className="mt-2 text-xl font-bold text-emerald-600">{formatTimeAgo(stats.latestPacketTime)}</h2>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50">
-            <Clock className="h-6 w-6 text-indigo-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+            <Clock className="h-6 w-6 text-emerald-600" />
           </div>
         </CardContent>
       </Card>
-      <Card className="border-l-4 border-l-amber-500">
+      <Card className="border-l-4 border-l-emerald-500">
         <CardContent className="flex items-center justify-between p-6">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Interval</p>
-            <h2 className="mt-2 text-xl font-bold text-amber-600">{stats.avgUploadInterval}</h2>
+            <h2 className="mt-2 text-xl font-bold text-emerald-600">{stats.avgUploadInterval}</h2>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50">
-            <Timer className="h-6 w-6 text-amber-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+            <Timer className="h-6 w-6 text-emerald-600" />
           </div>
         </CardContent>
       </Card>

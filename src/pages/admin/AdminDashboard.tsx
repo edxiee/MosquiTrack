@@ -409,7 +409,7 @@ export default function AdminDashboard() {
             label="Mosquitoes Detected Today"
             value={loading ? "—" : `${trendData.todayCount}`}
             detail="Cumulative count across all traps."
-            accent="sky"
+            accent="emerald"
           />
 
           <MetricCard
@@ -417,7 +417,7 @@ export default function AdminDashboard() {
             label="Trap Data 24h"
             value={loading ? "—" : `${counts.telemetry24h}`}
             detail="Data received in the last 24 hours."
-            accent="slate"
+            accent="emerald"
           />
 
           <MetricCard
@@ -431,7 +431,7 @@ export default function AdminDashboard() {
                 : `${counts.lowBatteryNodes} Critical`
             }
             detail="Low-battery traps below 3.40 V."
-            accent={counts.lowBatteryNodes > 0 ? "amber" : "slate"}
+            accent="emerald"
           />
         </div>
       </div>

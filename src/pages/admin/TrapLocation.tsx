@@ -126,7 +126,7 @@ export default function StaticGeoreferencingPage() {
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("Online");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedTrapId, setSelectedTrapId] = useState<string | null>(viewId);
 
   const [mapCenter, setMapCenter] = useState<[number, number]>(defaultCenter);
@@ -455,11 +455,7 @@ export default function StaticGeoreferencingPage() {
                           </div>
                         </div>
 
-                        <div className="text-right">
-                          <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
-                            GPS Fix
-                          </span>
-                        </div>
+                        
                       </div>
 
                       <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">

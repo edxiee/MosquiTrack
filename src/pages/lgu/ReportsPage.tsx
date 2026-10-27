@@ -646,7 +646,7 @@ export default function ReportsAnalyticsPage() {
 
         {/* KPI 2: Total Confirmed Vectors */}
         <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
-          <div className="absolute inset-x-0 top-0 h-1 bg-sky-500" />
+          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
           <CardContent className="p-5 pt-6">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
@@ -676,7 +676,7 @@ export default function ReportsAnalyticsPage() {
                   </div>
                 )}
               </div>
-              <div className="rounded-xl bg-sky-50 p-3 text-sky-700 border border-sky-100 shrink-0">
+              <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 border border-emerald-100 shrink-0">
                 <Bug className="size-5" />
               </div>
             </div>
@@ -688,7 +688,7 @@ export default function ReportsAnalyticsPage() {
 
         {/* KPI 3: Critical / High-Risk Zones */}
         <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
-          <div className="absolute inset-x-0 top-0 h-1 bg-rose-500" />
+          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
           <CardContent className="p-5 pt-6">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
@@ -715,7 +715,7 @@ export default function ReportsAnalyticsPage() {
                   </div>
                 )}
               </div>
-              <div className="rounded-xl bg-rose-50 p-3 text-rose-600 border border-rose-100 shrink-0">
+              <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 border border-emerald-100 shrink-0">
                 <ShieldAlert className="size-5" />
               </div>
             </div>
@@ -727,7 +727,7 @@ export default function ReportsAnalyticsPage() {
 
         {/* KPI 4: Triage Completion Rate */}
         <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
-          <div className="absolute inset-x-0 top-0 h-1 bg-amber-500" />
+          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
           <CardContent className="p-5 pt-6">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
@@ -750,7 +750,7 @@ export default function ReportsAnalyticsPage() {
                   </div>
                 )}
               </div>
-              <div className="rounded-xl bg-amber-50 p-3 text-amber-700 border border-amber-100 shrink-0">
+              <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 border border-emerald-100 shrink-0">
                 <CheckCircle2 className="size-5" />
               </div>
             </div>

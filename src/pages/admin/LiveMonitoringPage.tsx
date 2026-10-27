@@ -474,25 +474,25 @@ export default function LiveMonitoringPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-rose-500">
+        <Card className="border-l-4 border-l-emerald-500">
           <CardContent className="flex items-center justify-between p-5">
             <div>
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Offline Devices</p>
-              <h2 className="mt-1 text-3xl font-bold text-rose-600">{offlineCount}</h2>
+              <h2 className="mt-1 text-3xl font-bold text-emerald-600">{offlineCount}</h2>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-50">
-              <WifiOff className="h-6 w-6 text-rose-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+              <WifiOff className="h-6 w-6 text-emerald-600" />
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-sky-500">
+        <Card className="border-l-4 border-l-emerald-500">
           <CardContent className="flex items-center justify-between p-5">
             <div>
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Last Data Updated</p>
-              <h2 className="mt-1 text-lg font-bold text-sky-600">{lastSyncLabel}</h2>
+              <h2 className="mt-1 text-lg font-bold text-emerald-600">{lastSyncLabel}</h2>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50">
-              <Clock className="h-6 w-6 text-sky-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+              <Clock className="h-6 w-6 text-emerald-600" />
             </div>
           </CardContent>
         </Card>
