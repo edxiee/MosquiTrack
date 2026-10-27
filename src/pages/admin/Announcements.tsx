@@ -145,7 +145,7 @@ export default function Announcements() {
           Broadcast Announcements
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Publish critical alerts, vector control notices, and instructions to
+          Publish critical alerts, mosquito population control notices, and instructions to
           LGU and Barangay field workers.
         </p>
       </div>

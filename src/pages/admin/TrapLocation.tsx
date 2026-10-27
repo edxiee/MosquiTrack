@@ -274,7 +274,7 @@ export default function StaticGeoreferencingPage() {
             Trap Location
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Realtime GPS tracking and current spatial status data for smart ovitrap devices.
+            Realtime GPS tracking and current spatial status data for the trap devices.
           </p>
         </div>
 
@@ -459,7 +459,7 @@ export default function StaticGeoreferencingPage() {
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-500 mt-1">
-                            Hardware has not transmitted GPS fix to database yet.
+                            The trap has not transmitted its GPS fix to the database.   
                           </p>
                         </div>
                       ))}

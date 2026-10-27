@@ -98,7 +98,7 @@ export default function HardwareNodesPage() {
       }
       setPendingRequests(pMap);
     } catch (err: unknown) {
-      console.error("HardwareNodesPage load error:", err);
+      console.error("TrapsOverview load error:", err);
       const msg = getErrorMessage(err, "Failed to load devices");
       setError(msg);
       setDevices([]);
@@ -289,7 +289,7 @@ export default function HardwareNodesPage() {
             Trap Deployment
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Monitor deployed hardware nodes, manage storage inventory, and track pending requests.
+            Monitor deployed traps, manage storage inventory, and track pending requests.
           </p>
         </div>
 
