@@ -311,10 +311,6 @@ export default function TrapReportDropdown({
     readings.find((r) => r.battery_level != null)?.battery_level ??
     latestReading?.battery_level ??
     null;
-  const latestConfidence =
-    readings.find((r) => r.ai_confidence != null)?.ai_confidence ??
-    latestReading?.ai_confidence ??
-    null;
   const latestImage =
     readings.find((r) => !!r.image_path)?.image_path ??
     latestReading?.image_path ??
@@ -712,7 +708,6 @@ export default function TrapReportDropdown({
                         <TableHead className="font-semibold text-slate-600 text-xs">Temp (°C)</TableHead>
                         <TableHead className="font-semibold text-slate-600 text-xs">Humidity (%)</TableHead>
                         <TableHead className="font-semibold text-slate-600 text-xs">Battery (%)</TableHead>
-                        <TableHead className="font-semibold text-slate-600 text-xs">AI Confidence</TableHead>
                         <TableHead className="font-semibold text-slate-600 text-xs">Device Status</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -720,7 +715,7 @@ export default function TrapReportDropdown({
                       {readings.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={9}
+                            colSpan={8}
                             className="py-12 text-center text-slate-500"
                           >
                             <div className="max-w-md mx-auto space-y-2">
@@ -747,7 +742,6 @@ export default function TrapReportDropdown({
                             temperature_c: r.temperature_c,
                             humidity_percent: r.humidity_percent,
                             battery_level: r.battery_level,
-                            ai_confidence: r.ai_confidence,
                             image_path: r.image_path ?? null,
                             status_name: computedConnection,
                           };
@@ -778,11 +772,6 @@ export default function TrapReportDropdown({
                               </TableCell>
                               <TableCell className="text-slate-600 text-xs">
                                 {r.battery_level != null ? `${r.battery_level}%` : "—"}
-                              </TableCell>
-                              <TableCell className="text-slate-600 font-mono text-xs">
-                                {r.ai_confidence != null
-                                  ? `${(r.ai_confidence <= 1 ? r.ai_confidence * 100 : r.ai_confidence).toFixed(1)}%`
-                                  : "—"}
                               </TableCell>
                               <TableCell className="text-xs">
                                 <StatusBadge status={computedConnection} />

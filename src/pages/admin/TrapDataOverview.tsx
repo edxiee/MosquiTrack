@@ -264,7 +264,6 @@ export default function RawTelemetryHubPage() {
       "Temperature (C)",
       "Humidity (%)",
       "Battery (%)",
-      "Danger Level",
       "Latitude",
       "Longitude",
       "Status"
@@ -281,7 +280,6 @@ export default function RawTelemetryHubPage() {
       r.temperature_c ?? "",
       r.humidity_percent ?? "",
       r.battery_level ?? "",
-      r.ai_confidence ?? "",
       r.latitude ?? "",
       r.longitude ?? "",
       r.status_name ?? ""
@@ -311,7 +309,7 @@ export default function RawTelemetryHubPage() {
   const handleDownloadLogs = () => {
     if (filteredReadings.length === 0) return;
     const logLines = filteredReadings.map(
-      r => `[${r.captured_at}] [DEVICE:${r.device_code}] [BARANGAY:${[r.barangay_name, r.municipality].filter(Boolean).join(", ") || "N/A"}] MOSQUITOES:${r.mosquito_count ?? 0} TEMP:${r.temperature_c ?? "N/A"}C HUM:${r.humidity_percent ?? "N/A"}% BAT:${r.battery_level != null ? `${r.battery_level}%` : "N/A"} CONF:${r.ai_confidence ?? "N/A"}`
+      r => `[${r.captured_at}] [DEVICE:${r.device_code}] [BARANGAY:${[r.barangay_name, r.municipality].filter(Boolean).join(", ") || "N/A"}] MOSQUITOES:${r.mosquito_count ?? 0} TEMP:${r.temperature_c ?? "N/A"}C HUM:${r.humidity_percent ?? "N/A"}% BAT:${r.battery_level != null ? `${r.battery_level}%` : "N/A"}`
     );
     const blob = new Blob([logLines.join("\n")], { type: "text/plain;charset=utf-8;" });
     const url = URL.createObjectURL(blob);

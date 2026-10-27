@@ -18,7 +18,7 @@ type ReadingRow = {
   created_at: string;
   humidity_percent: number | null;
   temperature_c: number | null;
-  ai_confidence: number | null;
+  ai_confidence?: number | null;
   image_path: string | null;
 };
 
@@ -80,7 +80,7 @@ async function fetchRecentReadings() {
   const { data, error } = await supabase
     .from("ovitrap_readings")
     .select(
-      "id, device_id, mosquito_count, battery_level, captured_at, created_at, humidity_percent, temperature_c, ai_confidence, image_path"
+      "id, device_id, mosquito_count, battery_level, captured_at, created_at, humidity_percent, temperature_c, image_path"
     )
     .gte("captured_at", sevenDaysAgo.toISOString())
     .order("captured_at", { ascending: false })

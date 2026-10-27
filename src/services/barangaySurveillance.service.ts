@@ -302,7 +302,6 @@ export async function fetchBarangaySurveillanceData(
             created_at,
             mosquito_count,
             battery_level,
-            ai_confidence,
             temperature_c,
             humidity_percent,
             image_path,
@@ -627,12 +626,6 @@ export async function fetchBarangaySurveillanceData(
     .map((r) => {
       const dev = Array.isArray(r.device) ? r.device[0] : r.device;
       const timeStr = formatTelemetryTimestamp(r.captured_at || r.created_at);
-      const conf = r.ai_confidence != null ? Number(r.ai_confidence) : null;
-
-      let status = "Verified";
-      if (conf != null && conf < 0.6) {
-        status = "Unverified";
-      }
 
       return {
         id: r.id,
@@ -643,8 +636,8 @@ export async function fetchBarangaySurveillanceData(
         temperature: r.temperature_c ?? null,
         humidity: r.humidity_percent ?? null,
         battery: r.battery_level ?? null,
-        confidence: conf,
-        status,
+        confidence: null,
+        status: "Verified",
       };
     });
 

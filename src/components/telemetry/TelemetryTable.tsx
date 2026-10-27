@@ -71,14 +71,13 @@ export default function TelemetryTable({
                 <TableHead className="font-semibold text-slate-500">Temp (°C)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Humidity (%)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Battery (%)</TableHead>
-                <TableHead className="font-semibold text-slate-500">AI Confidence</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {readings.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={7}
                     className="py-16 text-center text-slate-500"
                   >
                     <div className="max-w-md mx-auto space-y-3">
@@ -125,9 +124,6 @@ export default function TelemetryTable({
                     </TableCell>
                     <TableCell className="text-slate-600">
                       {reading.battery_level != null ? `${reading.battery_level}%` : "—"}
-                    </TableCell>
-                    <TableCell className="text-slate-600 font-mono text-xs">
-                      {reading.ai_confidence != null ? `${(reading.ai_confidence * 100).toFixed(1)}%` : "—"}
                     </TableCell>
                   </TableRow>
                 ))
