@@ -598,9 +598,7 @@ export default function TrapReportDropdown({
                     {latestHumidity != null ? `${latestHumidity}%` : "—"}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    {latestConfidence != null
-                      ? `AI Conf: ${(latestConfidence <= 1 ? latestConfidence * 100 : latestConfidence).toFixed(0)}%`
-                      : "Relative moisture"}
+                    Relative moisture
                   </p>
                 </div>
               </div>
