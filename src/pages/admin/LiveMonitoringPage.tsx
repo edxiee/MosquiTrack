@@ -614,6 +614,9 @@ export default function LiveMonitoringPage() {
                 latestBatteryReading?.captured_at ||
                 latestReading?.captured_at ||
                 null;
+              const batteryStatus = getConnectionStatus(
+                hasBatteryData ? batteryUpdatedStr : null
+              );
 
               const hasGpsFix =
                 selectedDevice.latitude != null &&
@@ -622,6 +625,11 @@ export default function LiveMonitoringPage() {
                 !Number.isNaN(Number(selectedDevice.longitude)) &&
                 Number(selectedDevice.latitude) !== 0 &&
                 Number(selectedDevice.longitude) !== 0;
+              const gpsUpdatedStr =
+                selectedDevice.last_seen_at || lastHttpPostStr || null;
+              const gpsStatus = getConnectionStatus(
+                hasGpsFix ? gpsUpdatedStr : null
+              );
 
               const healthItems = [
                 {
@@ -630,26 +638,32 @@ export default function LiveMonitoringPage() {
                   detail: lastHttpPostStr
                     ? `Last HTTP POST: ${formatTimeAgo(lastHttpPostStr)}`
                     : "No HTTP POST received in Supabase",
-                  status: status.state,
+                  status: status.state === "Online" ? "Online" : "Offline",
                   ok: status.state === "Online",
                 },
                 {
                   icon: Battery,
                   label: "Battery",
                   detail: hasBatteryData
-                    ? `Updated ${formatTimeAgo(batteryUpdatedStr)}`
+                    ? `${batteryValue}% • Updated ${formatTimeAgo(batteryUpdatedStr)}`
                     : "No battery data inserted or updated",
-                  status: hasBatteryData ? `${batteryValue}%` : "No Data",
-                  ok: hasBatteryData && batteryValue > 20,
+                  status:
+                    hasBatteryData && batteryStatus.state === "Online"
+                      ? "Online"
+                      : "Offline",
+                  ok: hasBatteryData && batteryStatus.state === "Online",
                 },
                 {
                   icon: Satellite,
                   label: "GPS Satellite",
                   detail: hasGpsFix
-                    ? `${Number(selectedDevice.latitude).toFixed(5)}, ${Number(selectedDevice.longitude).toFixed(5)}`
+                    ? `${Number(selectedDevice.latitude).toFixed(5)}, ${Number(selectedDevice.longitude).toFixed(5)} • Updated ${formatTimeAgo(gpsUpdatedStr)}`
                     : "Waiting for latitude & longitude",
-                  status: hasGpsFix ? "Okay" : "No Signal",
-                  ok: hasGpsFix,
+                  status:
+                    hasGpsFix && gpsStatus.state === "Online"
+                      ? "Online"
+                      : "Offline",
+                  ok: hasGpsFix && gpsStatus.state === "Online",
                 },
               ];
               
@@ -695,7 +709,7 @@ export default function LiveMonitoringPage() {
 
                   <Card>
                     <CardContent className="p-5 flex flex-col h-full">
-                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Device Health</h3>
+                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Device Status</h3>
                       <div className="space-y-3">
                         {healthItems.map(({ icon: Icon, label, detail, status: itemStatus, ok }) => (
                           <div key={label} className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
