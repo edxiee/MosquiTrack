@@ -158,21 +158,48 @@ export async function updateActionStatus(
   id: string,
   input: UpdateActionStatusInput,
 ): Promise<void> {
+  const patch: Record<string, unknown> = {
+    status: input.status,
+    ...(input.remarks !== undefined ? { remarks: input.remarks } : {}),
+    ...(input.status === "Completed"
+      ? { completed_at: new Date().toISOString() }
+      : {}),
+    updated_at: new Date().toISOString(),
+  };
+
+  // Record who took the action
+  if (input.status === "In Progress" || input.status === "Completed") {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      if (input.status === "In Progress") {
+        // Whoever clicks Start takes it
+        patch.assigned_to = user.id;
+      } else {
+        // Completing directly: only fill it in if nobody took it yet,
+        // so the original taker is preserved
+        const { data: existing } = await supabase
+          .from("action_triage_log")
+          .select("assigned_to")
+          .eq("id", id)
+          .maybeSingle();
+
+        if (!existing?.assigned_to) {
+          patch.assigned_to = user.id;
+        }
+      }
+    }
+  }
+
   const { error } = await supabase
     .from("action_triage_log")
-    .update({
-      status: input.status,
-      ...(input.remarks !== undefined ? { remarks: input.remarks } : {}),
-      ...(input.status === "Completed"
-        ? { completed_at: new Date().toISOString() }
-        : {}),
-      updated_at: new Date().toISOString(),
-    })
+    .update(patch)
     .eq("id", id);
 
   if (error) throw error;
 }
-
 export async function addActionRemarks(
   id: string,
   remarks: string,

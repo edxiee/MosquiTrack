@@ -104,9 +104,10 @@ export default function TriageTable({
               <TableHead className="text-xs uppercase tracking-wide">Posted</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Due</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Requested By</TableHead>
-              <TableHead className="text-right text-xs uppercase tracking-wide">
-                Actions
-              </TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Taken By</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">
+              Actions
+            </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -136,7 +137,7 @@ export default function TriageTable({
                         : "hover:bg-slate-50"
                     } ${PRIORITY_BORDER[action.priority] ?? ""} ${closed ? "opacity-70" : ""}`}
                   >
-                    <TableCell className="max-w-[220px]">
+                    <TableCell className="min-w-[200px] max-w-[360px]">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-slate-800">
                           {action.triggerSource}
@@ -189,7 +190,7 @@ export default function TriageTable({
                         {formatDate(action.createdAt)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm text-slate-700">
+                    <TableCell className="whitespace-nowrap text-sm text-slate-700">
                       <span className="flex items-center gap-1.5">
                         <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
                         {formatDate(action.dueDate)}
@@ -208,7 +209,19 @@ export default function TriageTable({
                       </span>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-end gap-2">
+                      <span className="flex items-center gap-2 text-sm text-slate-700">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                          <UserRound className="h-4 w-4" />
+                        </span>
+                        {action.assignedToName ? (
+                          action.assignedToName
+                        ) : (
+                          <span className="italic text-slate-400">—</span>
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="flex items-center justify-start gap-2">
                         {action.status === "Pending" && (
                           <Button
                             size="sm"
