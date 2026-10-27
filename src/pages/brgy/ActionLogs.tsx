@@ -16,11 +16,13 @@ import {
   getAssignedActions,
   getBarangayOptions,
   updateActionStatus,
+  type BarangayFilterOption,
 } from "@/services/triage.service";
 import { supabase } from "@/lib/supabase";
 import { computeTriageStats } from "@/utils/triageHelpers";
 import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
 import { useAuth } from "@/contexts/AuthContext";
+
 
 const DEFAULT_FILTERS: TriageFilterValues = {
   search: "",
@@ -34,7 +36,7 @@ const DEFAULT_FILTERS: TriageFilterValues = {
 export default function ActionTriageLogPage() {
   const [actions, setActions] = useState<TriageAction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [barangayOptions, setBarangayOptions] = useState<string[]>([]);
+  const [barangayOptions, setBarangayOptions] = useState<BarangayFilterOption[]>([]);
   const [filters, setFilters] = useState<TriageFilterValues>(DEFAULT_FILTERS);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -82,13 +84,15 @@ export default function ActionTriageLogPage() {
 
     // Only fetch all barangay options for SYS_ADMIN.
     // For barangay-scoped users (BHW, etc.) restrict the list strictly to their own barangay.
-    if (!isSysAdmin && scopedBarangayName) {
-      setBarangayOptions([scopedBarangayName]);
-    } else if (isSysAdmin) {
-      getBarangayOptions()
-        .then(setBarangayOptions)
-        .catch((err) => console.error("Failed to load barangays:", err));
-    }
+if (!isSysAdmin && scopedBarangayName) {
+  setBarangayOptions([
+    { value: `::${scopedBarangayName}`, label: scopedBarangayName },
+  ]);
+} else if (isSysAdmin) {
+  getBarangayOptions()
+    .then(setBarangayOptions)
+    .catch((err) => console.error("Failed to load barangays:", err));
+}
 
     const channel = supabase
       .channel("action_triage_log_page_realtime")
@@ -105,20 +109,20 @@ export default function ActionTriageLogPage() {
         async (payload) => {
           if (payload.eventType === "INSERT" && payload.new && (payload.new as { id?: string }).id) {
             const newId = (payload.new as { id: string }).id;
-            const newAction = await getActionById(newId);
-            if (newAction) {
-              const matchesScope =
-                isSysAdmin ||
-                (scopedBarangayId && newAction.barangayId === scopedBarangayId) ||
-                (scopedBarangayName &&
-                  newAction.barangayName.trim().toLowerCase() ===
-                    scopedBarangayName.trim().toLowerCase());
-              if (!matchesScope) return;
+          const newAction = await getActionById(newId);
+if (newAction) {
+  const matchesScope =
+    isSysAdmin ||
+    (scopedBarangayId && newAction.barangayId === scopedBarangayId) ||
+    (scopedBarangayName &&
+      newAction.barangayName.trim().toLowerCase() ===
+        scopedBarangayName.trim().toLowerCase());
+  if (!matchesScope) return;
 
-              setActions((prev) => {
-                if (prev.some((a) => a.id === newAction.id)) return prev;
-                return [newAction, ...prev];
-              });
+  setActions((prev) => {
+    if (prev.some((a) => a.id === newAction.id)) return prev;
+    return [newAction, ...prev];
+  });
               if (newAction.status === "Pending") {
                 dispatchTriageStatusChange(
                   newAction.id,
@@ -198,7 +202,8 @@ export default function ActionTriageLogPage() {
       const matchesStatus =
         filters.status === "all" || a.status === filters.status;
       const matchesBarangay =
-        filters.barangay === "all" || a.barangayName === filters.barangay;
+  filters.barangay === "all" ||
+  `${a.municipalityName ?? ""}::${a.barangayName}` === filters.barangay;
       const actionDate = (a.assignedDate ?? "").slice(0, 10);
       const matchesFrom =
         !filters.dateFrom || (actionDate !== "" && actionDate >= filters.dateFrom);
