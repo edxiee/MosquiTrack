@@ -329,8 +329,8 @@ export default function BhwDashboard() {
                       <TableCell className="font-mono text-sm text-slate-700">
                         {formatTrapLabel(item.trapId)}
                       </TableCell>
-                      <TableCell className="font-medium text-slate-950">
-                        {item.location}
+                     <TableCell className="font-medium text-slate-950">
+                        {[item.location, item.municipality].filter(Boolean).join(", ")}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={severityClass(item.type)}>

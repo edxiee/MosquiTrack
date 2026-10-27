@@ -7,12 +7,14 @@ import { getDangerTier } from "@/utils/dangerTiers";
 export interface BhwRecentAlert {
   trapId: string; // device code, e.g. "Trap-001"
   location: string;
+  municipality: string;
   type: string; // risk level: Low | Moderate | High | Critical
   timestamp: string;
 }
 
 export interface BhwDashboardMetrics {
   barangayName: string;
+  municipalityName: string;
   barangayDvi: number;
   activeTrapNodes: number;
   lowBatteryNodes: number;
@@ -90,6 +92,7 @@ export function useBhwDashboardData(barangayId?: string | null) {
               ? fallbackFromTrap || surveillanceData.barangayName
               : locationText,
             // Risk level shown in the dashboard badge (Low / Moderate / High / Critical)
+            municipality: surveillanceData.municipality ?? "",
             type: dangerTier,
             timestamp: item.time || "—",
           };
@@ -103,6 +106,7 @@ export function useBhwDashboardData(barangayId?: string | null) {
 
       return {
         barangayName: surveillanceData.barangayName,
+        municipalityName: surveillanceData.municipality ?? "",
         barangayDvi: Number(surveillanceData.vectorIndex || 0),
         activeTrapNodes: surveillanceData.totalTrapsCount || surveillanceData.activeCount || 0,
         lowBatteryNodes,
