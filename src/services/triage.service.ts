@@ -1,7 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type {
   TriageAction,
-  TriageFilterValues,
   UpdateActionStatusInput,
 } from "@/types/triage.types";
 
@@ -212,13 +211,23 @@ export async function addActionRemarks(
   if (error) throw error;
 }
 
-export async function getBarangayOptions(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("barangays")
-    .select("barangay_name")
-    .order("barangay_name", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((r) => r.barangay_name);
+export interface BarangayFilterOption {
+  value: string; // "Municipality::Barangay", unique even if two municipalities share a barangay name
+  label: string; // "Municipality / Barangay"
 }
 
-export type { TriageFilterValues };
+export async function getBarangayOptions(): Promise<BarangayFilterOption[]> {
+  const { data, error } = await supabase
+    .from("barangays")
+    .select("barangay_name, municipality")
+    .order("municipality", { ascending: true })
+    .order("barangay_name", { ascending: true });
+  if (error) throw error;
+
+  return (data ?? []).map((r) => ({
+    value: `${r.municipality ?? ""}::${r.barangay_name}`,
+    label: r.municipality
+      ? `${r.municipality} , ${r.barangay_name}`
+      : r.barangay_name,
+  }));
+}

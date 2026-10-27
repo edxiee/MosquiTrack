@@ -9,11 +9,12 @@ import {
 import { Search } from "lucide-react";
 import DateRangePicker from "@/components/common/DateRangePicker";
 import type { TriageFilterValues } from "@/types/triage.types";
+import type { BarangayFilterOption } from "@/services/triage.service";
 
 interface TriageFiltersProps {
   filters: TriageFilterValues;
   onFiltersChange: (filters: TriageFilterValues) => void;
-  barangayOptions: string[];
+  barangayOptions: BarangayFilterOption[];
   hideBarangayFilter?: boolean;
 }
 
@@ -76,24 +77,24 @@ export default function TriageFilters({
         </SelectContent>
       </Select>
 
-      {!hideBarangayFilter && (
-        <Select
-          value={filters.barangay}
-          onValueChange={(value) => update({ barangay: value })}
-        >
-          <SelectTrigger className="w-full md:w-48">
-            <SelectValue placeholder="All Barangays" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Barangays</SelectItem>
-            {barangayOptions.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+        {!hideBarangayFilter && (
+      <Select
+        value={filters.barangay}
+        onValueChange={(value) => update({ barangay: value })}
+      >
+        <SelectTrigger className="w-full md:w-64">
+          <SelectValue placeholder="All Municipality/Barangay" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Municipality/Barangay</SelectItem>
+          {barangayOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )}
       <DateRangePicker
         dateFrom={filters.dateFrom}
         dateTo={filters.dateTo}
