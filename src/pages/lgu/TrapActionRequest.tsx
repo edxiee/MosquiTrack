@@ -416,6 +416,7 @@ export default function PrescriptiveAnalyticsPage() {
                 <tr className="bg-slate-50/80 border-b border-slate-200">
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">Trap ID</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">Description</th>
+                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">Barangay</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">Deployed by</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">Danger Level</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">Location</th>
@@ -443,6 +444,22 @@ export default function PrescriptiveAnalyticsPage() {
                           </div>
                         </td>
                         <td className="px-5 py-4 text-slate-600 max-w-xs">{device.description || device.notes || "—"}</td>
+                        <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                          {device.barangays?.barangay_name ? (
+                            <div>
+                              <span className="font-medium text-slate-900 block">
+                                {device.barangays.barangay_name}
+                              </span>
+                              {device.barangays.municipality && (
+                                <span className="text-xs text-slate-400 block">
+                                  {device.barangays.municipality}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         <td className="px-5 py-4 text-slate-600 whitespace-nowrap">{formatDeployedBy(device.users)}</td>
                         <td className="px-5 py-4">
                           <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border", danger.badge)}>
