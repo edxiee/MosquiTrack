@@ -73,6 +73,28 @@ export async function updateUser(
     }
   }
 
+  // Lookup the matching barangay_id from the barangays table
+  let barangayId: string | null = null;
+  if (formData.barangay && formData.barangay.trim()) {
+    try {
+      let bQuery = supabase
+        .from("barangays")
+        .select("id")
+        .ilike("barangay_name", formData.barangay.trim());
+
+      if (formData.municipality && formData.municipality.trim()) {
+        bQuery = bQuery.ilike("municipality", formData.municipality.trim());
+      }
+
+      const { data: bData } = await bQuery.limit(1).maybeSingle();
+      if (bData?.id) {
+        barangayId = bData.id;
+      }
+    } catch (e) {
+      console.warn("Failed to lookup barangay_id during update:", e);
+    }
+  }
+
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -84,8 +106,9 @@ export async function updateUser(
       phone_number: formData.phoneNumber,
       role: formData.role,
       role_id: roleId,
-      municipality: formData.municipality,
-      barangay: formData.barangay,
+      municipality: formData.municipality || null,
+      barangay: formData.barangay || null,
+      barangay_id: barangayId,
       updated_at: new Date().toISOString(),
     })
     .eq("id", formData.id);

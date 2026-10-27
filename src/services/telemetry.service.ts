@@ -37,7 +37,7 @@ const READING_SELECT = `
     device_code,
     latitude,
     longitude,
-    barangays ( id, barangay_name ),
+    barangays ( id, barangay_name, municipality ),
     device_statuses ( id, status_name )
   )
 `;
@@ -70,6 +70,7 @@ function flattenReading(row: any): TelemetryReading {
     latitude: device?.latitude ?? null,
     longitude: device?.longitude ?? null,
     barangay_name: barangay?.barangay_name ?? null,
+    municipality: barangay?.municipality ?? null,
     status_name: deviceStatus?.status_name ?? null,
   };
 }

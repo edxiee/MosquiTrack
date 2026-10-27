@@ -198,12 +198,16 @@ export default function NodeProvisioningPage() {
       const description = (d.description || d.notes || "").toLowerCase();
       const deployedBy = formatDeployedBy(d.users).toLowerCase();
       const status = (d.device_statuses?.status_name ?? "").toLowerCase();
+      const barangay = (d.barangays?.barangay_name ?? "").toLowerCase();
+      const municipality = (d.barangays?.municipality ?? "").toLowerCase();
 
       return (
         trapId.includes(q) ||
         description.includes(q) ||
         deployedBy.includes(q) ||
-        status.includes(q)
+        status.includes(q) ||
+        barangay.includes(q) ||
+        municipality.includes(q)
       );
     });
   }, [devices, search]);
@@ -274,7 +278,7 @@ export default function NodeProvisioningPage() {
                     Deployed by
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
-                    Barangay
+                    Barangay / Municipality
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
                     Status
@@ -323,7 +327,20 @@ export default function NodeProvisioningPage() {
                         {formatDeployedBy(device.users)}
                       </td>
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
-                        {device.barangays?.barangay_name ?? "—"}
+                        {device.barangays?.barangay_name ? (
+                          <div>
+                            <span className="font-medium text-slate-900 block">
+                              {device.barangays.barangay_name}
+                            </span>
+                            {device.barangays.municipality && (
+                              <span className="text-xs text-slate-400 block">
+                                {device.barangays.municipality}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <span
@@ -498,7 +515,7 @@ export default function NodeProvisioningPage() {
                     {deletingDevice.device_code}
                   </span>
                   {deletingDevice.barangays?.barangay_name
-                    ? ` in Barangay ${deletingDevice.barangays.barangay_name}`
+                    ? ` in Barangay ${deletingDevice.barangays.barangay_name}${deletingDevice.barangays.municipality ? `, ${deletingDevice.barangays.municipality}` : ""}`
                     : ""}
                   ? This action cannot be undone and will permanently remove the
                   trap and its associated records.

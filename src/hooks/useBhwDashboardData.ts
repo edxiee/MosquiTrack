@@ -29,11 +29,11 @@ export interface BhwDashboardMetrics {
   }>;
 }
 
-export function useBhwDashboardData() {
+export function useBhwDashboardData(barangayId?: string | null) {
   return useQuery({
-    queryKey: ["bhw-dashboard"],
+    queryKey: ["bhw-dashboard", barangayId ?? null],
     queryFn: async (): Promise<BhwDashboardMetrics> => {
-      const surveillanceData = await fetchBarangaySurveillanceData();
+      const surveillanceData = await fetchBarangaySurveillanceData(barangayId ?? undefined);
 
       const trapLocationByCode = new Map(
         surveillanceData.traps.map((trap) => [

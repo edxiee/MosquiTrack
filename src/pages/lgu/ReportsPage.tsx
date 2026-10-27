@@ -435,13 +435,14 @@ export default function ReportsAnalyticsPage() {
 
     lines.push('"BARANGAY RISK RANKING TABLE"');
     lines.push(
-      '"Rank","Barangay Name","Active Traps","Total Traps","Total Detections","Average Mosquitoes per Active Trap per Day","Danger Level","7-Day Trend (%)"',
+      '"Rank","Barangay Name","Municipality","Active Traps","Total Traps","Total Detections","Average Mosquitoes per Active Trap per Day","Danger Level","7-Day Trend (%)"',
     );
     for (const row of barangayRankings) {
       lines.push(
         [
           row.rank,
           `"${formatBarangayDisplay(row.barangayName)}"`,
+          `"${row.municipality ?? ""}"`,
           row.activeTraps,
           row.totalTraps,
           row.totalDetections,
@@ -1077,7 +1078,7 @@ export default function ReportsAnalyticsPage() {
                     Rank
                   </TableHead>
                   <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Barangay Name
+                    Barangay / Municipality
                   </TableHead>
                   <TableHead className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">
                     Active Traps
@@ -1139,14 +1140,23 @@ export default function ReportsAnalyticsPage() {
                         </span>
                       </TableCell>
 
-                      {/* Barangay Name (Sticky row header for accessibility) */}
+                      {/* Barangay Name & Municipality */}
                       <th
                         scope="row"
                         className="sticky left-0 bg-white px-2 py-3.5 text-left font-semibold text-slate-900 whitespace-nowrap"
                       >
                         <div className="flex items-center gap-2">
                           <MapPin className="size-3.5 text-slate-400 shrink-0" />
-                          <span>{formatBarangayDisplay(row.barangayName)}</span>
+                          <div>
+                            <span className="block font-semibold text-slate-900">
+                              {formatBarangayDisplay(row.barangayName)}
+                            </span>
+                            {row.municipality && (
+                              <span className="block text-xs font-normal text-slate-500">
+                                {row.municipality}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </th>
 

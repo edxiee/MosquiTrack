@@ -134,12 +134,13 @@ function MetricCard({
 
 export default function BhwDashboard() {
   const { profile, user } = useAuth();
+  const scopedBarangayId = profile?.barangay?.id;
   const {
     data: metrics,
     isLoading: metricsLoading,
     isError,
     error,
-  } = useBhwDashboardData();
+  } = useBhwDashboardData(scopedBarangayId);
 
   // Retrieve user email from profile or auth user object
   const userEmail = profile?.email ?? user?.email ?? "";
@@ -161,27 +162,27 @@ export default function BhwDashboard() {
   const banner =
     criticalNodes > 0
       ? {
-          level: "Critical alert",
-          text: `${criticalNodes} trap node${criticalNodes === 1 ? " is" : "s are"} in critical state. Prioritize immediate on-site checks and battery replacement.`,
-          style: "border-rose-200 bg-gradient-to-r from-rose-50 to-white text-rose-900",
-          icon: Siren,
-          iconStyle: "bg-rose-100 text-rose-600",
-        }
+        level: "Critical alert",
+        text: `${criticalNodes} trap node${criticalNodes === 1 ? " is" : "s are"} in critical state. Prioritize immediate on-site checks and battery replacement.`,
+        style: "border-rose-200 bg-gradient-to-r from-rose-50 to-white text-rose-900",
+        icon: Siren,
+        iconStyle: "bg-rose-100 text-rose-600",
+      }
       : openTriageActions > 0
         ? {
-            level: "Action required",
-            text: `${openTriageActions} action${openTriageActions === 1 ? " is" : "s are"} still open. Keep field follow-ups moving to closure.`,
-            style: "border-orange-200 bg-gradient-to-r from-orange-50 to-white text-orange-900",
-            icon: ShieldAlert,
-            iconStyle: "bg-orange-100 text-orange-600",
-          }
+          level: "Action required",
+          text: `${openTriageActions} action${openTriageActions === 1 ? " is" : "s are"} still open. Keep field follow-ups moving to closure.`,
+          style: "border-orange-200 bg-gradient-to-r from-orange-50 to-white text-orange-900",
+          icon: ShieldAlert,
+          iconStyle: "bg-orange-100 text-orange-600",
+        }
         : {
-            level: "All clear",
-            text: "No critical nodes and no open triage actions right now.",
-            style: "border-emerald-200 bg-gradient-to-r from-emerald-50 to-white text-emerald-900",
-            icon: ShieldCheck,
-            iconStyle: "bg-emerald-100 text-emerald-600",
-          };
+          level: "All clear",
+          text: "No critical nodes and no open triage actions right now.",
+          style: "border-emerald-200 bg-gradient-to-r from-emerald-50 to-white text-emerald-900",
+          icon: ShieldCheck,
+          iconStyle: "bg-emerald-100 text-emerald-600",
+        };
   const BannerIcon = banner.icon;
 
   return (
@@ -296,7 +297,7 @@ export default function BhwDashboard() {
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle>Recent field alerts</CardTitle>
             <CardDescription>
-                Most recent trap detections and their risk levels in your barangay.
+              Most recent trap detections and their risk levels in your barangay.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">

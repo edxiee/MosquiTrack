@@ -99,6 +99,7 @@ export interface BarangayRiskTableRow {
   rank: number;
   barangayId: string;
   barangayName: string;
+  municipality?: string | null;
   activeTraps: number;
   totalTraps: number;
   totalDetections: number;

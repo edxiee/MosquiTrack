@@ -63,8 +63,9 @@ export default function LocationAssignmentForm({
   // Barangays that belong to the currently selected municipality
   const filteredBarangays = useMemo(() => {
     if (!municipality) return [];
+    const muniClean = municipality.trim().toLowerCase();
     return barangays
-      .filter((b) => b.municipality === municipality)
+      .filter((b) => (b.municipality ?? "").trim().toLowerCase() === muniClean)
       .sort((a, b) => a.barangay_name.localeCompare(b.barangay_name));
   }, [barangays, municipality]);
 
@@ -73,8 +74,12 @@ export default function LocationAssignmentForm({
     onMunicipalityChange(value);
 
     // Clear barangay if it doesn't belong to the new municipality
+    const valClean = value.trim().toLowerCase();
     const stillValid = barangays.some(
-      (b) => b.municipality === value && b.barangay_name === barangay
+      (b) =>
+        (b.municipality ?? "").trim().toLowerCase() === valClean &&
+        b.barangay_name.trim().toLowerCase() ===
+          (barangay ?? "").trim().toLowerCase()
     );
     if (!stillValid) {
       onBarangayChange("");
@@ -115,8 +120,8 @@ export default function LocationAssignmentForm({
         )}
       </div>
 
-      {/* Barangay – only for BHW / SYS_ADMIN */}
-      {(role === "BHW" || role === "SYS_ADMIN") && (
+      {/* Barangay – for BHW / SYS_ADMIN / ADMIN */}
+      {(role === "BHW" || role === "SYS_ADMIN" || role === "ADMIN") && (
         <div className="space-y-2">
           <Label htmlFor="barangay">
             Barangay <span className="text-rose-500">*</span>

@@ -976,6 +976,7 @@ export async function fetchEpidemiologicalReportData(params: {
       return {
         barangayId: b.id,
         barangayName: b.barangay_name,
+        municipality: b.municipality ?? null,
         activeTraps: devCounts.active,
         totalTraps: devCounts.total,
         totalDetections: bStat.periodDetections,

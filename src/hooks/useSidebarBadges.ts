@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { ROUTES } from "@/utils/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const TRIAGE_BADGE_EVENT = "mosquitrack:triage-badge-change";
 
@@ -9,6 +10,9 @@ let globalTriageCount = 0;
 let globalTriageHasNew = false;
 let globalRequestActionsCount = 0;
 let globalRequestsHasNew = false;
+
+let currentScopedBarangayId: string | undefined = undefined;
+let isCurrentSysAdmin = false;
 
 const subscribers = new Set<() => void>();
 let channelsInitialized = false;
@@ -23,13 +27,28 @@ function notifySubscribers() {
   });
 }
 
-// Fetch current count of Pending tasks in action_triage_log
-export async function fetchTriageCount() {
+// Fetch current count of Pending tasks in action_triage_log scoped to the barangay
+export async function fetchTriageCount(barangayId?: string) {
   try {
-    const { count, error } = await supabase
+    const targetId = barangayId ?? currentScopedBarangayId;
+
+    let query = supabase
       .from("action_triage_log")
       .select("id", { count: "exact", head: true })
       .eq("status", "Pending");
+
+    if (!isCurrentSysAdmin) {
+      if (targetId) {
+        query = query.eq("barangay_id", targetId);
+      } else {
+        // Non-admin without a resolved barangay scope should not count other barangays
+        globalTriageCount = 0;
+        notifySubscribers();
+        return;
+      }
+    }
+
+    const { count, error } = await query;
 
     if (!error && typeof count === "number") {
       globalTriageCount = count;
@@ -58,8 +77,8 @@ export async function fetchRequestActionsCount() {
 }
 
 // Explicit refresh helper callable from any page or component
-export function triggerTriageBadgeRefresh() {
-  fetchTriageCount();
+export function triggerTriageBadgeRefresh(barangayId?: string) {
+  fetchTriageCount(barangayId);
   fetchRequestActionsCount();
 }
 
@@ -67,8 +86,19 @@ export function triggerTriageBadgeRefresh() {
 export function dispatchTriageStatusChange(
   actionId: string,
   newStatus: string,
-  previousStatus?: string
+  previousStatus?: string,
+  barangayId?: string
 ) {
+  // If not a system administrator and the action belongs to a different barangay, ignore
+  if (
+    !isCurrentSysAdmin &&
+    currentScopedBarangayId &&
+    barangayId &&
+    barangayId !== currentScopedBarangayId
+  ) {
+    return;
+  }
+
   if (previousStatus === "Pending" && newStatus !== "Pending") {
     globalTriageCount = Math.max(0, globalTriageCount - 1);
     notifySubscribers();
@@ -86,14 +116,14 @@ export function dispatchTriageStatusChange(
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent(TRIAGE_BADGE_EVENT, {
-        detail: { actionId, newStatus, previousStatus },
+        detail: { actionId, newStatus, previousStatus, barangayId },
       })
     );
   }
 
   // Re-verify with DB in background
   setTimeout(() => {
-    fetchTriageCount();
+    fetchTriageCount(currentScopedBarangayId);
   }, 300);
 }
 
@@ -112,15 +142,30 @@ function initGlobalChannels() {
       "postgres_changes",
       { event: "*", schema: "public", table: "action_triage_log" },
       (payload) => {
-        if (payload.eventType === "INSERT") {
-          globalTriageHasNew = true;
-          notifySubscribers();
-          setTimeout(() => {
-            globalTriageHasNew = false;
-            notifySubscribers();
-          }, 5000);
+        const row = (payload.new ?? payload.old) as
+          | { barangay_id?: string; status?: string }
+          | undefined;
+        const rowBarangayId = row?.barangay_id;
+
+        // If the user is scoped to a specific barangay and the event is for another barangay, ignore it!
+        if (!isCurrentSysAdmin) {
+          if (!currentScopedBarangayId || rowBarangayId !== currentScopedBarangayId) {
+            return;
+          }
         }
-        fetchTriageCount();
+
+        if (payload.eventType === "INSERT") {
+          const newRow = payload.new as { status?: string } | undefined;
+          if (newRow?.status === "Pending") {
+            globalTriageHasNew = true;
+            notifySubscribers();
+            setTimeout(() => {
+              globalTriageHasNew = false;
+              notifySubscribers();
+            }, 5000);
+          }
+        }
+        fetchTriageCount(currentScopedBarangayId);
       }
     )
     .subscribe();
@@ -152,18 +197,29 @@ export interface BadgeInfo {
 }
 
 export function useSidebarBadges() {
+  const { profile } = useAuth();
+  const isSysAdmin =
+    profile?.role?.role_code === "SYS_ADMIN" ||
+    profile?.role?.role_code === "ADMIN";
+  const scopedBarangayId = isSysAdmin ? undefined : profile?.barangay?.id;
+
   const [, setTick] = useState(0);
 
   useEffect(() => {
+    isCurrentSysAdmin = isSysAdmin;
+    currentScopedBarangayId = scopedBarangayId;
+
     // Ensures real-time channels are subscribed once globally, never duplicated
     initGlobalChannels();
+    fetchTriageCount(scopedBarangayId);
+    fetchRequestActionsCount();
 
     const update = () => setTick((t) => t + 1);
     subscribers.add(update);
 
     // Re-verify on window focus (e.g. user returns to tab)
     const handleFocus = () => {
-      fetchTriageCount();
+      fetchTriageCount(scopedBarangayId);
       fetchRequestActionsCount();
     };
     window.addEventListener("focus", handleFocus);
@@ -173,8 +229,13 @@ export function useSidebarBadges() {
         actionId: string;
         newStatus: string;
         previousStatus?: string;
+        barangayId?: string;
       }>;
-      const { newStatus, previousStatus } = customEvent.detail || {};
+      const { newStatus, previousStatus, barangayId } = customEvent.detail || {};
+
+      if (!isSysAdmin && scopedBarangayId && barangayId && barangayId !== scopedBarangayId) {
+        return;
+      }
 
       if (previousStatus === "Pending" && newStatus !== "Pending") {
         globalTriageCount = Math.max(0, globalTriageCount - 1);
@@ -198,7 +259,7 @@ export function useSidebarBadges() {
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener(TRIAGE_BADGE_EVENT, handleLocalBadgeChange);
     };
-  }, []);
+  }, [scopedBarangayId, isSysAdmin]);
 
   const getBadgeForPath = (path: string): BadgeInfo | null => {
     if (path === ROUTES.bhw.actionLogs) {

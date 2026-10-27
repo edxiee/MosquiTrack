@@ -140,7 +140,8 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
       ),
       barangays (
         id,
-        barangay_name
+        barangay_name,
+        municipality
       )
     `
     )
@@ -171,7 +172,8 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
         ),
         barangays (
           id,
-          barangay_name
+          barangay_name,
+          municipality
         )
       `
       )

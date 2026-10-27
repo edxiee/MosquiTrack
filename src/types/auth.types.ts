@@ -13,6 +13,7 @@ export interface AuthRole {
 export interface AuthBarangay {
   id: string;
   barangay_name: string;
+  municipality?: string | null;
 }
 
 export interface AuthProfile {
@@ -26,6 +27,7 @@ export interface AuthProfile {
   must_change_password: boolean; // <--- ADDED THIS LINE
   role: AuthRole;
   barangay: AuthBarangay | null;
+  municipality?: string | null;
 }
 
 export interface AuthContextValue {
