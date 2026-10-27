@@ -557,9 +557,11 @@ export default function TrapReportDropdown({
                     <div
                       className={cn(
                         "h-full rounded-full transition-all",
-                        (latestBattery ?? 100) > 40
+                        latestBattery == null
+                          ? "bg-slate-300"
+                          : latestBattery > 40
                           ? "bg-emerald-500"
-                          : (latestBattery ?? 100) > 20
+                          : latestBattery > 20
                           ? "bg-amber-500"
                           : "bg-rose-500"
                       )}

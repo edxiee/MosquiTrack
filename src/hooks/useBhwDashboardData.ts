@@ -55,7 +55,7 @@ export function useBhwDashboardData(barangayId?: string | null) {
       }
 
       const lowBatteryNodes = surveillanceData.traps.filter(
-        (trap) => (trap.battery ?? 100) < 20,
+        (trap) => trap.battery !== null && trap.battery < 20,
       ).length;
 
       const hotspotCount = surveillanceData.traps.filter(
@@ -71,7 +71,7 @@ export function useBhwDashboardData(barangayId?: string | null) {
       ).length;
 
       const criticalNodes = surveillanceData.traps.filter(
-        (trap) => trap.activityLevel === "Critical" || (trap.battery ?? 100) < 15,
+        (trap) => trap.activityLevel === "Critical" || (trap.battery !== null && trap.battery < 15),
       ).length;
 
       const recentAlerts: BhwRecentAlert[] = surveillanceData.latestDetections

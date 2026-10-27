@@ -13,7 +13,7 @@ export interface BarangaySurveillanceDevice {
   consecutiveCriticalDays: number;
   lastComm: string;
   lastSeenAt: string | null;
-  battery: number;
+  battery: number | null;
   temperature: number | null;
   humidity: number | null;
   lat: number;
@@ -558,7 +558,7 @@ export async function fetchBarangaySurveillanceData(
       consecutiveCriticalDays,
       lastComm: lastCommText,
       lastSeenAt: lastCommDate || null,
-      battery: latestReading?.battery_level ?? 100,
+      battery: latestReading?.battery_level ?? null,
       temperature: latestReading?.temperature_c ?? null,
       humidity: latestReading?.humidity_percent ?? null,
       lat,

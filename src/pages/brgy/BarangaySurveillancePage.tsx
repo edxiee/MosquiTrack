@@ -566,7 +566,7 @@ export default function BarangaySurveillancePage() {
                         </p>
                         <p className="font-semibold text-slate-700 flex items-center gap-1">
                           <Battery className="size-3 text-slate-400" />
-                          <span>{trap.battery}%</span>
+                          <span>{trap.battery != null ? `${trap.battery}%` : "—"}</span>
                         </p>
                       </div>
 
@@ -694,7 +694,7 @@ export default function BarangaySurveillancePage() {
 
                               <p className="flex items-center gap-2">
                                 <Battery className="size-3.5 text-slate-400 shrink-0" />
-                                <span>Battery Level: {trap.battery}%</span>
+                                <span>Battery Level: {trap.battery != null ? `${trap.battery}%` : "—"}</span>
                               </p>
 
                               {trap.temperature !== null && (
@@ -782,7 +782,7 @@ export default function BarangaySurveillancePage() {
                       Battery Status
                     </p>
                     <p className="text-xl font-bold text-emerald-600 mt-0.5">
-                      {selectedTrap.battery}%
+                      {selectedTrap.battery != null ? `${selectedTrap.battery}%` : "—"}
                     </p>
                   </div>
                 </div>
