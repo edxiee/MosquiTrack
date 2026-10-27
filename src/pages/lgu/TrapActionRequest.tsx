@@ -480,7 +480,7 @@ export default function PrescriptiveAnalyticsPage() {
                       </tr>
                       {isExpanded && (
                         <tr className="bg-slate-50/30 border-b border-slate-200">
-                          <td colSpan={6} className="p-4 sm:px-6 sm:py-5">
+                          <td colSpan={7} className="p-4 sm:px-6 sm:py-5">
                             <TrapReportDropdown device={device} onPostRequest={(d) => openRequestModal(d)} onViewLocation={(d) => handleViewLocation(d)} />
                           </td>
                         </tr>
