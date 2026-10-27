@@ -676,12 +676,12 @@ export default function LiveMonitoringPage() {
                             ["Last Seen", formatTimeAgo(lastHttpPostStr)],
                             ["Battery", hasBatteryData ? `${batteryValue}%` : "N/A"],
                             ["Signal Strength", "N/A"], // No DB column exists, so we must show N/A
-                            ["Firmware Version", "N/A"], // No DB column exists, so we must show N/A
+                            ["Firmware Version", selectedDevice.serial_number ?? "N/A"],
                             ["SIM Network", simNetwork], // Hardcoded via our config map above
                             ["Temperature", latestReading?.temperature_c != null ? `${latestReading.temperature_c}°C` : "N/A"],
                             ["Humidity", latestReading?.humidity_percent != null ? `${latestReading.humidity_percent}%` : "N/A"],
                             ["Deployment Date", selectedDevice.installation_date ? new Date(selectedDevice.installation_date).toLocaleDateString() : "N/A"],
-                            ["Last Telemetry Upload", lastHttpPostStr ? new Date(lastHttpPostStr).toLocaleString() : "N/A"],
+                            ["Last Trap Data Upload", lastHttpPostStr ? new Date(lastHttpPostStr).toLocaleString() : "N/A"],
                           ].map(([label, value]) => (
                             <div key={label}>
                               <p className="text-xs text-slate-400 font-medium">{label}</p>
