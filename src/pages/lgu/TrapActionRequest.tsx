@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   Filter,
+  UserRound,
 } from "lucide-react";
 import { ROUTES } from "@/utils/navigation";
 import { Button } from "@/components/ui/button";
@@ -460,8 +461,9 @@ export default function PrescriptiveAnalyticsPage() {
                             <Send className="w-3.5 h-3.5" />Post Request Action
                           </Button>
                         </td>
+                        
                       </tr>
-                      {isExpanded && (
+                        {isExpanded && (
                         <tr className="bg-slate-50/30 border-b border-slate-200">
                           <td colSpan={6} className="p-4 sm:px-6 sm:py-5">
                             <TrapReportDropdown device={device} onPostRequest={(d) => openRequestModal(d)} onViewLocation={(d) => handleViewLocation(d)} />
@@ -547,6 +549,7 @@ export default function PrescriptiveAnalyticsPage() {
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Date Submitted</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Due Date</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Status</th>
+                  <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Taken By</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Last Updated</th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3 whitespace-nowrap">Action</th>
                 </tr>
@@ -586,6 +589,20 @@ export default function PrescriptiveAnalyticsPage() {
                           </span>
                         )}
                       </td>
+                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-600">
+  {row.assigned_to_name ? (
+    <span className="flex items-center gap-2">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+        <UserRound className="size-3.5" />
+      </span>
+      {row.assigned_to_name}
+    </span>
+  ) : (
+    <span className="italic text-slate-400">—</span>
+  )}
+</td>
+
+<td className="px-5 py-3.5 text-slate-500 whitespace-nowrap text-xs">{formatTimeAgo(row.updated_at || row.created_at)}</td>
                       <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap text-xs">{formatTimeAgo(row.updated_at || row.created_at)}</td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <Button variant="ghost" size="sm" onClick={() => openMyRequestDetail(row)} className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 gap-1">
