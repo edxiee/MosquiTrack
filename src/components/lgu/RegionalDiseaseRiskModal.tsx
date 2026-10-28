@@ -8,11 +8,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ShieldAlert, X } from "lucide-react";
-import { fetchRegionalRiskRanking } from "../../services/diseaseReports.service";
+import { fetchRegionalRiskRanking } from "@/services/diseaseReports.service";
 import type {
   MosquitoDisease,
   RegionalDiseaseRiskRow,
-} from "../../types/diseaseReports.types";
+} from "@/types/diseaseReports.types";
 import { cn } from "@/lib/utils";
 
 const DISEASES: MosquitoDisease[] = [
@@ -47,7 +47,10 @@ function RiskPctBar({ pct, level }: { pct: number; level: string }) {
   return (
     <div className="flex items-center gap-2 min-w-[120px]">
       <div className="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
-        <div className={cn("h-full rounded-full", bar)} style={{ width: `${pct}%` }} />
+        <div
+          className={cn("h-full rounded-full", bar)}
+          style={{ width: `${pct}%` }}
+        />
       </div>
       <span className="text-xs font-semibold tabular-nums text-slate-700 w-10 text-right">
         {pct}%
@@ -56,12 +59,29 @@ function RiskPctBar({ pct, level }: { pct: number; level: string }) {
   );
 }
 
-export default function RegionalDiseaseRiskButton() {
-  const [open, setOpen] = useState(false);
+type Props = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+export default function RegionalDiseaseRiskButton({
+  open: openProp,
+  onOpenChange,
+}: Props = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [disease, setDisease] = useState<MosquitoDisease>("Dengue");
   const [rows, setRows] = useState<RegionalDiseaseRiskRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const open = openProp ?? internalOpen;
+
+  const setOpen = (value: boolean) => {
+    onOpenChange?.(value);
+    if (openProp === undefined) {
+      setInternalOpen(value);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +95,9 @@ export default function RegionalDiseaseRiskButton() {
         if (!cancelled) setRows(data);
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load regional risk");
+          setError(
+            e instanceof Error ? e.message : "Failed to load regional risk",
+          );
           setRows([]);
         }
       } finally {
@@ -109,7 +131,7 @@ export default function RegionalDiseaseRiskButton() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           showCloseButton={false}
-          className="sm:max-w-3xl max-h-[85vh] overflow-hidden p-0 gap-0 rounded-2xl border border-slate-200 z-[5000]"
+          className="sm:max-w-3xl max-h-[85vh] overflow-hidden p-0 gap-0 rounded-2xl border border-slate-200 z-[5001]"
         >
           <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div>
@@ -132,7 +154,6 @@ export default function RegionalDiseaseRiskButton() {
             </button>
           </div>
 
-          {/* Disease tabs */}
           <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-3">
             {DISEASES.map((d) => (
               <button
@@ -158,13 +179,15 @@ export default function RegionalDiseaseRiskButton() {
                 Loading {disease} risk…
               </div>
             ) : error ? (
-              <p className="px-5 py-10 text-center text-sm text-rose-600">{error}</p>
+              <p className="px-5 py-10 text-center text-sm text-rose-600">
+                {error}
+              </p>
             ) : rows.length === 0 ? (
               <p className="px-5 py-10 text-center text-sm text-slate-500">
                 No case data for {disease}.
               </p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">

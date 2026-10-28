@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import {
   MapContainer,
   TileLayer,
@@ -129,10 +130,7 @@ export default function StaticGeoreferencingPage() {
   const [search, setSearch] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedTrapId, setSelectedTrapId] = useState<string | null>(viewId);
-  const selectedTrapIdRef = useRef<string | null>(viewId);
-  useEffect(() => {
-    selectedTrapIdRef.current = selectedTrapId;
-  }, [selectedTrapId]);
+  const [riskOpen, setRiskOpen] = useState(false);
 
   const [mapCenter, setMapCenter] = useState<[number, number]>(defaultCenter);
   const [mapZoom, setMapZoom] = useState<number>(13);
@@ -146,7 +144,7 @@ export default function StaticGeoreferencingPage() {
       setDevices(allTraps);
 
       // If viewId provided or selected trap, center on it
-      const targetId = viewId || selectedTrapIdRef.current;
+      const targetId = viewId || selectedTrapId;
       if (targetId) {
         const target = allTraps.find((t) => t.id === targetId);
         if (target && target.latitude != null && target.longitude != null) {
@@ -175,7 +173,7 @@ export default function StaticGeoreferencingPage() {
     } finally {
       if (showSpinner) setLoading(false);
     }
-  }, [viewId]);
+  }, [viewId, selectedTrapId]);
 
   useEffect(() => {
     loadTraps(true);
@@ -512,117 +510,129 @@ export default function StaticGeoreferencingPage() {
 
         {/* Right Area: Interactive Leaflet Map */}
         <div className="relative flex-1">
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000]">
-            <RegionalDiseaseRiskButton />
+          <div className={cn(
+            "absolute top-4 left-1/2 -translate-x-1/2 z-[1000] transition-[filter] duration-200",
+            riskOpen && "blur-sm pointer-events-none",
+          )}
+        >
+            <RegionalDiseaseRiskButton open={riskOpen} onOpenChange={setRiskOpen} />
           </div>
-          <MapContainer
-            center={mapCenter}
-            zoom={mapZoom}
-            zoomControl={false}
-            className="w-full h-full"
+
+          <div
+            className={cn(
+              "absolute inset-0 transition-[filter] duration-200",
+              riskOpen && "blur-sm pointer-events-none",
+            )}
           >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <MapController center={mapCenter} zoom={mapZoom} />
+            <MapContainer
+              center={mapCenter}
+              zoom={mapZoom}
+              zoomControl={false}
+              className="w-full h-full"
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <MapController center={mapCenter} zoom={mapZoom} />
 
-            {deployedTraps.map((trap) => {
-              const isSelected = selectedTrapId === trap.id;
-              const markerStatus = isDeviceActive(trap) ? "Online" : "Offline";
+              {deployedTraps.map((trap) => {
+                const isSelected = selectedTrapId === trap.id;
+                const markerStatus = isDeviceActive(trap) ? "Online" : "Offline";
 
-              return (
-                <Marker
-                  key={trap.id}
-                  ref={(r) => {
-                    markerRefs.current[trap.id] = r;
-                  }}
-                  position={[Number(trap.latitude), Number(trap.longitude)]}
-                  icon={createCustomMarker(markerStatus, isSelected)}
-                  eventHandlers={{
-                    click: () => {
-                      setSelectedTrapId(trap.id);
-                    },
-                  }}
-                >
-                  <Popup className="custom-leaflet-popup">
-                    <div className="w-56 p-1">
-                      <div className="flex items-center justify-between gap-1 mb-1.5 pb-1.5 border-b border-slate-100">
-                        <h3 className="font-bold text-slate-900 text-sm">
-                          {trap.device_code}
-                        </h3>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            isDeviceActive(trap)
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-rose-50 text-rose-700 border border-rose-200"
-                          }`}
-                        >
-                          {isDeviceActive(trap) ? "Online" : "Offline"}
-                        </span>
-                      </div>
-
-                      {trap.description && (
-                        <p className="text-xs text-slate-600 mb-2">
-                          {trap.description}
-                        </p>
-                      )}
-
-                      <div className="space-y-1.5 text-xs text-slate-700 bg-slate-50 rounded-lg p-2 border border-slate-100 mb-3">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-medium">Barangay:</span>
-                          <span className="font-semibold text-slate-800">
-                            {trap.barangays?.barangay_name ?? "—"}
+                return (
+                  <Marker
+                    key={trap.id}
+                    ref={(r) => {
+                      markerRefs.current[trap.id] = r;
+                    }}
+                    position={[Number(trap.latitude), Number(trap.longitude)]}
+                    icon={createCustomMarker(markerStatus, isSelected)}
+                    eventHandlers={{
+                      click: () => {
+                        setSelectedTrapId(trap.id);
+                      },
+                    }}
+                  >
+                    <Popup className="custom-leaflet-popup">
+                      <div className="w-56 p-1">
+                        <div className="flex items-center justify-between gap-1 mb-1.5 pb-1.5 border-b border-slate-100">
+                          <h3 className="font-bold text-slate-900 text-sm">
+                            {trap.device_code}
+                          </h3>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              isDeviceActive(trap)
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-rose-50 text-rose-700 border border-rose-200"
+                            }`}
+                          >
+                            {isDeviceActive(trap) ? "Online" : "Offline"}
                           </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-medium">Latitude:</span>
-                          <span className="font-mono text-slate-700">{Number(trap.latitude).toFixed(5)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-medium">Longitude:</span>
-                          <span className="font-mono text-slate-700">{Number(trap.longitude).toFixed(5)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-medium">GPS Signal:</span>
-                          <span className="text-emerald-700 font-medium flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                            Hardware Locked
-                          </span>
-                        </div>
-                      </div>
 
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 h-7 text-xs px-1 gap-1 border-slate-200 hover:bg-slate-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`${ROUTES.admin.trapManagement}`);
-                          }}
-                        >
-                          <Pencil className="w-3 h-3 text-slate-500" />
-                          Edit Trap
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1 h-7 text-xs px-1 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`${ROUTES.admin.trapDataOverview}?trapId=${trap.id}`);
-                          }}
-                        >
-                          <Activity className="w-3 h-3" />
-                           Trap Data
-                        </Button>
+                        {trap.description && (
+                          <p className="text-xs text-slate-600 mb-2">
+                            {trap.description}
+                          </p>
+                        )}
+
+                        <div className="space-y-1.5 text-xs text-slate-700 bg-slate-50 rounded-lg p-2 border border-slate-100 mb-3">
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">Barangay:</span>
+                            <span className="font-semibold text-slate-800">
+                              {trap.barangays?.barangay_name ?? "—"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">Latitude:</span>
+                            <span className="font-mono text-slate-700">{Number(trap.latitude).toFixed(5)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">Longitude:</span>
+                            <span className="font-mono text-slate-700">{Number(trap.longitude).toFixed(5)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">GPS Signal:</span>
+                            <span className="text-emerald-700 font-medium flex items-center gap-1">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              Hardware Locked
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 h-7 text-xs px-1 gap-1 border-slate-200 hover:bg-slate-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`${ROUTES.admin.trapManagement}`);
+                            }}
+                          >
+                            <Pencil className="w-3 h-3 text-slate-500" />
+                            Edit Trap
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 h-7 text-xs px-1 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`${ROUTES.admin.trapDataOverview}?trapId=${trap.id}`);
+                            }}
+                          >
+                            <Activity className="w-3 h-3" />
+                            Trap Data
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
-          </MapContainer>
+                    </Popup>
+                  </Marker>
+                );
+              })}
+            </MapContainer>
+          </div>
 
           {/* Floating Location Controls */}
           <div className="absolute left-4 bottom-4 z-[999] flex items-center gap-2">
