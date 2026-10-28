@@ -93,17 +93,13 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
     >
       {/* Branding Area */}
       <div className="relative flex flex-col items-center border-b border-slate-200 p-4">
-        <div className={`flex items-center justify-center transition-all duration-200 ${isCollapsed ? "w-10" : "w-full"}`}>
+        <div className={`flex items-center justify-center transition-all duration-200 ${isCollapsed ? "w-12" : "w-full"}`}>
           <AppLogo
             variant={isCollapsed ? "solo" : "full"}
             className={`transition-all duration-200 ${isCollapsed ? "h-8 w-8" : "h-10 w-auto"}`}
           />
         </div>
-        {!isCollapsed && (
-          <p className="mt-2 text-center text-xs font-medium tracking-wide text-slate-500">
-            Smart Early Warning System
-          </p>
-        )}
+
         {/* Collapse/Expand Control */}
         {!isMobile && isLgScreen && (
           <button
