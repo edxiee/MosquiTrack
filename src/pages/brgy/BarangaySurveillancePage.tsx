@@ -153,6 +153,9 @@ export default function BarangaySurveillancePage() {
   // Diagnostics modal
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
+  // Local clock tick every 15s to re-evaluate the 16-minute online/offline expiration in memory
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
   const loadData = useCallback(async () => {
     try {
       setError(null);
@@ -198,13 +201,21 @@ export default function BarangaySurveillancePage() {
   useEffect(() => {
     loadData();
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadData();
+      }, 300);
+    };
+
     // Subscribe to realtime database changes
     const readingsSub = supabase
       .channel("brgy-surveillance-readings-channel")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ovitrap_readings" },
-        () => loadData()
+        scheduleReload
       )
       .subscribe();
 
@@ -213,7 +224,7 @@ export default function BarangaySurveillancePage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ovitrap_devices" },
-        () => loadData()
+        scheduleReload
       )
       .subscribe();
 
@@ -222,48 +233,71 @@ export default function BarangaySurveillancePage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "request_actions" },
-        () => loadData()
+        scheduleReload
       )
       .subscribe();
 
-    // 5-second automatic heartbeat polling so traps transitioning online/offline
-    // (including 16-minute timeout expiration) update automatically without reload
-    const pollInterval = setInterval(() => {
-      loadData();
-    }, 5000);
+    // Local 15-second clock tick so traps transitioning online/offline
+    // (including 16-minute timeout expiration) update automatically in memory without network polling
+    const tickInterval = setInterval(() => {
+      setNowTick(Date.now());
+    }, 15000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
+        setNowTick(Date.now());
         loadData();
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(readingsSub);
       supabase.removeChannel(devicesSub);
       supabase.removeChannel(actionsSub);
-      clearInterval(pollInterval);
+      clearInterval(tickInterval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [loadData]);
 
-  // Filter strictly to DEPLOYED traps
+  // Filter strictly to DEPLOYED traps and recompute 16-minute online/offline status from nowTick
   const deployedTraps = useMemo(() => {
     const all = data?.traps ?? [];
-    return all.filter((t) => {
-      // 1. If operational_status is explicitly recorded
-      if (t.operational_status) {
-        return t.operational_status.toLowerCase() === "deployed";
-      }
-      // 2. Otherwise check status not in storage and has valid coordinates
-      const sName = (t.device_status_name || "").toLowerCase();
-      if (sName === "in storage" || sName === "in_storage") {
-        return false;
-      }
-      return hasValidCoords(t);
-    });
-  }, [data]);
+    return all
+      .filter((t) => {
+        // 1. If operational_status is explicitly recorded
+        if (t.operational_status) {
+          return t.operational_status.toLowerCase() === "deployed";
+        }
+        // 2. Otherwise check status not in storage and has valid coordinates
+        const sName = (t.device_status_name || "").toLowerCase();
+        if (sName === "in storage" || sName === "in_storage") {
+          return false;
+        }
+        return hasValidCoords(t);
+      })
+      .map((t) => {
+        if (!t.lastSeenAt) return t;
+        const diffMinutes = (nowTick - new Date(t.lastSeenAt).getTime()) / (1000 * 60);
+        let status: "Online" | "Offline" = "Offline";
+        let lastComm = "Never Connected";
+        if (diffMinutes <= 16) {
+          status = "Online";
+          lastComm = "Active (Live)";
+        } else {
+          status = "Offline";
+          if (diffMinutes < 60) {
+            lastComm = `${Math.floor(diffMinutes)}m ago`;
+          } else if (diffMinutes < 1440) {
+            lastComm = `${Math.floor(diffMinutes / 60)}h ago`;
+          } else {
+            lastComm = `${Math.floor(diffMinutes / 1440)}d ago`;
+          }
+        }
+        return { ...t, status, lastComm };
+      });
+  }, [data, nowTick]);
 
   // Search & Status filter within deployed traps
   const filteredDeployedTraps = useMemo(() => {
@@ -290,6 +324,20 @@ export default function BarangaySurveillancePage() {
     () => deployedTraps.filter((t) => t.status === "Offline").length,
     [deployedTraps]
   );
+
+  useEffect(() => {
+    setSelectedTrap((prev) => {
+      if (!prev) return prev;
+      const updated = deployedTraps.find((t) => t.id === prev.id);
+      if (
+        updated &&
+        (updated.status !== prev.status || updated.lastComm !== prev.lastComm)
+      ) {
+        return updated;
+      }
+      return prev;
+    });
+  }, [deployedTraps]);
 
   const handleSelectTrap = (trap: BarangaySurveillanceDevice) => {
     setSelectedTrap(trap);

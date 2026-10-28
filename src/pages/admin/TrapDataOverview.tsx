@@ -46,31 +46,6 @@ export default function RawTelemetryHubPage() {
           getBarangayOptions(),
         ]);
         if (!isMounted) return;
-        
-        // Background task to fix any missing weather in the loaded data
-        (async () => {
-           let updated = false;
-           const newReadings = [...readingsData];
-           for (let i = 0; i < newReadings.length; i++) {
-             const r = newReadings[i];
-             if (!r) continue;
-             
-             if (r.temperature_c == null && r.latitude != null && r.longitude != null) {
-               const weather = await getTrapWeather(r.latitude, r.longitude);
-               if (weather) {
-                 newReadings[i] = { ...r, temperature_c: weather.temperature, humidity_percent: weather.humidity } as TelemetryReading;
-                 updated = true;
-                 supabase.from("ovitrap_readings").update({
-                   temperature_c: weather.temperature,
-                   humidity_percent: weather.humidity
-                 }).eq("id", r.id).then();
-               }
-             }
-           }
-           if (updated && isMounted) {
-             setReadings([...newReadings]);
-           }
-        })();
 
         setReadings(readingsData);
         setBarangayOptions(barangays);

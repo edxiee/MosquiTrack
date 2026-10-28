@@ -128,6 +128,10 @@ export default function StaticGeoreferencingPage() {
   const [search, setSearch] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedTrapId, setSelectedTrapId] = useState<string | null>(viewId);
+  const selectedTrapIdRef = useRef<string | null>(viewId);
+  useEffect(() => {
+    selectedTrapIdRef.current = selectedTrapId;
+  }, [selectedTrapId]);
 
   const [mapCenter, setMapCenter] = useState<[number, number]>(defaultCenter);
   const [mapZoom, setMapZoom] = useState<number>(13);
@@ -141,7 +145,7 @@ export default function StaticGeoreferencingPage() {
       setDevices(allTraps);
 
       // If viewId provided or selected trap, center on it
-      const targetId = viewId || selectedTrapId;
+      const targetId = viewId || selectedTrapIdRef.current;
       if (targetId) {
         const target = allTraps.find((t) => t.id === targetId);
         if (target && target.latitude != null && target.longitude != null) {
@@ -170,7 +174,7 @@ export default function StaticGeoreferencingPage() {
     } finally {
       if (showSpinner) setLoading(false);
     }
-  }, [viewId, selectedTrapId]);
+  }, [viewId]);
 
   useEffect(() => {
     loadTraps(true);

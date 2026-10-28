@@ -93,18 +93,25 @@ export interface TriageLogRow {
   assigned_to_name: string | null;
 }
 
+let hasImageUrlColumn = true;
+
 export async function fetchMySubmittedTriageLogs(userId: string): Promise<TriageLogRow[]> {
   let { data: logs, error } = await supabase
     .from("action_triage_log")
     .select(
-      `id, trigger_source, priority, status, remarks, image_url, due_date, created_at, updated_at,
+      hasImageUrlColumn
+        ? `id, trigger_source, priority, status, remarks, image_url, due_date, created_at, updated_at,
+       barangays(barangay_name),
+       assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name )`
+        : `id, trigger_source, priority, status, remarks, due_date, created_at, updated_at,
        barangays(barangay_name),
        assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name )`
     )
     .eq("created_by", userId)
     .order("created_at", { ascending: false });
 
-  if (error && error.message?.includes("image_url")) {
+  if (hasImageUrlColumn && error && error.message?.includes("image_url")) {
+    hasImageUrlColumn = false;
     const fallbackRes = await supabase
       .from("action_triage_log")
       .select(
@@ -160,11 +167,16 @@ export async function fetchTriageRequestsByDevice(
 
   let { data, error } = await supabase
     .from("action_triage_log")
-    .select("id, trigger_source, priority, status, remarks, image_url, due_date, created_at")
+    .select(
+      hasImageUrlColumn
+        ? "id, trigger_source, priority, status, remarks, image_url, due_date, created_at"
+        : "id, trigger_source, priority, status, remarks, due_date, created_at"
+    )
     .eq("barangay_id", barangayId)
     .order("created_at", { ascending: false });
 
-  if (error && error.message?.includes("image_url")) {
+  if (hasImageUrlColumn && error && error.message?.includes("image_url")) {
+    hasImageUrlColumn = false;
     const fallbackRes = await supabase
       .from("action_triage_log")
       .select("id, trigger_source, priority, status, remarks, due_date, created_at")
@@ -177,7 +189,7 @@ export async function fetchTriageRequestsByDevice(
   if (error) throw error;
 
   const trapRemark = `Trap: ${deviceCode}`;
-  return ((data ?? []) as TrapActionLogEntry[]).filter((entry) =>
+  return ((data ?? []) as unknown as TrapActionLogEntry[]).filter((entry) =>
     entry.remarks?.split(" | ").includes(trapRemark),
   );
 }

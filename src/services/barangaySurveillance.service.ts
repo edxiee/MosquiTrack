@@ -3,6 +3,9 @@ import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
 import { formatTelemetryTimestamp, getLocalDateKey } from "@/utils/dateHelpers";
 import { getConsecutiveCriticalDays, getDangerTier } from "@/utils/dangerTiers";
 
+let hasOperationalStatusColumn = true;
+let hasSurveillanceRpc = true;
+
 export interface BarangaySurveillanceDevice {
   id: string;
   device_code: string;
@@ -177,44 +180,29 @@ export async function fetchBarangaySurveillanceData(
   const barangayName = currentBarangay.barangay_name;
 
   // 5. Query ovitrap_devices from database
-  let devicesQuery = supabase
-    .from("ovitrap_devices")
-    .select(
-      `
-      id,
-      device_code,
-      serial_number,
-      description,
-      notes,
-      latitude,
-      longitude,
-      last_seen_at,
-      installation_date,
-      created_at,
-      deployed_by,
-      operational_status,
-      device_status_id,
-      device_statuses ( id, status_name, description ),
-      barangays ( id, barangay_name, municipality )
-    `
-    )
-    .order("created_at", { ascending: false });
-
-  if (isAll) {
-    if (scopedBarangayIds.length > 0) {
-      devicesQuery = devicesQuery.in("barangay_id", scopedBarangayIds);
-    }
-  } else if (barangayId !== "all") {
-    devicesQuery = devicesQuery.eq("barangay_id", barangayId);
-  }
-
-  let { data: devicesData, error: devicesError } = await devicesQuery;
-
-  if (devicesError && devicesError.message?.includes("operational_status")) {
-    let resFallbackQuery = supabase
+  const buildDevicesQuery = (includeOperationalStatus: boolean) => {
+    let q = supabase
       .from("ovitrap_devices")
       .select(
-        `
+        includeOperationalStatus
+          ? `
+        id,
+        device_code,
+        serial_number,
+        description,
+        notes,
+        latitude,
+        longitude,
+        last_seen_at,
+        installation_date,
+        created_at,
+        deployed_by,
+        operational_status,
+        device_status_id,
+        device_statuses ( id, status_name, description ),
+        barangays ( id, barangay_name, municipality )
+      `
+          : `
         id,
         device_code,
         serial_number,
@@ -235,12 +223,25 @@ export async function fetchBarangaySurveillanceData(
 
     if (isAll) {
       if (scopedBarangayIds.length > 0) {
-        resFallbackQuery = resFallbackQuery.in("barangay_id", scopedBarangayIds);
+        q = q.in("barangay_id", scopedBarangayIds);
       }
     } else if (barangayId !== "all") {
-      resFallbackQuery = resFallbackQuery.eq("barangay_id", barangayId);
+      q = q.eq("barangay_id", barangayId);
     }
-    const resFallback = await resFallbackQuery;
+    return q;
+  };
+
+  let { data: devicesData, error: devicesError } = await buildDevicesQuery(
+    hasOperationalStatusColumn
+  );
+
+  if (
+    hasOperationalStatusColumn &&
+    devicesError &&
+    devicesError.message?.includes("operational_status")
+  ) {
+    hasOperationalStatusColumn = false;
+    const resFallback = await buildDevicesQuery(false);
     devicesData = resFallback.data as any;
     devicesError = resFallback.error;
   }
@@ -290,7 +291,7 @@ export async function fetchBarangaySurveillanceData(
     sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
     sevenDaysAgo.setUTCHours(0, 0, 0, 0);
 
-    const [{ data: readingsData, error: readingsError }, { data: rpcData, error: rpcError }] =
+    const [{ data: readingsData, error: readingsError }, rpcRes] =
       await Promise.all([
         supabase
           .from("ovitrap_readings")
@@ -312,10 +313,17 @@ export async function fetchBarangaySurveillanceData(
           .gte("captured_at", sevenDaysAgo.toISOString())
           .order("captured_at", { ascending: false })
           .limit(500),
-        supabase.rpc("get_device_surveillance_summary", {
-          p_device_ids: deviceIds,
-        }),
+        hasSurveillanceRpc
+          ? supabase.rpc("get_device_surveillance_summary", {
+              p_device_ids: deviceIds,
+            })
+          : Promise.resolve({ data: null, error: null }),
       ]);
+
+    const { data: rpcData, error: rpcError } = rpcRes;
+    if (rpcError) {
+      hasSurveillanceRpc = false;
+    }
 
     if (readingsError) {
       console.error("Failed to fetch ovitrap readings:", readingsError);

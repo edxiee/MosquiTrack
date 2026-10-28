@@ -166,7 +166,7 @@ if (newAction) {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [authLoading, scopedBarangayId, scopedBarangayName, isSysAdmin, profile]);
+  }, [authLoading, scopedBarangayId, scopedBarangayName, isSysAdmin, profile?.id]);
 
   const filteredActions = useMemo(() => {
     const q = filters.search.trim().toLowerCase();

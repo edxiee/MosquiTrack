@@ -68,13 +68,24 @@ export default function Announcements() {
       )
       .subscribe();
 
-    // Polling fallback every 5 seconds
+    // Visibility-gated 15s refresh so view counts (BHW / LGU / Admin) and
+    // newly published announcements stay updated even if Realtime is not enabled on the table
     const interval = setInterval(() => {
-      loadAnnouncements(true);
-    }, 5000);
+      if (document.visibilityState === "visible") {
+        loadAnnouncements(true);
+      }
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadAnnouncements(true);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, [loadAnnouncements]);

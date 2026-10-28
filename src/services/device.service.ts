@@ -3,6 +3,62 @@ import type { OvitrapDevice, DeviceStatus, Barangay, UserName } from "@/types/de
 import { getConsecutiveCriticalDays } from "@/utils/dangerTiers";
 import { isSameLocalDay } from "@/utils/dateHelpers";
 
+let hasSurveillanceRpc = true;
+let hasOperationalStatusColumn = true;
+
+const DEVICE_SELECT_WITH_OP_STATUS = `
+  id,
+  device_code,
+  serial_number,
+  description,
+  barangay_id,
+  latitude,
+  longitude,
+  device_status_id,
+  notes,
+  installation_date,
+  last_seen_at,
+  created_at,
+  deployed_by,
+  operational_status,
+  device_statuses (
+    id,
+    status_name,
+    description
+  ),
+  barangays (
+    id,
+    barangay_name,
+    municipality
+  )
+`;
+
+const DEVICE_SELECT_FALLBACK = `
+  id,
+  device_code,
+  serial_number,
+  description,
+  barangay_id,
+  latitude,
+  longitude,
+  device_status_id,
+  notes,
+  installation_date,
+  last_seen_at,
+  created_at,
+  deployed_by,
+  device_statuses (
+    id,
+    status_name,
+    description
+  ),
+  barangays (
+    id,
+    barangay_name,
+    municipality
+  )
+`;
+
 interface DeviceSurveillanceSummary {
   latestTimestamp: string | null;
   latestCount: number | null;
@@ -22,37 +78,43 @@ export async function getDeviceSurveillanceSummary(
   if (deviceIds.length === 0) return summaryMap;
 
   // 1. Try single-query PostgreSQL RPC if available
-  const { data: rpcData, error: rpcError } = await supabase.rpc(
-    "get_device_surveillance_summary",
-    { p_device_ids: deviceIds }
-  );
+  if (hasSurveillanceRpc) {
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      "get_device_surveillance_summary",
+      { p_device_ids: deviceIds }
+    );
 
-  if (!rpcError && Array.isArray(rpcData)) {
-    for (const row of rpcData as Array<{
-      device_id: string;
-      latest_reading_at: string | null;
-      latest_mosquito_count: number | null;
-      today_count: number | null;
-      day_0_count: number | null;
-      day_1_count: number | null;
-      day_2_count: number | null;
-    }>) {
-      const days = [
-        Number(row.day_0_count ?? 0),
-        Number(row.day_1_count ?? 0),
-        Number(row.day_2_count ?? 0),
-      ];
-      summaryMap.set(row.device_id, {
-        latestTimestamp: row.latest_reading_at ?? null,
-        latestCount:
-          row.latest_mosquito_count != null
-            ? Number(row.latest_mosquito_count)
-            : null,
-        todayCount: Number(row.today_count ?? 0),
-        consecutiveCriticalDays: getConsecutiveCriticalDays(days),
-      });
+    if (!rpcError && Array.isArray(rpcData)) {
+      for (const row of rpcData as Array<{
+        device_id: string;
+        latest_reading_at: string | null;
+        latest_mosquito_count: number | null;
+        today_count: number | null;
+        day_0_count: number | null;
+        day_1_count: number | null;
+        day_2_count: number | null;
+      }>) {
+        const days = [
+          Number(row.day_0_count ?? 0),
+          Number(row.day_1_count ?? 0),
+          Number(row.day_2_count ?? 0),
+        ];
+        summaryMap.set(row.device_id, {
+          latestTimestamp: row.latest_reading_at ?? null,
+          latestCount:
+            row.latest_mosquito_count != null
+              ? Number(row.latest_mosquito_count)
+              : null,
+          todayCount: Number(row.today_count ?? 0),
+          consecutiveCriticalDays: getConsecutiveCriticalDays(days),
+        });
+      }
+      return summaryMap;
     }
-    return summaryMap;
+
+    if (rpcError) {
+      hasSurveillanceRpc = false;
+    }
   }
 
   // 2. Bounded 7-day query fallback
@@ -118,65 +180,21 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
   let { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
     .select(
-      `
-      id,
-      device_code,
-      serial_number,
-      description,
-      barangay_id,
-      latitude,
-      longitude,
-      device_status_id,
-      notes,
-      installation_date,
-      last_seen_at,
-      created_at,
-      deployed_by,
-      operational_status,
-      device_statuses (
-        id,
-        status_name,
-        description
-      ),
-      barangays (
-        id,
-        barangay_name,
-        municipality
-      )
-    `
+      hasOperationalStatusColumn
+        ? DEVICE_SELECT_WITH_OP_STATUS
+        : DEVICE_SELECT_FALLBACK
     )
     .order("created_at", { ascending: true });
 
-  if (devicesError && devicesError.message?.includes("operational_status")) {
+  if (
+    hasOperationalStatusColumn &&
+    devicesError &&
+    devicesError.message?.includes("operational_status")
+  ) {
+    hasOperationalStatusColumn = false;
     const resFallback = await supabase
       .from("ovitrap_devices")
-      .select(
-        `
-        id,
-        device_code,
-        serial_number,
-        description,
-        barangay_id,
-        latitude,
-        longitude,
-        device_status_id,
-        notes,
-        installation_date,
-        last_seen_at,
-        created_at,
-        deployed_by,
-        device_statuses (
-          id,
-          status_name,
-          description
-        ),
-        barangays (
-          id,
-          barangay_name,
-          municipality
-        )
-      `
-      )
+      .select(DEVICE_SELECT_FALLBACK)
       .order("created_at", { ascending: true });
     devicesData = resFallback.data as any;
     devicesError = resFallback.error;
@@ -187,7 +205,7 @@ export async function fetchDevices(): Promise<OvitrapDevice[]> {
 
   const deviceIds = devicesData.map((d: any) => d.id);
   const userIds = Array.from(
-    new Set(devicesData.map((d) => d.deployed_by).filter(Boolean))
+    new Set(devicesData.map((d: any) => d.deployed_by).filter(Boolean))
   ) as string[];
 
   const [profilesRes, summaryMap] = await Promise.all([
@@ -329,19 +347,28 @@ export async function setDeployedBy(deviceId: string, userId: string) {
 }
 
 export async function pickUpDevice(deviceId: string, offlineStatusId: string) {
+  const updatePayload: Record<string, unknown> = {
+    device_status_id: offlineStatusId,
+    latitude: null,
+    longitude: null,
+    deployed_by: null,
+    updated_at: new Date().toISOString(),
+  };
+  if (hasOperationalStatusColumn) {
+    updatePayload.operational_status = "In Storage";
+  }
+
   const { error } = await supabase
     .from("ovitrap_devices")
-    .update({
-      device_status_id: offlineStatusId,
-      latitude: null,
-      longitude: null,
-      deployed_by: null,
-      operational_status: "In Storage",
-      updated_at: new Date().toISOString(),
-    } as any)
+    .update(updatePayload as any)
     .eq("id", deviceId);
 
-  if (error && error.message?.includes("operational_status")) {
+  if (
+    hasOperationalStatusColumn &&
+    error &&
+    error.message?.includes("operational_status")
+  ) {
+    hasOperationalStatusColumn = false;
     const { error: fallbackErr } = await supabase
       .from("ovitrap_devices")
       .update({
@@ -360,8 +387,8 @@ export async function pickUpDevice(deviceId: string, offlineStatusId: string) {
 }
 
 export async function createDevice(payload: Record<string, unknown>): Promise<{ id: string; device_code: string }> {
-  const insertPayload = {
-    operational_status: "In Storage",
+  const insertPayload: Record<string, unknown> = {
+    ...(hasOperationalStatusColumn ? { operational_status: "In Storage" } : {}),
     ...payload,
     latitude: null as number | null,
     longitude: null as number | null,
@@ -373,7 +400,12 @@ export async function createDevice(payload: Record<string, unknown>): Promise<{ 
     .select("id, device_code")
     .single();
 
-  if (error && error.message?.includes("operational_status")) {
+  if (
+    hasOperationalStatusColumn &&
+    error &&
+    error.message?.includes("operational_status")
+  ) {
+    hasOperationalStatusColumn = false;
     const fallbackPayload = { ...insertPayload };
     delete (fallbackPayload as any).operational_status;
     const res = await supabase
@@ -463,66 +495,22 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
   let { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
     .select(
-      `
-      id,
-      device_code,
-      serial_number,
-      description,
-      barangay_id,
-      latitude,
-      longitude,
-      device_status_id,
-      notes,
-      installation_date,
-      last_seen_at,
-      created_at,
-      deployed_by,
-      operational_status,
-      device_statuses (
-        id,
-        status_name,
-        description
-      ),
-      barangays (
-        id,
-        barangay_name,
-        municipality
-      )
-    `
+      hasOperationalStatusColumn
+        ? DEVICE_SELECT_WITH_OP_STATUS
+        : DEVICE_SELECT_FALLBACK
     )
     .eq("barangay_id", targetBarangayId)
     .order("created_at", { ascending: true });
 
-  if (devicesError && devicesError.message?.includes("operational_status")) {
+  if (
+    hasOperationalStatusColumn &&
+    devicesError &&
+    devicesError.message?.includes("operational_status")
+  ) {
+    hasOperationalStatusColumn = false;
     const resFallback = await supabase
       .from("ovitrap_devices")
-      .select(
-        `
-        id,
-        device_code,
-        serial_number,
-        description,
-        barangay_id,
-        latitude,
-        longitude,
-        device_status_id,
-        notes,
-        installation_date,
-        last_seen_at,
-        created_at,
-        deployed_by,
-        device_statuses (
-          id,
-          status_name,
-          description
-        ),
-        barangays (
-          id,
-          barangay_name,
-          municipality
-        )
-      `
-      )
+      .select(DEVICE_SELECT_FALLBACK)
       .eq("barangay_id", targetBarangayId)
       .order("created_at", { ascending: true });
     devicesData = resFallback.data as any;
@@ -535,7 +523,7 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
   // 5. Hydrate user profiles & bounded reading summaries
   const deviceIds = devicesData.map((d: any) => d.id);
   const userIds = Array.from(
-    new Set(devicesData.map((d) => d.deployed_by).filter(Boolean))
+    new Set(devicesData.map((d: any) => d.deployed_by).filter(Boolean))
   ) as string[];
 
   const [profilesRes, summaryMap] = await Promise.all([
@@ -664,7 +652,7 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
         municipality
       )
     `
-    )
+  )
     .order("created_at", { ascending: false });
 
   if (devicesError) throw devicesError;

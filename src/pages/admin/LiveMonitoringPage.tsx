@@ -321,13 +321,21 @@ export default function LiveMonitoringPage() {
   useEffect(() => {
     fetchDevices();
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleFetchDevices = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchDevices();
+      }, 300);
+    };
+
     const deviceChannel = supabase
       .channel("live-monitoring-devices-channel")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ovitrap_devices" },
         () => {
-          fetchDevices();
+          scheduleFetchDevices();
         }
       )
       .subscribe();
@@ -338,7 +346,7 @@ export default function LiveMonitoringPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "ovitrap_readings" },
         (payload) => {
-          fetchDevices();
+          scheduleFetchDevices();
           const rawTs =
             payload.new && typeof payload.new === "object"
               ? (payload.new as Record<string, unknown>).created_at ||
@@ -353,15 +361,18 @@ export default function LiveMonitoringPage() {
       )
       .subscribe();
 
-    // 5-second automatic heartbeat polling fallback
-    const pollInterval = setInterval(() => {
-      fetchDevices();
-    }, 5000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchDevices();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(deviceChannel);
       supabase.removeChannel(readingsChannel);
-      clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchDevices]);
 

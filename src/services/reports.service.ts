@@ -14,6 +14,8 @@ import type {
 } from "@/types/reports.types";
 import { ONLINE_THRESHOLD_MS } from "@/utils/deviceHelpers";
 
+let hasOperationalStatusColumn = true;
+
 // ---------- Telemetry readings (legacy helpers preserved) ----------
 
 interface RawReadingRow {
@@ -462,7 +464,8 @@ export async function fetchEpidemiologicalReportData(params: {
   let devicesRes = await supabase
     .from("ovitrap_devices")
     .select(
-      `
+      hasOperationalStatusColumn
+        ? `
       id,
       device_code,
       barangay_id,
@@ -471,10 +474,24 @@ export async function fetchEpidemiologicalReportData(params: {
       last_seen_at,
       operational_status,
       device_statuses ( id, status_name )
+    `
+        : `
+      id,
+      device_code,
+      barangay_id,
+      latitude,
+      longitude,
+      last_seen_at,
+      device_statuses ( id, status_name )
     `,
     );
 
-  if (devicesRes.error && devicesRes.error.message?.includes("operational_status")) {
+  if (
+    hasOperationalStatusColumn &&
+    devicesRes.error &&
+    devicesRes.error.message?.includes("operational_status")
+  ) {
+    hasOperationalStatusColumn = false;
     devicesRes = await supabase
       .from("ovitrap_devices")
       .select(

@@ -687,6 +687,19 @@ export default function PrescriptiveAnalyticsPage() {
                   <span className="text-slate-500">Status</span>
                   <span className="font-medium text-slate-900">{selectedMyRequest.status}</span>
                 </div>
+                <div className="flex justify-between py-2 border-b border-slate-100 items-center">
+                  <span className="text-slate-500">Taken By</span>
+                  {selectedMyRequest.assigned_to_name ? (
+                    <span className="font-medium text-slate-900 flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                        <UserRound className="size-3" />
+                      </span>
+                      {selectedMyRequest.assigned_to_name}
+                    </span>
+                  ) : (
+                    <span className="italic text-slate-400">—</span>
+                  )}
+                </div>
                 <div className="flex justify-between py-2 border-b border-slate-100">
                   <span className="text-slate-500">Due Date</span>
                   <span className="font-medium text-slate-900">{selectedMyRequest.due_date ? new Date(`${selectedMyRequest.due_date}T00:00:00`).toLocaleDateString() : "—"}</span>

@@ -60,6 +60,8 @@ const ACTION_SELECT_FALLBACK = `
   requester:profiles!action_triage_log_created_by_fkey ( first_name, last_name )
 `;
 
+let hasImageUrlColumn = true;
+
 function flattenAction(row: RawActionRow): TriageAction {
   const assignee = Array.isArray(row.assignee) ? row.assignee[0] : row.assignee;
   const requester = Array.isArray(row.requester) ? row.requester[0] : row.requester;
@@ -153,8 +155,11 @@ export async function getAssignedActions(options?: {
     return [];
   }
 
-  let { data, error } = await buildQuery(ACTION_SELECT);
-  if (error && error.message?.includes("image_url")) {
+  let { data, error } = await buildQuery(
+    hasImageUrlColumn ? ACTION_SELECT : ACTION_SELECT_FALLBACK
+  );
+  if (hasImageUrlColumn && error && error.message?.includes("image_url")) {
+    hasImageUrlColumn = false;
     const fallbackRes = await buildQuery(ACTION_SELECT_FALLBACK);
     data = fallbackRes.data as any;
     error = fallbackRes.error;
@@ -174,11 +179,12 @@ export async function getActionsByDeviceId(
 export async function getActionById(id: string): Promise<TriageAction | null> {
   let { data, error } = await supabase
     .from("action_triage_log")
-    .select(ACTION_SELECT)
+    .select(hasImageUrlColumn ? ACTION_SELECT : ACTION_SELECT_FALLBACK)
     .eq("id", id)
     .single();
 
-  if (error && error.message?.includes("image_url")) {
+  if (hasImageUrlColumn && error && error.message?.includes("image_url")) {
+    hasImageUrlColumn = false;
     const fallbackRes = await supabase
       .from("action_triage_log")
       .select(ACTION_SELECT_FALLBACK)

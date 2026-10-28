@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { getActiveAnnouncements, logAnnouncementView } from "@/services/announcement.service";
+import {
+  ANNOUNCEMENT_PUBLISHED_EVENT,
+  getActiveAnnouncements,
+  isAnnouncementActive,
+  logAnnouncementView,
+} from "@/services/announcement.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import type { Announcement } from "@/types/announcement.types";
@@ -14,6 +19,7 @@ import {
 export default function GlobalAnnouncementPopup() {
   const { profile } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem("dismissed_announcements");
@@ -75,26 +81,50 @@ export default function GlobalAnnouncementPopup() {
       )
       .subscribe();
 
-    const intervalId = setInterval(() => {
+    // Poll every 15s while the tab is visible so announcements appear even if
+    // the announcements table is not added to the supabase_realtime publication
+    const pollInterval = setInterval(() => {
+      setNowTick(Date.now());
+      if (document.visibilityState === "visible") {
+        load();
+      }
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        setNowTick(Date.now());
+        load();
+      }
+    };
+    const handleAnnouncementPublished = () => {
+      setNowTick(Date.now());
       load();
-    }, 5000);
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener(ANNOUNCEMENT_PUBLISHED_EVENT, handleAnnouncementPublished);
 
     return () => {
-      clearInterval(intervalId);
+      clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(ANNOUNCEMENT_PUBLISHED_EVENT, handleAnnouncementPublished);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [profile?.id]);
 
   const visible = announcements.filter((ann) => {
     if (dismissed.has(ann.id)) return false;
+    if (!isAnnouncementActive(ann.start_date, ann.end_date)) return false;
     if (ann.target_audience === "all") return true;
-    
+
     const userRole = profile?.role?.role_code?.toUpperCase();
-    if (ann.target_audience === "lgu" && userRole === "MHO") return true;
+    // System Admins can see all targeted announcements during testing/oversight
+    if (userRole === "SYS_ADMIN") return true;
+    if (ann.target_audience === "lgu" && (userRole === "MHO" || userRole === "LGU")) return true;
     if (ann.target_audience === "bhw" && userRole === "BHW") return true;
-    
+
     return false;
   });
+  void nowTick;
 
   const current = visible.length > 0 ? visible[0] : null; // Show them one by one
 

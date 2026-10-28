@@ -6,6 +6,14 @@ import type {
   UpdateAnnouncementInput,
 } from "@/types/announcement.types";
 
+export const ANNOUNCEMENT_PUBLISHED_EVENT = "mosquitrack:announcement-published";
+
+export function dispatchAnnouncementPublished() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(ANNOUNCEMENT_PUBLISHED_EVENT));
+  }
+}
+
 export async function getAnnouncements(): Promise<Announcement[]> {
   const { data, error } = await supabase
     .from("announcements")
@@ -34,6 +42,7 @@ export async function createAnnouncement(
     .single();
 
   if (error) throw error;
+  dispatchAnnouncementPublished();
   return data as Announcement;
 }
 
@@ -66,6 +75,7 @@ export async function updateAnnouncement(
     .maybeSingle();
 
   if (error) throw error;
+  dispatchAnnouncementPublished();
   return (data as Announcement) ?? null;
 }
 
@@ -76,6 +86,7 @@ export async function deleteAnnouncement(id: string): Promise<boolean> {
     .eq("id", id);
 
   if (error) throw error;
+  dispatchAnnouncementPublished();
   return (count ?? 0) > 0;
 }
 
@@ -98,7 +109,8 @@ export async function getAnnouncementsByLevel(
 export function isAnnouncementActive(startDate: string, endDate: string | null): boolean {
   const now = Date.now();
   const start = new Date(startDate).getTime();
-  if (Number.isNaN(start) || start > now) return false;
+  // Allow up to 60s of clock skew when an announcement is published "Right Now"
+  if (Number.isNaN(start) || start > now + 60_000) return false;
   
   if (endDate) {
     const end = new Date(endDate).getTime();
@@ -109,18 +121,17 @@ export function isAnnouncementActive(startDate: string, endDate: string | null):
 }
 
 export async function getActiveAnnouncements(): Promise<Announcement[]> {
-  const now = new Date().toISOString();
-
-  // Active means: start_date <= now AND (end_date is null OR end_date >= now)
+  // Fetch announcements and evaluate active window using isAnnouncementActive
+  // so scheduled and "Announce Right Now" broadcasts work reliably across timezones
   const { data, error } = await supabase
     .from("announcements")
     .select("*")
-    .lte("start_date", now)
-    .or(`end_date.is.null,end_date.gte.${now}`)
-    .order("start_date", { ascending: false });
+    .order("start_date", { ascending: false })
+    .limit(50);
 
   if (error) throw error;
-  return (data as Announcement[]) ?? [];
+  const rows = (data as Announcement[]) ?? [];
+  return rows.filter((ann) => isAnnouncementActive(ann.start_date, ann.end_date));
 }
 
 export async function logAnnouncementView(announcementId: string, userId: string, userRole: string): Promise<void> {
