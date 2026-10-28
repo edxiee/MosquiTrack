@@ -68,7 +68,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "System Administration",
       items: [
         { name: "Announcements", path: ROUTES.admin.announcements, icon: Megaphone },
-        { name: "System Controls", path: ROUTES.admin.systemControls, icon: Settings },
+        { name: "IoT System Controls", path: ROUTES.admin.systemControls, icon: Settings },
       ],
     },
     {
