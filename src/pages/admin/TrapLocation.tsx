@@ -29,6 +29,7 @@ import { ROUTES } from "@/utils/navigation";
 import { fetchDevices } from "@/services/device.service";
 import { isDeviceActive } from "@/utils/deviceHelpers";
 import { formatRelativeTime } from "@/utils/dateHelpers";
+import RegionalDiseaseRiskButton from "@/components/lgu/RegionalDiseaseRiskModal";
 
 import "leaflet/dist/leaflet.css";
 
@@ -507,6 +508,9 @@ export default function StaticGeoreferencingPage() {
 
         {/* Right Area: Interactive Leaflet Map */}
         <div className="relative flex-1">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000]">
+            <RegionalDiseaseRiskButton />
+          </div>
           <MapContainer
             center={mapCenter}
             zoom={mapZoom}
