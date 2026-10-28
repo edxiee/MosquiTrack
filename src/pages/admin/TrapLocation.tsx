@@ -514,7 +514,7 @@ export default function StaticGeoreferencingPage() {
             "absolute top-4 left-1/2 -translate-x-1/2 z-[1000] transition-[filter] duration-200",
             riskOpen && "blur-sm pointer-events-none",
           )}
-        >
+          >
             <RegionalDiseaseRiskButton open={riskOpen} onOpenChange={setRiskOpen} />
           </div>
 
@@ -635,7 +635,11 @@ export default function StaticGeoreferencingPage() {
           </div>
 
           {/* Floating Location Controls */}
-          <div className="absolute left-4 bottom-4 z-[999] flex items-center gap-2">
+          <div className={cn(
+            "absolute left-4 bottom-4 z-[999] flex items-center gap-2 transition-[filter] duration-200",
+            riskOpen && "blur-sm pointer-events-none",
+          )}
+          >
             <Button
               onClick={handleGetMyLocation}
               disabled={isLocating}
