@@ -12,6 +12,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Cpu,
+  Image as ImageIcon,
   Inbox,
   MapPin,
   MessageSquare,
@@ -32,6 +33,7 @@ interface TriageTableProps {
   isLoading: boolean;
   onUpdateStatus: (action: TriageAction) => void;
   onQuickStatus: (action: TriageAction, status: TriageStatus) => void;
+  onCompleteAction?: (action: TriageAction) => void;
   borderless?: boolean;
   newActionIds?: Set<string>;
 }
@@ -69,6 +71,7 @@ export default function TriageTable({
   isLoading,
   onUpdateStatus,
   onQuickStatus,
+  onCompleteAction,
   borderless = false,
   newActionIds,
 }: TriageTableProps) {
@@ -113,7 +116,7 @@ export default function TriageTable({
           <TableBody>
             {actions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-16">
+                <TableCell colSpan={9} className="py-16">
                   <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
                     <div className="rounded-full bg-slate-100 p-4">
                       <Inbox className="h-7 w-7" />
@@ -159,6 +162,12 @@ export default function TriageTable({
                           <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" />
                           <span className="truncate">{action.remarks}</span>
                         </p>
+                      )}
+                      {action.imageUrl && (
+                        <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+                          <ImageIcon className="h-3 w-3 shrink-0" />
+                          Proof photo attached
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -236,7 +245,11 @@ export default function TriageTable({
                           <Button
                             size="sm"
                             className="bg-emerald-600 text-white transition-transform hover:-translate-y-0.5 hover:bg-emerald-700"
-                            onClick={() => onQuickStatus(action, "Completed")}
+                            onClick={() =>
+                              onCompleteAction
+                                ? onCompleteAction(action)
+                                : onQuickStatus(action, "Completed")
+                            }
                           >
                             <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
                             Complete

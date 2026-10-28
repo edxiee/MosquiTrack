@@ -19,6 +19,7 @@ export interface TriageAction {
   dueDate: string | null;
   completedAt: string | null;
   remarks: string | null;
+  imageUrl?: string | null;
   createdAt: string;
 }
 
@@ -42,4 +43,5 @@ export interface TriageStats {
 export interface UpdateActionStatusInput {
   status: TriageStatus;
   remarks?: string | undefined;
+  imageUrl?: string | null | undefined;
 }

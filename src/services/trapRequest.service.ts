@@ -85,6 +85,7 @@ export interface TriageLogRow {
   priority: string;
   status: string;
   remarks: string | null;
+  image_url?: string | null;
   due_date: string | null;
   created_at: string;
   updated_at: string | null;
@@ -93,15 +94,29 @@ export interface TriageLogRow {
 }
 
 export async function fetchMySubmittedTriageLogs(userId: string): Promise<TriageLogRow[]> {
-  const { data: logs, error } = await supabase
+  let { data: logs, error } = await supabase
     .from("action_triage_log")
     .select(
-      `id, trigger_source, priority, status, remarks, due_date, created_at, updated_at,
+      `id, trigger_source, priority, status, remarks, image_url, due_date, created_at, updated_at,
        barangays(barangay_name),
        assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name )`
     )
     .eq("created_by", userId)
     .order("created_at", { ascending: false });
+
+  if (error && error.message?.includes("image_url")) {
+    const fallbackRes = await supabase
+      .from("action_triage_log")
+      .select(
+        `id, trigger_source, priority, status, remarks, due_date, created_at, updated_at,
+         barangays(barangay_name),
+         assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name )`
+      )
+      .eq("created_by", userId)
+      .order("created_at", { ascending: false });
+    logs = fallbackRes.data as any;
+    error = fallbackRes.error;
+  }
 
   if (error) throw error;
 
@@ -117,6 +132,7 @@ export async function fetchMySubmittedTriageLogs(userId: string): Promise<Triage
       priority: log.priority,
       status: log.status,
       remarks: log.remarks,
+      image_url: log.image_url ?? null,
       due_date: log.due_date,
       created_at: log.created_at,
       updated_at: log.updated_at,
@@ -131,6 +147,7 @@ export interface TrapActionLogEntry {
   priority: string;
   status: string;
   remarks: string | null;
+  image_url?: string | null;
   due_date: string | null;
   created_at: string;
 }
@@ -141,11 +158,21 @@ export async function fetchTriageRequestsByDevice(
 ): Promise<TrapActionLogEntry[]> {
   if (!barangayId) return [];
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("action_triage_log")
-    .select("id, trigger_source, priority, status, remarks, due_date, created_at")
+    .select("id, trigger_source, priority, status, remarks, image_url, due_date, created_at")
     .eq("barangay_id", barangayId)
     .order("created_at", { ascending: false });
+
+  if (error && error.message?.includes("image_url")) {
+    const fallbackRes = await supabase
+      .from("action_triage_log")
+      .select("id, trigger_source, priority, status, remarks, due_date, created_at")
+      .eq("barangay_id", barangayId)
+      .order("created_at", { ascending: false });
+    data = fallbackRes.data as any;
+    error = fallbackRes.error;
+  }
 
   if (error) throw error;
 

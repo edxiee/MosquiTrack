@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ChevronDown,
   Eye,
+  Image as ImageIcon,
   Loader2,
   RefreshCw,
   Search,
@@ -650,7 +651,7 @@ export default function PrescriptiveAnalyticsPage() {
       >
         <DialogContent
           showCloseButton={false}
-          className="sm:max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl p-6 gap-0"
+          className="sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl p-6 gap-0"
         >
           {selectedMyRequest && (
             <>
@@ -695,6 +696,42 @@ export default function PrescriptiveAnalyticsPage() {
                   <p className="text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs whitespace-pre-wrap">
                     {selectedMyRequest.remarks || "No remarks provided."}
                   </p>
+                </div>
+
+                {/* Proof of Completion Image Section */}
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="text-slate-500 flex items-center gap-1.5 mb-2 font-medium">
+                    <ImageIcon className="w-4 h-4 text-emerald-600" />
+                    Proof of Completion
+                  </span>
+                  {selectedMyRequest.image_url ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white flex items-center justify-center max-h-72">
+                        <img
+                          src={selectedMyRequest.image_url}
+                          alt="Proof of completion"
+                          className="max-h-72 w-auto object-contain"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <a
+                          href={selectedMyRequest.image_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          download={`proof-${selectedMyRequest.id.slice(0, 8)}.jpg`}
+                          className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+                        >
+                          Open / Download Image
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-4 text-center text-xs text-slate-400">
+                      {selectedMyRequest.status === "Completed"
+                        ? "No proof of completion image was attached."
+                        : "Proof of completion image will appear here once the action is completed."}
+                    </div>
+                  )}
                 </div>
               </div>
             </>

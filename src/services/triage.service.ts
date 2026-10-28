@@ -15,6 +15,7 @@ interface RawActionRow {
   due_date: string | null;
   completed_at: string | null;
   remarks: string | null;
+  image_url?: string | null;
   created_at: string;
   created_by?: string | null;
   barangay: { barangay_name: string; municipality: string | null } | null;
@@ -23,6 +24,25 @@ interface RawActionRow {
 }
 
 const ACTION_SELECT = `
+  id,
+  barangay_id,
+  trigger_source,
+  priority,
+  status,
+  assigned_to,
+  assigned_date,
+  due_date,
+  completed_at,
+  remarks,
+  image_url,
+  created_at,
+  created_by,
+  barangay:barangays ( barangay_name, municipality ),
+  assignee:profiles!action_triage_log_assigned_to_fkey ( first_name, last_name ),
+  requester:profiles!action_triage_log_created_by_fkey ( first_name, last_name )
+`;
+
+const ACTION_SELECT_FALLBACK = `
   id,
   barangay_id,
   trigger_source,
@@ -67,6 +87,7 @@ function flattenAction(row: RawActionRow): TriageAction {
     dueDate: row.due_date,
     completedAt: row.completed_at,
     remarks: row.remarks,
+    imageUrl: row.image_url ?? null,
     createdAt: row.created_at,
   };
 }
@@ -109,24 +130,35 @@ export async function getAssignedActions(options?: {
     }
   }
 
-  let query = supabase
-    .from("action_triage_log")
-    .select(ACTION_SELECT)
-    .order("assigned_date", { ascending: false });
+  const buildQuery = (selectCols: string) => {
+    let q = supabase
+      .from("action_triage_log")
+      .select(selectCols)
+      .order("assigned_date", { ascending: false });
 
-  if (options?.assignedTo) {
-    query = query.eq("assigned_to", options.assignedTo);
-  }
-  if (targetBarangayId) {
-    query = query.eq("barangay_id", targetBarangayId);
-  } else if (
+    if (options?.assignedTo) {
+      q = q.eq("assigned_to", options.assignedTo);
+    }
+    if (targetBarangayId) {
+      q = q.eq("barangay_id", targetBarangayId);
+    }
+    return q;
+  };
+
+  if (
+    !targetBarangayId &&
     options?.barangayName &&
     options.barangayName.trim().toLowerCase() !== "all"
   ) {
     return [];
   }
 
-  const { data, error } = await query;
+  let { data, error } = await buildQuery(ACTION_SELECT);
+  if (error && error.message?.includes("image_url")) {
+    const fallbackRes = await buildQuery(ACTION_SELECT_FALLBACK);
+    data = fallbackRes.data as any;
+    error = fallbackRes.error;
+  }
   if (error) throw error;
 
   return ((data ?? []) as unknown as RawActionRow[]).map(flattenAction);
@@ -140,11 +172,21 @@ export async function getActionsByDeviceId(
 }
 
 export async function getActionById(id: string): Promise<TriageAction | null> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("action_triage_log")
     .select(ACTION_SELECT)
     .eq("id", id)
     .single();
+
+  if (error && error.message?.includes("image_url")) {
+    const fallbackRes = await supabase
+      .from("action_triage_log")
+      .select(ACTION_SELECT_FALLBACK)
+      .eq("id", id)
+      .single();
+    data = fallbackRes.data as any;
+    error = fallbackRes.error;
+  }
 
   if (error) {
     console.error("Failed to fetch action:", error);
@@ -160,6 +202,7 @@ export async function updateActionStatus(
   const patch: Record<string, unknown> = {
     status: input.status,
     ...(input.remarks !== undefined ? { remarks: input.remarks } : {}),
+    ...(input.imageUrl !== undefined ? { image_url: input.imageUrl } : {}),
     ...(input.status === "Completed"
       ? { completed_at: new Date().toISOString() }
       : {}),

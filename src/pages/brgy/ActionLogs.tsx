@@ -3,6 +3,7 @@ import TriageStatistics from "@/components/notifications/TriageStatistics";
 import TriageFilters from "@/components/notifications/TriageFilters";
 import TriageTable from "@/components/notifications/TriageTable";
 import UpdateStatusDialog from "@/components/notifications/UpdateStatusDialog";
+import CompleteActionDialog from "@/components/notifications/CompleteActionDialog";
 import { Button } from "@/components/ui/button";
 import { ClipboardList, Filter, RefreshCw, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,8 @@ export default function ActionTriageLogPage() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<TriageAction | null>(null);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
+  const [actionToComplete, setActionToComplete] = useState<TriageAction | null>(null);
   const { profile, loading: authLoading } = useAuth();
   const isSysAdmin =
     profile?.role?.role_code === "SYS_ADMIN" ||
@@ -245,20 +248,52 @@ if (newAction) {
     setIsDialogOpen(true);
   }
 
+  function handleOpenCompleteDialog(action: TriageAction) {
+    setActionToComplete(action);
+    setIsCompleteDialogOpen(true);
+  }
+
+  async function handleConfirmComplete(
+    actionId: string,
+    imageUrl: string,
+    remarks: string,
+  ) {
+    const prev = actions.find((a) => a.id === actionId);
+    if (prev?.status === "Pending") {
+      dispatchTriageStatusChange(actionId, "Completed", prev.status, prev.barangayId);
+    }
+    await updateActionStatus(actionId, {
+      status: "Completed",
+      imageUrl,
+      remarks,
+    });
+    await loadActions(scopedBarangayId, scopedBarangayName);
+  }
+
   async function handleSubmitUpdate(
     actionId: string,
     status: TriageStatus,
     remarks: string,
+    imageUrl?: string | null,
   ) {
     const prev = actions.find((a) => a.id === actionId);
     if (prev?.status === "Pending" && status !== "Pending") {
       dispatchTriageStatusChange(actionId, status, prev.status, prev.barangayId);
     }
-    await updateActionStatus(actionId, { status, remarks });
+    await updateActionStatus(actionId, {
+      status,
+      remarks,
+      ...(imageUrl !== undefined ? { imageUrl } : {}),
+    });
     await loadActions(scopedBarangayId, scopedBarangayName);
   }
 
   async function handleQuickStatus(action: TriageAction, status: TriageStatus) {
+    if (status === "Completed") {
+      handleOpenCompleteDialog(action);
+      return;
+    }
+
     // Immediate optimistic decrement for the sidebar notification badge
     if (action.status === "Pending" && status !== "Pending") {
       dispatchTriageStatusChange(action.id, status, action.status, action.barangayId);
@@ -355,6 +390,7 @@ if (newAction) {
           isLoading={isLoading}
           onUpdateStatus={handleUpdateStatus}
           onQuickStatus={handleQuickStatus}
+          onCompleteAction={handleOpenCompleteDialog}
           borderless
         />
 
@@ -375,6 +411,13 @@ if (newAction) {
         onOpenChange={setIsDialogOpen}
         action={selectedAction}
         onSubmit={handleSubmitUpdate}
+      />
+
+      <CompleteActionDialog
+        open={isCompleteDialogOpen}
+        onOpenChange={setIsCompleteDialogOpen}
+        action={actionToComplete}
+        onConfirmComplete={handleConfirmComplete}
       />
     </div>
   );
