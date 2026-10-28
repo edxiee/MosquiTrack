@@ -15,16 +15,27 @@ interface SidebarProps {
   onMobileClose?: () => void;
 }
 
+interface NavSection {
+  title?: string;
+  items: Array<{
+    name: string;
+    path: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }>;
+}
+
 export default function Sidebar({ isMobile, className, onMobileClose }: SidebarProps = {}) {
   const { profile, logout } = useAuth();
-
+  
   // 1. Initialize collapsed state from localStorage
   const [isCollapsedState, setIsCollapsedState] = useState(() => {
     return localStorage.getItem("mosquitrack-sidebar-collapsed") === "true";
   });
-
-  const [isLgScreen, setIsLgScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
-
+  
+  const [isLgScreen, setIsLgScreen] = useState(() => 
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
+  
   const isCollapsed = isMobile ? false : (!isLgScreen || isCollapsedState);
 
   // 2. Persist state to localStorage whenever it changes
@@ -42,20 +53,19 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         setIsLgScreen(window.innerWidth >= 1024);
-      }, 50); // Small debounce for smoother resize
+      }, 50);
     };
-
     window.addEventListener("resize", handleResize);
-    // Initial check
     handleResize();
-
     return () => {
       window.removeEventListener("resize", handleResize);
       clearTimeout(timeoutId);
     };
   }, [isMobile]);
 
-  const role = profile?.role?.role_code;
+  // Fix: Properly type the role and navigation sections
+  // Cast role to the valid keys of SIDEBAR_CONFIG to satisfy TypeScript
+  const role = profile?.role?.role_code as keyof typeof SIDEBAR_CONFIG | undefined;
   const navigationSections = role ? (SIDEBAR_CONFIG[role] ?? []) : [];
   const { getBadgeForPath } = useSidebarBadges();
 
@@ -72,11 +82,10 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
   }
 
   return (
-    // Hidden on mobile (md:flex) to prevent layout breaking; mobile drawer handled in Step 4
-    <aside 
+    <aside
       className={
-        className !== undefined 
-          ? className 
+        className !== undefined
+          ? className
           : `sticky top-0 hidden md:flex h-screen flex-col border-r border-slate-200 bg-white transition-[width] duration-200 ease-in-out ${
               isCollapsed ? "w-20" : "w-[280px]"
             }`
@@ -85,18 +94,16 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
       {/* Branding Area */}
       <div className="relative flex flex-col items-center border-b border-slate-200 p-4">
         <div className={`flex items-center justify-center transition-all duration-200 ${isCollapsed ? "w-10" : "w-full"}`}>
-          <AppLogo 
-            variant={isCollapsed ? "solo" : "full"} 
-            className={`transition-all duration-200 ${isCollapsed ? "h-8 w-8" : "h-10 w-auto"}`} 
+          <AppLogo
+            variant={isCollapsed ? "solo" : "full"}
+            className={`transition-all duration-200 ${isCollapsed ? "h-8 w-8" : "h-10 w-auto"}`}
           />
         </div>
-        
         {!isCollapsed && (
           <p className="mt-2 text-center text-xs font-medium tracking-wide text-slate-500">
             Smart Early Warning System
           </p>
         )}
-
         {/* Collapse/Expand Control */}
         {!isMobile && isLgScreen && (
           <button
@@ -107,7 +114,6 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
             {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
           </button>
         )}
-
         {/* Mobile Close (X) Button */}
         {isMobile && onMobileClose && (
           <button
@@ -123,21 +129,19 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
-        {navigationSections.map((section) => (
+        {navigationSections.map((section: NavSection) => (
           <div key={section.title || "main"} className="mb-4">
             {section.title && !isCollapsed && (
               <h2 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
                 {section.title}
               </h2>
             )}
-
             <ul className="space-y-1">
               {section.items.map((item) => {
                 const IconComponent = item.icon;
                 const badgeInfo = getBadgeForPath(item.path);
                 const showBadge = Boolean(badgeInfo && badgeInfo.count > 0);
                 const badgeCount = badgeInfo?.count ?? 0;
-
                 return (
                   <li key={item.path}>
                     <NavLink
@@ -157,7 +161,6 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
                       className={({ isActive }) => {
                         let baseClasses =
                           "flex items-center rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ";
-
                         if (isCollapsed) {
                           baseClasses += "justify-center h-10 w-10 mx-auto relative ";
                           baseClasses += isActive
@@ -169,7 +172,6 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
                             ? "border-l-4 border-emerald-600 bg-emerald-50 pl-2 text-emerald-800 font-semibold"
                             : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium";
                         }
-
                         return baseClasses;
                       }}
                     >
@@ -216,17 +218,19 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
         ))}
       </nav>
 
-      {/* Footer / Logout */}
+      {/* Footer / Logout - Soft Enterprise Red */}
       <div className="border-t border-slate-200 p-3">
         <Button
           variant="outline"
           onClick={handleLogout}
           title={isCollapsed ? "Logout" : undefined}
           className={`
-            w-full h-10 transition-all duration-200 
-            bg-rose-50 text-rose-700 border border-rose-200 
+            w-full h-11 font-semibold transition-all duration-200 
+            bg-rose-50 text-rose-700 border border-rose-200
             hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800
-            ${isCollapsed ? "justify-center !px-0" : "justify-start gap-3 !px-3"}
+            active:bg-rose-200/50
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2
+            ${isCollapsed ? "justify-center !px-0" : "justify-start gap-3 !px-4"}
           `}
         >
           <LogOut className="h-5 w-5 flex-shrink-0" />
