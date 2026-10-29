@@ -427,7 +427,7 @@ export default function LguDashboard() {
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle>Mosquito activity, last 7 days</CardTitle>
             <CardDescription>
-              Daily average mosquito count across all monitored traps.
+              Daily mosquito count across all monitored traps.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-5">
@@ -467,15 +467,16 @@ export default function LguDashboard() {
                     />
                     <Tooltip
                       labelFormatter={(v) => formatShortDate(String(v))}
-                      formatter={(value) => [String(value), "Avg count"]}
+                      formatter={(value) => [String(value), "Total count"]}
                       contentStyle={{ borderRadius: 12, borderColor: "#e2e8f0" }}
                     />
                     <Area
                       type="monotone"
-                      dataKey="avg"
+                      dataKey="total"
                       stroke="#059669"
                       strokeWidth={2.5}
                       fill="url(#lguTrendFill)"
+                      dot={{ r: 3 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
