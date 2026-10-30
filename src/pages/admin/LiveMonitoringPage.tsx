@@ -119,6 +119,7 @@ function MapFlyTo({ lat, lng }: { lat: number; lng: number }) {
 export default function LiveMonitoringPage() {
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [deviceLatestReadings, setDeviceLatestReadings] = useState<Record<string, { battery_level: number | null; captured_at: string }>>({});
+  const [nowTick, setNowTick] = useState<number>(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<OvitrapDevice | null>(null);
 
@@ -361,8 +362,15 @@ export default function LiveMonitoringPage() {
       )
       .subscribe();
 
+    // 15-second in-memory clock tick so traps automatically transition
+    // to "Offline" once the threshold expires without requiring a manual page refresh
+    const tickInterval = setInterval(() => {
+      setNowTick(Date.now());
+    }, 15000);
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
+        setNowTick(Date.now());
         fetchDevices();
       }
     };
@@ -370,6 +378,7 @@ export default function LiveMonitoringPage() {
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
+      clearInterval(tickInterval);
       supabase.removeChannel(deviceChannel);
       supabase.removeChannel(readingsChannel);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -412,6 +421,7 @@ export default function LiveMonitoringPage() {
     const status = getConnectionStatus(lastSeenStr);
     return { ...d, computedStatus: status, lastSeenStr, latestBattery: deviceLatestReadings[d.id]?.battery_level };
   });
+  void nowTick;
 
   const onlineCount = devicesWithStatus.filter(d => d.computedStatus.state === "Online").length;
   const offlineCount = devicesWithStatus.filter(d => d.computedStatus.state === "Offline").length;
@@ -636,11 +646,13 @@ export default function LiveMonitoringPage() {
                 !Number.isNaN(Number(selectedDevice.longitude)) &&
                 Number(selectedDevice.latitude) !== 0 &&
                 Number(selectedDevice.longitude) !== 0;
-              const gpsUpdatedStr =
-                selectedDevice.last_seen_at || lastHttpPostStr || null;
-              const gpsStatus = getConnectionStatus(
-                hasGpsFix ? gpsUpdatedStr : null
-              );
+
+              // Only consider GPS fresh if the trap actually sent an upload/heartbeat recently.
+              // If lastHttpPostStr is stale (> 16 mins) or absent, GPS must be marked Offline.
+              const gpsUpdatedStr = hasGpsFix && status.state === "Online"
+                ? (selectedDevice.last_seen_at || lastHttpPostStr || null)
+                : null;
+              const gpsStatus = getConnectionStatus(gpsUpdatedStr);
 
               const healthItems = [
                 {
