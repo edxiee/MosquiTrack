@@ -1078,7 +1078,7 @@ export default function ReportsAnalyticsPage() {
                     Rank
                   </TableHead>
                   <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Barangay / Municipality
+                    Barangay 
                   </TableHead>
                   <TableHead className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">
                     Active Traps

@@ -8,6 +8,7 @@ export interface DailyMosquitoTrendPoint {
   date: string; // YYYY-MM-DD
   avg: number;
   readings: number;
+  total: number;
 }
 
 export interface BarangayMosquitoStatus {
@@ -312,14 +313,14 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
     dviAveragePrev3Day = prevN > 0 ? prevTotal / prevN : 0;
   }
 
-  const dailyTrend: DailyMosquitoTrendPoint[] = Array.from(trendBuckets.entries()).map(
-    ([date, b]) => ({
-      date,
-      avg: b.readings > 0 ? Number((b.total / b.readings).toFixed(1)) : 0,
-      readings: b.readings,
-    }),
-  );
-
+ const dailyTrend: DailyMosquitoTrendPoint[] = Array.from(trendBuckets.entries()).map(
+  ([date, b]) => ({
+    date,
+    avg: b.readings > 0 ? Number((b.total / b.readings).toFixed(1)) : 0,
+    readings: b.readings,
+    total: b.total,
+  }),
+);
   const { count: pendingCount, error: pendingError } = await supabase
     .from("action_triage_log")
     .select("id", { count: "exact", head: true })
