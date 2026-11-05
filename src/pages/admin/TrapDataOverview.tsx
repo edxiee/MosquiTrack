@@ -15,6 +15,7 @@ import {
   subscribeToNewReadings,
 } from "@/services/telemetry.service";
 import { getTrapWeather } from "@/services/weather.service";
+import { fetchDeviceConfigsMap } from "@/services/deviceConfig.service";
 import { supabase } from "@/lib/supabase";
 
 const DEFAULT_FILTERS: TelemetryFilterValues = {
@@ -33,6 +34,9 @@ export default function RawTelemetryHubPage() {
   const [error, setError] = useState<string | null>(null);
   const [barangayOptions, setBarangayOptions] = useState<string[]>([]);
   const [filters, setFilters] = useState<TelemetryFilterValues>(DEFAULT_FILTERS);
+  const [deviceConfigs, setDeviceConfigs] = useState<
+    Record<string, { min_freq_hz: number; max_freq_hz: number; max_beam_break_ms: number }>
+  >({});
 
   useEffect(() => {
     let isMounted = true;
@@ -41,14 +45,16 @@ export default function RawTelemetryHubPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const [readingsData, barangays] = await Promise.all([
+        const [readingsData, barangays, configsMap] = await Promise.all([
           getTelemetry(),
           getBarangayOptions(),
+          fetchDeviceConfigsMap(),
         ]);
         if (!isMounted) return;
 
         setReadings(readingsData);
         setBarangayOptions(barangays);
+        setDeviceConfigs(configsMap);
       } catch (err) {
         console.error("Failed to load telemetry:", err);
         if (!isMounted) return;
@@ -126,7 +132,7 @@ export default function RawTelemetryHubPage() {
   const stats: TelemetryStats = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
     const todayReadings = filteredReadings.filter((r) =>
-      (r.created_at || r.captured_at).startsWith(todayStr)
+      (r.captured_at || r.created_at || "").startsWith(todayStr)
     );
 
     let intervalText = "N/A";
@@ -218,8 +224,8 @@ export default function RawTelemetryHubPage() {
       successfulUploads: filteredReadings.length,
       failedUploads: 0,
       latestPacketTime:
-        filteredReadings[0]?.created_at ||
         filteredReadings[0]?.captured_at ||
+        filteredReadings[0]?.created_at ||
         null,
       avgUploadInterval: intervalText,
     };
@@ -236,6 +242,8 @@ export default function RawTelemetryHubPage() {
       "Barangay",
       "Municipality",
       "Mosquito Count",
+      "Frequency (Hz)",
+      "Beam Break (ms)",
       "Temperature (C)",
       "Humidity (%)",
       "Battery (%)",
@@ -252,6 +260,8 @@ export default function RawTelemetryHubPage() {
       r.barangay_name ?? "",
       r.municipality ?? "",
       r.mosquito_count ?? 0,
+      r.frequency_hz ?? "",
+      r.beam_break_ms ?? "",
       r.temperature_c ?? "",
       r.humidity_percent ?? "",
       r.battery_level ?? "",
@@ -284,7 +294,7 @@ export default function RawTelemetryHubPage() {
   const handleDownloadLogs = () => {
     if (filteredReadings.length === 0) return;
     const logLines = filteredReadings.map(
-      r => `[${r.captured_at}] [DEVICE:${r.device_code}] [BARANGAY:${[r.barangay_name, r.municipality].filter(Boolean).join(", ") || "N/A"}] MOSQUITOES:${r.mosquito_count ?? 0} TEMP:${r.temperature_c ?? "N/A"}C HUM:${r.humidity_percent ?? "N/A"}% BAT:${r.battery_level != null ? `${r.battery_level}%` : "N/A"}`
+      r => `[${r.captured_at}] [DEVICE:${r.device_code}] [BARANGAY:${[r.barangay_name, r.municipality].filter(Boolean).join(", ") || "N/A"}] MOSQUITOES:${r.mosquito_count ?? 0} FREQ:${r.frequency_hz != null ? `${r.frequency_hz}Hz` : "N/A"} IR:${r.beam_break_ms != null ? `${r.beam_break_ms}ms` : "N/A"} TEMP:${r.temperature_c ?? "N/A"}C HUM:${r.humidity_percent ?? "N/A"}% BAT:${r.battery_level != null ? `${r.battery_level}%` : "N/A"}`
     );
     const blob = new Blob([logLines.join("\n")], { type: "text/plain;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -350,7 +360,11 @@ export default function RawTelemetryHubPage() {
         barangayOptions={barangayOptions}
       />
 
-      <TelemetryTable readings={filteredReadings} isLoading={isLoading} />
+      <TelemetryTable
+        readings={filteredReadings}
+        isLoading={isLoading}
+        deviceConfigs={deviceConfigs}
+      />
     </div>
   );
 }

@@ -70,6 +70,37 @@ export async function fetchConfigurableDevices(): Promise<ConfigurableOvitrapDev
 }
 
 /**
+ * Fetches all configs as a lookup map keyed by device_id.
+ */
+export async function fetchDeviceConfigsMap(): Promise<
+  Record<string, { min_freq_hz: number; max_freq_hz: number; max_beam_break_ms: number }>
+> {
+  const { data, error } = await supabase
+    .from("device_configs")
+    .select("device_id, min_freq_hz, max_freq_hz, max_beam_break_ms");
+
+  const map: Record<
+    string,
+    { min_freq_hz: number; max_freq_hz: number; max_beam_break_ms: number }
+  > = {};
+
+  if (!error && data) {
+    for (const row of data) {
+      if (row.device_id) {
+        map[row.device_id] = {
+          min_freq_hz: Number(row.min_freq_hz ?? DEFAULT_DEVICE_CONFIG.min_freq_hz),
+          max_freq_hz: Number(row.max_freq_hz ?? DEFAULT_DEVICE_CONFIG.max_freq_hz),
+          max_beam_break_ms: Number(
+            row.max_beam_break_ms ?? DEFAULT_DEVICE_CONFIG.max_beam_break_ms
+          ),
+        };
+      }
+    }
+  }
+  return map;
+}
+
+/**
  * Fetches the matching config row from `device_configs` for `deviceId`.
  * If no row exists yet, automatically upserts a default row and returns it.
  */

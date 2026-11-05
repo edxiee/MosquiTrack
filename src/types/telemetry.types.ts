@@ -9,6 +9,8 @@ export interface TelemetryReading {
   battery_level: number | null;
   temperature_c: number | null;
   humidity_percent: number | null;
+  frequency_hz?: number | null;
+  beam_break_ms?: number | null;
   device_id: string;
   device_code: string;
   latitude: number | null;

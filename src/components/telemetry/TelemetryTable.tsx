@@ -24,11 +24,13 @@ const ITEMS_PER_PAGE = 15;
 interface TelemetryTableProps {
   readings: TelemetryReading[];
   isLoading: boolean;
+  deviceConfigs?: Record<string, { min_freq_hz: number; max_freq_hz: number; max_beam_break_ms: number }>;
 }
 
 export default function TelemetryTable({
   readings,
   isLoading,
+  deviceConfigs,
 }: TelemetryTableProps) {
   const [selectedPayload, setSelectedPayload] = useState<TelemetryReading | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -68,6 +70,8 @@ export default function TelemetryTable({
                 <TableHead className="font-semibold text-slate-500">Trap ID</TableHead>
                 <TableHead className="font-semibold text-slate-500">Barangay / Municipality</TableHead>
                 <TableHead className="font-semibold text-slate-500">Mosquito Count</TableHead>
+                <TableHead className="font-semibold text-slate-500">Mic (Hz)</TableHead>
+                <TableHead className="font-semibold text-slate-500">IR Beam (ms)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Temp (°C)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Humidity (%)</TableHead>
                 <TableHead className="font-semibold text-slate-500">Battery (%)</TableHead>
@@ -77,7 +81,7 @@ export default function TelemetryTable({
               {readings.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={9}
                     className="py-16 text-center text-slate-500"
                   >
                     <div className="max-w-md mx-auto space-y-3">
@@ -87,46 +91,100 @@ export default function TelemetryTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedReadings.map((reading) => (
-                  <TableRow 
-                    key={reading.id} 
-                    className="cursor-pointer hover:bg-slate-50 border-slate-50 transition-colors"
-                    onClick={() => handleRowClick(reading)}
-                  >
-                    <TableCell className="text-slate-600 font-medium whitespace-nowrap">
-                      {formatTelemetryTimestamp(reading.created_at || reading.captured_at)}
-                    </TableCell>
-                    <TableCell className="font-bold text-slate-800">
-                      {reading.device_code}
-                    </TableCell>
-                    <TableCell className="text-slate-600">
-                      {reading.barangay_name ? (
-                        <div>
-                          <span className="font-medium text-slate-800 block">
-                            {reading.barangay_name}
-                          </span>
-                          {reading.municipality && (
-                            <span className="text-xs text-slate-400 block">
-                              {reading.municipality}
+                paginatedReadings.map((reading) => {
+                  const config = (deviceConfigs && reading.device_id && deviceConfigs[reading.device_id]) || {
+                    min_freq_hz: 300.0,
+                    max_freq_hz: 700.0,
+                    max_beam_break_ms: 100,
+                  };
+
+                  const freqVal = reading.frequency_hz != null ? Number(reading.frequency_hz) : null;
+                  const isFreqGood = freqVal != null && freqVal >= config.min_freq_hz && freqVal <= config.max_freq_hz;
+
+                  const beamVal = reading.beam_break_ms != null ? Number(reading.beam_break_ms) : null;
+                  const isBeamGood = beamVal != null && beamVal > 0 && beamVal <= config.max_beam_break_ms;
+
+                  return (
+                    <TableRow 
+                      key={reading.id} 
+                      className="cursor-pointer hover:bg-slate-50 border-slate-50 transition-colors"
+                      onClick={() => handleRowClick(reading)}
+                    >
+                      <TableCell className="text-slate-600 font-medium whitespace-nowrap">
+                        {formatTelemetryTimestamp(reading.captured_at || reading.created_at)}
+                      </TableCell>
+                      <TableCell className="font-bold text-slate-800">
+                        {reading.device_code}
+                      </TableCell>
+                      <TableCell className="text-slate-600">
+                        {reading.barangay_name ? (
+                          <div>
+                            <span className="font-medium text-slate-800 block">
+                              {reading.barangay_name}
                             </span>
-                          )}
-                        </div>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="font-semibold text-slate-700">{reading.mosquito_count ?? "0"}</TableCell>
-                    <TableCell className="text-slate-600">
-                      {reading.temperature_c != null ? `${reading.temperature_c}°C` : "—"}
-                    </TableCell>
-                    <TableCell className="text-slate-600">
-                      {reading.humidity_percent != null ? `${reading.humidity_percent}%` : "—"}
-                    </TableCell>
-                    <TableCell className="text-slate-600">
-                      {reading.battery_level != null ? `${reading.battery_level}%` : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))
+                            {reading.municipality && (
+                              <span className="text-xs text-slate-400 block">
+                                {reading.municipality}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="font-semibold text-slate-700">{reading.mosquito_count ?? "0"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {freqVal != null ? (
+                          <span
+                            className={
+                              isFreqGood
+                                ? "text-emerald-600 font-semibold"
+                                : "text-rose-600 font-semibold"
+                            }
+                            title={
+                              isFreqGood
+                                ? `Meets requirement: Within target range (${config.min_freq_hz} - ${config.max_freq_hz} Hz)`
+                                : `Does not meet requirement: Outside target range (${config.min_freq_hz} - ${config.max_freq_hz} Hz)`
+                            }
+                          >
+                            {freqVal.toFixed(1)} Hz
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {beamVal != null ? (
+                          <span
+                            className={
+                              isBeamGood
+                                ? "text-emerald-600 font-semibold"
+                                : "text-rose-600 font-semibold"
+                            }
+                            title={
+                              isBeamGood
+                                ? `Meets requirement: Within beam break limit (≤ ${config.max_beam_break_ms} ms)`
+                                : `Does not meet requirement: Exceeds beam break limit (> ${config.max_beam_break_ms} ms)`
+                            }
+                          >
+                            {beamVal} ms
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-slate-600">
+                        {reading.temperature_c != null ? `${reading.temperature_c}°C` : "—"}
+                      </TableCell>
+                      <TableCell className="text-slate-600">
+                        {reading.humidity_percent != null ? `${reading.humidity_percent}%` : "—"}
+                      </TableCell>
+                      <TableCell className="text-slate-600">
+                        {reading.battery_level != null ? `${reading.battery_level}%` : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

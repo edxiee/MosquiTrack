@@ -11,6 +11,8 @@ interface RawReadingRow {
   battery_level: number | null;
   temperature_c: number | null;
   humidity_percent: number | null;
+  frequency_hz?: number | null;
+  beam_break_ms?: number | null;
   device_id: string;
   device: {
     device_code: string;
@@ -29,6 +31,8 @@ const READING_SELECT = `
   battery_level,
   temperature_c,
   humidity_percent,
+  frequency_hz,
+  beam_break_ms,
   device_id,
   ovitrap_devices (
     id,
@@ -62,6 +66,8 @@ function flattenReading(row: any): TelemetryReading {
     battery_level: row.battery_level,
     temperature_c: row.temperature_c,
     humidity_percent: row.humidity_percent,
+    frequency_hz: row.frequency_hz ?? null,
+    beam_break_ms: row.beam_break_ms ?? null,
     device_id: row.device_id,
     device_code: device?.device_code ?? "Unknown",
     latitude: device?.latitude ?? null,
@@ -99,6 +105,8 @@ export interface DeviceReadingSummary {
   battery_level: number | null;
   temperature_c: number | null;
   humidity_percent: number | null;
+  frequency_hz?: number | null;
+  beam_break_ms?: number | null;
   image_path?: string | null;
   device_code?: string;
   barangay_name?: string | null;
@@ -117,7 +125,7 @@ export async function getDeviceReadings(
   const { data, error } = await supabase
     .from("ovitrap_readings")
     .select(
-      "id, device_id, captured_at, created_at, updated_at, mosquito_count, battery_level, temperature_c, humidity_percent, image_path",
+      "id, device_id, captured_at, created_at, updated_at, mosquito_count, battery_level, temperature_c, humidity_percent, frequency_hz, beam_break_ms, image_path",
     )
     .eq("device_id", deviceId)
     .gte("captured_at", sevenDaysAgo.toISOString())
