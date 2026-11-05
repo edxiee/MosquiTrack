@@ -278,7 +278,7 @@ export default function NodeProvisioningPage() {
                     Deployed by
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
-                    Barangay / Municipality
+                    Barangay 
                   </th>
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
                     Status

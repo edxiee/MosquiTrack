@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Activity, CheckCircle2, XCircle, Clock, Timer } from "lucide-react";
+import { Activity, CheckCircle2, Clock, Timer } from "lucide-react";
 import type { TelemetryStats } from "@/types/telemetry.types";
 
 interface TelemetryStatisticsProps {
@@ -24,7 +24,7 @@ export default function TelemetryStatistics({
   stats,
 }: TelemetryStatisticsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Card className="border-l-4 border-l-emerald-500">
         <CardContent className="flex items-center justify-between p-6">
           <div>
@@ -44,17 +44,6 @@ export default function TelemetryStatistics({
           </div>
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
             <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-          </div>
-        </CardContent>
-      </Card>
-      <Card className="border-l-4 border-l-emerald-500">
-        <CardContent className="flex items-center justify-between p-6">
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Failed Uploads</p>
-            <h2 className="mt-2 text-3xl font-bold text-emerald-600">{stats.failedUploads}</h2>
-          </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
-            <XCircle className="h-6 w-6 text-emerald-600" />
           </div>
         </CardContent>
       </Card>
