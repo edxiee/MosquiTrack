@@ -363,53 +363,43 @@ export default function BarangaySurveillancePage() {
     );
   }
 
-  const barangayName = data?.barangayName ?? "Barangay Surveillance";
-  const municipality = data?.municipality ?? "";
-  const province = data?.province ?? "";
   const barangayCenter = data?.barangayCenter ?? { lat: 14.561, lng: 121.118 };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4.5rem)] max-w-[1700px] mx-auto p-3 sm:p-5 gap-3.5">
+    <div className="flex min-h-[calc(100dvh-4.5rem)] flex-col gap-3.5 p-3 sm:p-5 lg:mx-auto lg:h-[calc(100vh-4.5rem)] lg:min-h-0 lg:max-w-[1700px]">
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-5 py-3.5 rounded-2xl border border-slate-200/90 shadow-xs shrink-0">
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100/80 shadow-xs">
-            <Compass className="size-5" />
-          </div>
+          
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+              <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100/80 shadow-xs">
+                <Compass className="size-5" />
+              </div>
+              <h1 className="text-m font-bold text-slate-900 tracking-tight">
                 Barangay Surveillance
               </h1>
-              <Badge className="bg-emerald-100/80 text-emerald-800 border-none font-bold px-2.5 py-0.5 text-xs">
-                {barangayName}
-              </Badge>
-              {municipality && (
-                <span className="text-xs text-slate-400 font-medium hidden md:inline">
-                  • {municipality}
-                  {province ? `, ${province}` : ""}
-                </span>
-              )}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+                <span
+                  className={cn(
+                    "flex h-2 w-2 rounded-full",
+                    onlineCount > 0
+                      ? "bg-emerald-500 animate-pulse"
+                      : "bg-slate-400"
+                  )}
+                />
+                <span>{onlineCount} Online</span>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-500">
+              <p className="hidden text-[11px] text-slate-500 sm:block">
               Live Geographic Information System field deployment map & IoT monitoring page
-            </p>
+              </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5">
           {/* Online Traps Pill */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
-            <span
-              className={cn(
-                "flex h-2 w-2 rounded-full",
-                onlineCount > 0
-                  ? "bg-emerald-500 animate-pulse"
-                  : "bg-slate-400"
-              )}
-            />
-            <span>{onlineCount} Online</span>
-          </div>
+          
         </div>
       </div>
 
@@ -429,11 +419,11 @@ export default function BarangaySurveillancePage() {
       )}
 
       {/* Main Screen: Side Panel (Deployed Traps) + Interactive Map */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-3.5 min-h-0 overflow-hidden">
+      <div className="flex flex-1 flex-col gap-3.5 lg:min-h-0 lg:flex-row lg:overflow-hidden">
         {/* ======================================================== */}
         {/* SIDEBAR: Deployed Traps List                             */}
         {/* ======================================================== */}
-        <div className="w-full lg:w-96 xl:w-[410px] flex flex-col rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden shrink-0">
+        <div className="flex max-h-[42vh] w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs lg:max-h-none lg:w-96 xl:w-[410px]">
           {/* Sidebar Top: Search & Filters */}
           <div className="p-4 border-b border-slate-100 bg-white space-y-3">
             <div className="flex items-center justify-between">
@@ -457,7 +447,7 @@ export default function BarangaySurveillancePage() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search trap ID or location…"
+                placeholder="Search"
                 className="pl-8 h-8 text-xs bg-slate-50/70 border-slate-200 rounded-lg focus-visible:ring-emerald-500"
               />
               {search && (
@@ -647,10 +637,10 @@ export default function BarangaySurveillancePage() {
         {/* ======================================================== */}
         {/* MAIN AREA: Interactive Leaflet Map                       */}
         {/* ======================================================== */}
-        <div className="flex-1 relative rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden min-h-[500px] flex flex-col">
+        <div className="relative flex min-h-[55vh] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs lg:min-h-[500px]">
           {/* Floating Risk Tier Legend */}
-          <div className="absolute top-3.5 right-3.5 z-20 flex flex-wrap justify-end items-center gap-2">
-            <RegionalDiseaseRiskButton />
+          <div className="absolute top-1 right-1 z-20 flex flex-wrap justify-end items-center gap-2">
+            
             <div className="flex flex-wrap justify-end items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200 shadow-md text-xs font-semibold text-slate-600">
               <span className="text-slate-400 text-[11px] uppercase mr-1">
                 Daily Risk Tier:
@@ -671,16 +661,17 @@ export default function BarangaySurveillancePage() {
                 <div className="size-2.5 rounded-full bg-slate-400" /> Offline
               </span>
             </div>
+            <RegionalDiseaseRiskButton />
           </div>
 
           {/* Map Component */}
-          <div className="flex-1 relative z-0 w-full h-full min-h-[500px]">
+          <div className="relative z-0 h-full min-h-[55vh] w-full flex-1 lg:min-h-[500px]">
             <MapErrorBoundary>
               <MapContainer
                 center={[barangayCenter.lat, barangayCenter.lng]}
                 zoom={15}
                 zoomControl={false}
-                className="w-full h-full min-h-[500px]"
+                className="h-full min-h-[55vh] w-full lg:min-h-[500px]"
               >
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 

@@ -104,6 +104,7 @@ function flattenAction(row: RawActionRow): TriageAction {
  */
 export async function getAssignedActions(options?: {
   assignedTo?: string | undefined;
+  visibleInProgressTo?: string | undefined;
   barangayId?: string | undefined;
   barangayName?: string | undefined;
 }): Promise<TriageAction[]> {
@@ -143,6 +144,11 @@ export async function getAssignedActions(options?: {
 
     if (options?.assignedTo) {
       q = q.eq("assigned_to", options.assignedTo);
+    }
+    if (options?.visibleInProgressTo) {
+      q = q.or(
+        `status.neq."In Progress",and(status.eq."In Progress",assigned_to.eq.${options.visibleInProgressTo})`
+      );
     }
     if (targetBarangayId) {
       q = q.eq("barangay_id", targetBarangayId);

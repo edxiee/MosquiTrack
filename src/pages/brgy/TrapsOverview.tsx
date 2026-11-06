@@ -299,7 +299,7 @@ export default function HardwareNodesPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search trap, description, status…"
+              placeholder="Search"
               className="pl-9 h-10 text-sm"
             />
           </div>
@@ -317,14 +317,14 @@ export default function HardwareNodesPage() {
       </div>
 
       {/* Main Content Box with Tabs */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:rounded-2xl">
         {/* Top 3 Tabs: Deployed, Pending, In Storage */}
-        <div className="flex border-b border-slate-200 bg-slate-50/50">
+        <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-50/50">
           <button
             type="button"
             onClick={() => setActiveTab("deployed")}
             className={cn(
-              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              "flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-3 text-xs font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "deployed"
                 ? "border-emerald-600 text-emerald-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
@@ -348,7 +348,7 @@ export default function HardwareNodesPage() {
             type="button"
             onClick={() => setActiveTab("pending")}
             className={cn(
-              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              "flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-3 text-xs font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "pending"
                 ? "border-amber-500 text-amber-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
@@ -372,7 +372,7 @@ export default function HardwareNodesPage() {
             type="button"
             onClick={() => setActiveTab("in_storage")}
             className={cn(
-              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              "flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-3 text-xs font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "in_storage"
                 ? "border-sky-600 text-sky-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
@@ -403,7 +403,7 @@ export default function HardwareNodesPage() {
           <div className="py-16 text-center text-rose-600 text-sm">{error}</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[700px] text-sm">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200">
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">

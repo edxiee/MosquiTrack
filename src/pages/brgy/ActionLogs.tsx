@@ -32,6 +32,10 @@ const DEFAULT_FILTERS: TriageFilterValues = {
   dateTo: "",
 };
 
+function canViewAction(action: TriageAction, userId: string): boolean {
+  return action.status !== "In Progress" || action.assignedTo === userId;
+}
+
 export default function ActionTriageLogPage() {
   const [actions, setActions] = useState<TriageAction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,8 +54,8 @@ export default function ActionTriageLogPage() {
     if (authLoading || !profile?.id) return;
     setIsLoading(true);
     try {
-      const data = await getAssignedActions();
-      setActions(data);
+      const data = await getAssignedActions({ visibleInProgressTo: profile.id });
+      setActions(data.filter((action) => canViewAction(action, profile.id)));
     } catch (err) {
       console.error("Failed to load action items:", err);
     } finally {
@@ -64,9 +68,11 @@ export default function ActionTriageLogPage() {
 
     let cancelled = false;
 
-    getAssignedActions()
+    getAssignedActions({ visibleInProgressTo: profile.id })
       .then((data) => {
-        if (!cancelled) setActions(data);
+        if (!cancelled) {
+          setActions(data.filter((action) => canViewAction(action, profile.id)));
+        }
       })
       .catch((err) => console.error("Failed to load action items:", err))
       .finally(() => {
@@ -83,15 +89,21 @@ export default function ActionTriageLogPage() {
           table: "action_triage_log",
         },
         async (payload) => {
-          if (payload.eventType === "INSERT" && payload.new && (payload.new as { id?: string }).id) {
-            const newId = (payload.new as { id: string }).id;
-          const newAction = await getActionById(newId);
-if (newAction) {
+          const newRow = payload.new as
+            | { id?: string; status?: string; assigned_to?: string | null }
+            | undefined;
+          const isAnotherUsersInProgressAction =
+            newRow?.status === "In Progress" && newRow.assigned_to !== profile.id;
 
-  setActions((prev) => {
-    if (prev.some((a) => a.id === newAction.id)) return prev;
-    return [newAction, ...prev];
-  });
+          if (payload.eventType === "INSERT" && newRow?.id) {
+            if (isAnotherUsersInProgressAction) return;
+            const newId = newRow.id;
+            const newAction = await getActionById(newId);
+            if (newAction && canViewAction(newAction, profile.id)) {
+              setActions((prev) => {
+                if (prev.some((a) => a.id === newAction.id)) return prev;
+                return [newAction, ...prev];
+              });
               if (newAction.status === "Pending") {
                 dispatchTriageStatusChange(
                   newAction.id,
@@ -101,13 +113,21 @@ if (newAction) {
                 );
               }
             }
-          } else if (payload.eventType === "UPDATE" && payload.new && (payload.new as { id?: string }).id) {
-            const updatedId = (payload.new as { id: string }).id;
+          } else if (payload.eventType === "UPDATE" && newRow?.id) {
+            const updatedId = newRow.id;
+            if (isAnotherUsersInProgressAction) {
+              setActions((prev) => prev.filter((action) => action.id !== updatedId));
+              return;
+            }
             const updated = await getActionById(updatedId);
-            if (updated) {
+            if (updated && canViewAction(updated, profile.id)) {
               setActions((prev) =>
-                prev.map((a) => (a.id === updated.id ? updated : a))
+                prev.some((action) => action.id === updated.id)
+                  ? prev.map((action) => (action.id === updated.id ? updated : action))
+                  : [updated, ...prev]
               );
+            } else {
+              setActions((prev) => prev.filter((action) => action.id !== updatedId));
             }
           } else if (payload.eventType === "DELETE" && payload.old && (payload.old as { id?: string }).id) {
             const deletedId = (payload.old as { id: string }).id;
@@ -305,11 +325,11 @@ if (newAction) {
             <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
               <ClipboardList className="size-5" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
               Action Logs
             </h1>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 hidden text-sm text-slate-500 sm:block">
             Field response actions assigned based on surveillance findings.
           </p>
         </div>

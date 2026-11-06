@@ -118,7 +118,7 @@ export default function TriageTable({
   }
 
   const tableElement = (
-    <Table>
+    <Table className="min-w-[900px]">
       <TableHeader>
         <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
           <TableHead className="text-xs uppercase tracking-wide">Task</TableHead>
