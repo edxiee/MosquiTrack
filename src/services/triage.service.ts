@@ -3,6 +3,7 @@ import type {
   TriageAction,
   UpdateActionStatusInput,
 } from "@/types/triage.types";
+import { SYSTEM_AUTOMATED_ACTION_MARKER } from "@/services/trapRequest.service";
 
 interface RawActionRow {
   id: string;
@@ -84,7 +85,9 @@ function flattenAction(row: RawActionRow): TriageAction {
       ? `${assignee.first_name} ${assignee.last_name}`.trim()
       : null,
     requestedBy: row.created_by ?? null,
-    requestedByName: requesterName || null,
+    requestedByName: row.remarks?.split(" | ").includes(SYSTEM_AUTOMATED_ACTION_MARKER)
+      ? "System Automated"
+      : requesterName || null,
     assignedDate: row.assigned_date,
     dueDate: row.due_date,
     completedAt: row.completed_at,

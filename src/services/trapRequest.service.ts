@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
+export const SYSTEM_AUTOMATED_ACTION_MARKER = "[System Automated]";
+
 export type TrapRequestType = string; 
 
 export interface TrapRequest {

@@ -271,7 +271,7 @@ export default function TrapReportDropdown({
     : device.today_mosquito_count ?? fallbackTodaySum;
 
   const danger = getTrapDangerLevel(
-    displayMosquitoCount,
+    device.today_mosquito_count ?? displayMosquitoCount,
     device.consecutive_critical_days,
   );
 
@@ -422,11 +422,12 @@ export default function TrapReportDropdown({
 
           <Button
             size="sm"
+            disabled={danger.level === "Critical"}
             onClick={() => onPostRequest(device)}
-            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 disabled:opacity-60"
           >
             <Send className="size-3.5" />
-            Post Request Action
+            {danger.level === "Critical" ? "System Automated" : "Post Request Action"}
           </Button>
         </div>
       </div>
