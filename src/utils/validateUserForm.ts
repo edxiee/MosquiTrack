@@ -43,19 +43,6 @@ export function validateCreateUserForm(formData: CreateUserForm): UserFormErrors
     errors.role = "Please select a role.";
   }
 
-  // Location
-  if (!formData.municipality?.trim()) {
-    errors.municipality = "Municipality is required";
-  }
-
-  // FIXED: Added parentheses for correct logical grouping
-  if (
-    (formData.role === "FIELD_OP" || formData.role === "BRGY_ADMIN" || formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
-    !formData.barangay?.trim()
-  ) {
-    errors.barangay = "Barangay is required";
-  }
-
   return errors;
 }
 
@@ -94,19 +81,6 @@ export function validateUpdateUserForm(
   // Role
   if (!formData.role) {
     errors.role = "Please select a role.";
-  }
-
-  // Location
-  if (!formData.municipality?.trim()) {
-    errors.municipality = "Municipality is required";
-  }
-
-  // FIXED: Added parentheses for correct logical grouping
-  if (
-    (formData.role === "FIELD_OP" || formData.role === "BRGY_ADMIN" || formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
-    !formData.barangay?.trim()
-  ) {
-    errors.barangay = "Barangay is required";
   }
 
   return errors;

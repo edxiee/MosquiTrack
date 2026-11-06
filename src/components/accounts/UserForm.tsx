@@ -2,7 +2,6 @@ import PersonalInformationForm from "./PersonalInformationForm";
 import ContactInformationForm from "./ContactInformationForm";
 import UsernameForm from "./UsernameForm";
 import RoleAssignmentForm from "./RoleAssignmentForm";
-import LocationAssignmentForm from "./LocationAssignmentForm";
 import type { BaseUserForm, UserFormErrors } from "@/types/user.types";
 
 interface UserFormProps<T extends BaseUserForm> {
@@ -55,15 +54,6 @@ export default function UserForm<T extends BaseUserForm>({
         onRoleChange={(value) => updateForm("role", value)}
         currentUserRole={currentUserRole}
         disabled={roleDisabled}
-      />
-
-      <LocationAssignmentForm
-        role={formData.role}
-        municipality={formData.municipality}
-        barangay={formData.barangay}
-        errors={errors}
-        onMunicipalityChange={(value) => updateForm("municipality", value)}
-        onBarangayChange={(value) => updateForm("barangay", value)}
       />
     </div>
   );

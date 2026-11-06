@@ -444,54 +444,6 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     throw new Error("Not authenticated");
   }
 
-  // 2. Get the user’s profile (barangay, municipality, barangay_id)
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("barangay, municipality, barangay_id")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileError) {
-    console.error("Profile error:", profileError);
-    throw profileError;
-  }
-
-  if (!profile) {
-    return [];
-  }
-
-  const userProfile = profile as {
-    barangay: string | null;
-    municipality: string | null;
-    barangay_id: string | null;
-  };
-
-  let targetBarangayId = userProfile.barangay_id;
-
-  if (!targetBarangayId && userProfile.barangay) {
-    // 3. Find the matching barangay record by name if barangay_id is not on profile
-    let barangayQuery = supabase
-      .from("barangays")
-      .select("id")
-      .eq("barangay_name", userProfile.barangay);
-
-    if (userProfile.municipality) {
-      barangayQuery = barangayQuery.eq(
-        "municipality",
-        userProfile.municipality
-      );
-    }
-
-    const { data: barangayRow } = await barangayQuery.maybeSingle();
-    if (barangayRow) {
-      targetBarangayId = (barangayRow as { id: string }).id;
-    }
-  }
-
-  if (!targetBarangayId) {
-    return [];
-  }
-
   let { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
     .select(
@@ -499,7 +451,6 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
         ? DEVICE_SELECT_WITH_OP_STATUS
         : DEVICE_SELECT_FALLBACK
     )
-    .eq("barangay_id", targetBarangayId)
     .order("created_at", { ascending: true });
 
   if (
@@ -511,7 +462,6 @@ export async function fetchDevicesForCurrentUser(): Promise<OvitrapDevice[]> {
     const resFallback = await supabase
       .from("ovitrap_devices")
       .select(DEVICE_SELECT_FALLBACK)
-      .eq("barangay_id", targetBarangayId)
       .order("created_at", { ascending: true });
     devicesData = resFallback.data as any;
     devicesError = resFallback.error;
@@ -611,18 +561,6 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
     throw new Error("Not authenticated");
   }
 
-  // Get user's municipality
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("municipality")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileError) throw profileError;
-  if (!profile?.municipality) return [];
-
-  const userMunicipality = profile.municipality;
-
   // Fetch all devices + their barangay (including municipality)
   const { data: devicesData, error: devicesError } = await supabase
     .from("ovitrap_devices")
@@ -658,13 +596,7 @@ export async function fetchDevicesForCurrentMunicipality(): Promise<OvitrapDevic
   if (devicesError) throw devicesError;
   if (!devicesData || devicesData.length === 0) return [];
 
-  // Filter by municipality
-  const filtered = devicesData.filter((d: any) => {
-    const brgy = Array.isArray(d.barangays) ? d.barangays[0] : d.barangays;
-    return brgy?.municipality === userMunicipality;
-  });
-
-  if (filtered.length === 0) return [];
+  const filtered = devicesData;
 
   // Hydrate users + bounded reading summaries
   const deviceIds = filtered.map((d: any) => d.id);

@@ -120,41 +120,22 @@ export async function fetchBarangaySurveillanceData(
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, role, barangay, municipality, barangay_id")
+      .select("id, role")
       .eq("id", user.id)
       .maybeSingle();
 
     if (profile) {
-      if (!resolvedBarangayId && profile.barangay_id) {
-        resolvedBarangayId = profile.barangay_id;
-      }
-      if (profile.barangay) userBarangayName = profile.barangay;
-      if (profile.municipality) userMunicipality = profile.municipality;
+      // profile loaded
     }
   }
 
-  // Scope available barangays to the user's municipality if present
-  const scopedBarangays = userMunicipality
-    ? availableBarangays.filter(
-        (b) =>
-          b.municipality &&
-          b.municipality.toLowerCase() === userMunicipality!.toLowerCase()
-      )
-    : availableBarangays;
+  // All available barangays
+  const scopedBarangays = availableBarangays;
 
   const scopedBarangayIds = scopedBarangays.map((b) => b.id);
 
-  // 3. Fallback resolution: lookup by profile barangay name or pick first available barangay
+  // 3. Fallback resolution: pick first available barangay
   if (!isAll) {
-    if (!resolvedBarangayId && userBarangayName) {
-      const match = scopedBarangays.find(
-        (b) => b.barangay_name.toLowerCase() === userBarangayName!.toLowerCase()
-      );
-      if (match) {
-        resolvedBarangayId = match.id;
-      }
-    }
-
     if (!resolvedBarangayId && scopedBarangays.length > 0 && scopedBarangays[0]) {
       resolvedBarangayId = scopedBarangays[0].id;
     }

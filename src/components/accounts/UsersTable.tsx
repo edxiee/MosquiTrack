@@ -55,7 +55,6 @@ export default function UsersTable({
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead>Assigned Area</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -64,7 +63,7 @@ export default function UsersTable({
             {users.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={5}
                   className="py-8 text-center text-muted-foreground"
                 >
                   No users found.
@@ -83,11 +82,6 @@ export default function UsersTable({
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <RoleBadge role={user.role} />
-                    </TableCell>
-                    <TableCell>
-                      {[user.municipality, user.barangay]
-                        .filter(Boolean)
-                        .join(" - ") || "—"}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={user.status} />

@@ -155,25 +155,9 @@ async function fetchLguDashboardMetrics(): Promise<LguDashboardMetrics> {
     return EMPTY_METRICS;
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("municipality")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileError) {
-    throw profileError;
-  }
-
-  const municipality = profile?.municipality;
-  if (!municipality) {
-    return EMPTY_METRICS;
-  }
-
   const { data: barangaysData, error: barangaysError } = await supabase
     .from("barangays")
-    .select("id, barangay_name")
-    .eq("municipality", municipality);
+    .select("id, barangay_name");
 
   if (barangaysError) {
     throw barangaysError;

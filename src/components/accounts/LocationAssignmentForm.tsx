@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import type { UserFormErrors } from "@/types/user.types";
 import { supabase } from "@/lib/supabase";
@@ -21,7 +21,6 @@ interface LocationAssignmentFormProps {
 
 export default function LocationAssignmentForm({
   role,
-  municipality,
   barangay,
   errors,
   onMunicipalityChange,
@@ -38,7 +37,6 @@ export default function LocationAssignmentForm({
         const { data, error } = await supabase
           .from("barangays")
           .select("id, barangay_name, municipality, province")
-          .order("municipality")
           .order("barangay_name");
 
         if (error) throw error;
@@ -54,35 +52,11 @@ export default function LocationAssignmentForm({
     loadBarangays();
   }, []);
 
-  // Unique list of municipalities
-  const municipalities = useMemo(() => {
-    const set = new Set(barangays.map((b) => b.municipality).filter(Boolean));
-    return Array.from(set).sort();
-  }, [barangays]);
-
-  // Barangays that belong to the currently selected municipality
-  const filteredBarangays = useMemo(() => {
-    if (!municipality) return [];
-    const muniClean = municipality.trim().toLowerCase();
-    return barangays
-      .filter((b) => (b.municipality ?? "").trim().toLowerCase() === muniClean)
-      .sort((a, b) => a.barangay_name.localeCompare(b.barangay_name));
-  }, [barangays, municipality]);
-
-  // When municipality changes, clear barangay if it no longer belongs
-  const handleMunicipalityChange = (value: string) => {
-    onMunicipalityChange(value);
-
-    // Clear barangay if it doesn't belong to the new municipality
-    const valClean = value.trim().toLowerCase();
-    const stillValid = barangays.some(
-      (b) =>
-        (b.municipality ?? "").trim().toLowerCase() === valClean &&
-        b.barangay_name.trim().toLowerCase() ===
-          (barangay ?? "").trim().toLowerCase()
-    );
-    if (!stillValid) {
-      onBarangayChange("");
+  const handleBarangayChange = (value: string) => {
+    onBarangayChange(value);
+    const selected = barangays.find((b) => b.barangay_name === value);
+    if (selected?.municipality) {
+      onMunicipalityChange(selected.municipality);
     }
   };
 
@@ -94,32 +68,6 @@ export default function LocationAssignmentForm({
     <div className="space-y-4">
       <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Location</h3>
 
-      {/* Municipality */}
-      <div className="space-y-2">
-        <Label htmlFor="municipality">
-          Municipality <span className="text-rose-500">*</span>
-        </Label>
-        <select
-          id="municipality"
-          value={municipality ?? ""}
-          onChange={(e) => handleMunicipalityChange(e.target.value)}
-          disabled={loading}
-          className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
-        >
-          <option value="" disabled>
-            {loading ? "Loading municipalities…" : "Select municipality"}
-          </option>
-          {municipalities.map((muni) => (
-            <option key={muni} value={muni}>
-              {muni}
-            </option>
-          ))}
-        </select>
-        {errors.municipality && (
-          <p className="text-sm text-destructive">{errors.municipality}</p>
-        )}
-      </div>
-
       {/* Barangay – for FIELD_OP / BRGY_ADMIN / BHW / SYS_ADMIN / ADMIN */}
       {(role === "FIELD_OP" || role === "BRGY_ADMIN" || role === "BHW" || role === "SYS_ADMIN" || role === "ADMIN") && (
         <div className="space-y-2">
@@ -129,18 +77,14 @@ export default function LocationAssignmentForm({
           <select
             id="barangay"
             value={barangay ?? ""}
-            onChange={(e) => onBarangayChange(e.target.value)}
-            disabled={!municipality || loading}
+            onChange={(e) => handleBarangayChange(e.target.value)}
+            disabled={loading}
             className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <option value="" disabled>
-              {!municipality
-                ? "Select a municipality first"
-                : filteredBarangays.length === 0
-                ? "No barangays found"
-                : "Select barangay"}
+              {loading ? "Loading barangays…" : "Select barangay"}
             </option>
-            {filteredBarangays.map((b) => (
+            {barangays.map((b) => (
               <option key={b.id} value={b.barangay_name}>
                 {b.barangay_name}
               </option>
