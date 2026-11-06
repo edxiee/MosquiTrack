@@ -149,28 +149,25 @@ export default function CompleteActionDialog({
         if (!isSubmitting) onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="sm:max-w-lg rounded-2xl">
+      <DialogContent className="w-[calc(100vw-1rem)] max-h-[65dvh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl sm:max-h-[90dvh] sm:max-w-lg sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-slate-900">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            Complete Action & Upload Proof
+          <DialogTitle className="flex items-start gap-2 pr-7 text-base leading-5 text-slate-900 sm:text-lg">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+            <span>Complete Action & Upload Proof</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500">
+          <DialogDescription className="text-xs leading-5 text-slate-500">
             Upload a photo as proof of completion for this field request. The image will be converted into a URL and saved to the database.
           </DialogDescription>
         </DialogHeader>
 
         {action && (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* Action Summary Banner */}
-            <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-slate-800 text-sm">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-semibold leading-5 text-slate-800">
                   {action.triggerSource}
                 </p>
-                <span className="font-mono text-xs text-slate-400">
-                  #{action.id.slice(0, 8)}
-                </span>
               </div>
               <p className="mt-1 text-xs text-slate-500">
                 {[action.municipalityName, action.barangayName]
@@ -209,7 +206,7 @@ export default function CompleteActionDialog({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessingImage || isSubmitting}
-                  className="w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/70 hover:bg-emerald-50/40 hover:border-emerald-400 px-4 py-8 transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/70 px-4 py-5 transition-colors hover:border-emerald-400 hover:bg-emerald-50/40 disabled:opacity-50 sm:min-h-36 sm:py-7"
                 >
                   {isProcessingImage ? (
                     <>
@@ -236,11 +233,11 @@ export default function CompleteActionDialog({
                 </button>
               ) : (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
-                  <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-white flex items-center justify-center max-h-60">
+                    <div className="relative flex max-h-40 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white sm:max-h-60">
                     <img
                       src={imageUrl}
                       alt="Proof of completion preview"
-                      className="max-h-60 w-auto object-contain"
+                        className="max-h-40 w-auto object-contain sm:max-h-60"
                     />
                   </div>
                   <div className="flex items-center justify-between gap-2">
@@ -300,6 +297,7 @@ export default function CompleteActionDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
+            className="min-h-10 w-full sm:w-auto"
           >
             Cancel
           </Button>
@@ -307,7 +305,7 @@ export default function CompleteActionDialog({
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting || isProcessingImage || !imageUrl}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+            className="min-h-10 w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 sm:w-auto"
           >
             {isSubmitting ? (
               <>

@@ -212,11 +212,14 @@ export async function updateActionStatus(
     status: input.status,
     ...(input.remarks !== undefined ? { remarks: input.remarks } : {}),
     ...(input.imageUrl !== undefined ? { image_url: input.imageUrl } : {}),
-    ...(input.status === "Completed"
-      ? { completed_at: new Date().toISOString() }
-      : {}),
+    completed_at:
+      input.status === "Completed" ? new Date().toISOString() : null,
     updated_at: new Date().toISOString(),
   };
+
+  if (input.status === "Pending") {
+    patch.assigned_to = null;
+  }
 
   // Record who took the action
   if (input.status === "In Progress" || input.status === "Completed") {

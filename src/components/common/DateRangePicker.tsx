@@ -20,6 +20,7 @@ interface DateRangePickerProps {
   onRangeChange: (from: string, to: string) => void;
   className?: string;
   placeholder?: string;
+  iconOnly?: boolean;
 }
 
 function formatYMD(d: Date): string {
@@ -67,6 +68,7 @@ export default function DateRangePicker({
   onRangeChange,
   className,
   placeholder = "Filter by date range...",
+  iconOnly = false,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false);
 
@@ -217,6 +219,7 @@ export default function DateRangePicker({
       <PopoverTrigger asChild>
         <button
           type="button"
+          aria-label={iconOnly ? `Filter by date: ${triggerLabel}` : undefined}
           className={cn(
             "flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg border transition-all cursor-pointer h-9.5",
             dateFrom
@@ -232,7 +235,7 @@ export default function DateRangePicker({
                 dateFrom ? "text-emerald-600" : "text-slate-400"
               )}
             />
-            <span className="truncate">{triggerLabel}</span>
+            {!iconOnly && <span className="truncate">{triggerLabel}</span>}
           </div>
 
           {dateFrom && (
