@@ -112,13 +112,13 @@ function MetricCard({
   }[accent];
 
   return (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
-      <CardContent className="flex items-start justify-between gap-4 p-6">
+    <Card className="rounded-xl border-slate-200 bg-white shadow-sm sm:rounded-2xl">
+    <CardContent className="flex items-start justify-between gap-3 p-4 sm:gap-4 sm:p-6">
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
             {label}
           </p>
-          <div className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+          <div className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 sm:mt-4 sm:text-3xl">
             {value}
           </div>
           <p className="mt-2 text-sm text-slate-500">{detail}</p>
@@ -201,10 +201,10 @@ export default function BhwDashboard() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
             Barangay Health Worker
           </p>
-          <h1 className="mt-1 text-4xl font-bold tracking-tight text-slate-950">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
             Barangay overview
           </h1>
-          <p className="mt-1 text-base text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 sm:text-base">
             {profile
               ? `Welcome back, ${profile.first_name}. Monitor trap devices and log field actions for your barangay.`
               : "Welcome back. Monitor trap devices and log field actions for your barangay."}
@@ -225,10 +225,10 @@ export default function BhwDashboard() {
       {/* Status banner */}
       <section
         role="status"
-        className={`flex items-center gap-4 rounded-2xl border p-5 shadow-sm ${banner.style}`}
+        className={`flex items-start gap-3 rounded-xl border p-4 shadow-sm sm:items-center sm:gap-4 sm:rounded-2xl sm:p-5 ${banner.style}`}
       >
         <div className={`rounded-xl p-3 ${banner.iconStyle}`}>
-          <BannerIcon className="size-6" />
+          <BannerIcon className="size-5 sm:size-6" />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -257,7 +257,7 @@ export default function BhwDashboard() {
       </section>
 
       {/* Metric cards */}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={Droplets}
           label="Barangay DVI"
@@ -292,7 +292,7 @@ export default function BhwDashboard() {
       </section>
 
       {/* Recent field alerts + triage log */}
-      <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle>Recent field alerts</CardTitle>
