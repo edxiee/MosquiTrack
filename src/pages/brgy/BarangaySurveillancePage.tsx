@@ -639,7 +639,7 @@ export default function BarangaySurveillancePage() {
         {/* ======================================================== */}
         <div className="relative flex min-h-[55vh] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs lg:min-h-[500px]">
           {/* Floating Risk Tier Legend */}
-          <div className="absolute top-1 right-1 z-20 flex flex-wrap justify-end items-center gap-2">
+          <div className="absolute top-0.5 right-1 z-20 flex flex-wrap justify-end items-center gap-2">
             
             <div className="flex flex-wrap justify-end items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200 shadow-md text-xs font-semibold text-slate-600">
               <span className="text-slate-400 text-[11px] uppercase mr-1">

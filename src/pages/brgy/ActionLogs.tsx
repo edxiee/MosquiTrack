@@ -36,6 +36,12 @@ function canViewAction(action: TriageAction, userId: string): boolean {
   return action.status !== "In Progress" || action.assignedTo === userId;
 }
 
+function viewForStatus(status: TriageStatus): TriageView {
+  if (status === "Pending") return "pending";
+  if (status === "In Progress") return "inProgress";
+  return "closed";
+}
+
 export default function ActionTriageLogPage() {
   const [actions, setActions] = useState<TriageAction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -251,6 +257,7 @@ export default function ActionTriageLogPage() {
       );
     }
     await updateActionStatus(actionId, { status: "Cancelled", remarks });
+    setSelectedView("closed");
     await loadActions();
   }
 
@@ -268,6 +275,7 @@ export default function ActionTriageLogPage() {
       imageUrl,
       remarks,
     });
+    setSelectedView("closed");
     await loadActions();
   }
 
@@ -286,6 +294,7 @@ export default function ActionTriageLogPage() {
       remarks,
       ...(imageUrl !== undefined ? { imageUrl } : {}),
     });
+    setSelectedView(viewForStatus(status));
     await loadActions();
   }
 
@@ -304,6 +313,8 @@ export default function ActionTriageLogPage() {
     setActions((prev) =>
       prev.map((a) => (a.id === action.id ? { ...a, status } : a)),
     );
+    const previousView = selectedView;
+    setSelectedView(viewForStatus(status));
     try {
       await updateActionStatus(action.id, {
         status,
@@ -312,6 +323,7 @@ export default function ActionTriageLogPage() {
       await loadActions();
     } catch (err) {
       console.error("Failed to update action:", err);
+      setSelectedView(previousView);
       await loadActions();
     }
   }
@@ -341,7 +353,7 @@ export default function ActionTriageLogPage() {
             onFiltersChange={setFilters}
           />
           <Button
-            variant={hasActiveFilters ? "ghost" : "outline"}
+            variant="outline"
             size="sm"
             onClick={() =>
               hasActiveFilters
@@ -349,12 +361,7 @@ export default function ActionTriageLogPage() {
                 : loadActions()
             }
             disabled={isLoading}
-            className={cn(
-              "h-10 w-10 shrink-0 rounded-lg p-0",
-              hasActiveFilters
-                ? "bg-rose-100 text-rose-700 hover:bg-rose-200"
-                : "border-slate-200 text-slate-700 hover:bg-slate-50"
-            )}
+            className="h-10 w-10 shrink-0 rounded-lg border-slate-200 bg-white p-0 text-slate-700 hover:bg-slate-50"
             aria-label={hasActiveFilters ? "Reset filters" : "Refresh"}
           >
             {hasActiveFilters ? (
@@ -371,6 +378,7 @@ export default function ActionTriageLogPage() {
         counts={triageCounts}
         selectedView={selectedView}
         onViewChange={setSelectedView}
+        isLoading={isLoading}
       />
 
       {/* Main Unified Container */}
@@ -392,10 +400,14 @@ export default function ActionTriageLogPage() {
           <span className="text-[11px] text-slate-400">
             MosquiTrack Field Response Operations
           </span>
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-2xs ring-1 ring-slate-200">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            Showing {filteredActions.length} of {sectionActionCount} Actions
-          </span>
+          {isLoading ? (
+            <span className="h-6 w-36 animate-pulse rounded-full bg-slate-200" />
+          ) : (
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-2xs ring-1 ring-slate-200">
+              <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
+              Showing {filteredActions.length} of {sectionActionCount} Actions
+            </span>
+          )}
         </div>
       </div>
 
