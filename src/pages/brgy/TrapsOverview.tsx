@@ -299,7 +299,7 @@ export default function HardwareNodesPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search trap, description, status…"
+              placeholder="Search"
               className="pl-9 h-10 text-sm"
             />
           </div>
@@ -317,30 +317,30 @@ export default function HardwareNodesPage() {
       </div>
 
       {/* Main Content Box with Tabs */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:rounded-2xl">
         {/* Top 3 Tabs: Deployed, Pending, In Storage */}
         <div className="flex border-b border-slate-200 bg-slate-50/50">
           <button
             type="button"
             onClick={() => setActiveTab("deployed")}
             className={cn(
-              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              "flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1.5 py-3 text-[11px] font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "deployed"
                 ? "border-emerald-600 text-emerald-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
             )}
           >
-            <MapPin className="size-4 text-emerald-600" />
+            <MapPin className="hidden size-4 text-emerald-600 sm:block" />
             <span>Deployed</span>
             <span
               className={cn(
-                "px-2 py-0.5 rounded-full text-xs font-bold transition-colors",
+                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs",
                 activeTab === "deployed"
                   ? "bg-emerald-600 text-white"
                   : "bg-slate-200/80 text-slate-700"
               )}
             >
-              {deployedDevices.length}
+              {loading ? <span className="block h-3 w-4 animate-pulse rounded bg-slate-300" /> : deployedDevices.length}
             </span>
           </button>
 
@@ -348,23 +348,23 @@ export default function HardwareNodesPage() {
             type="button"
             onClick={() => setActiveTab("pending")}
             className={cn(
-              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              "flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1.5 py-3 text-[11px] font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "pending"
                 ? "border-amber-500 text-amber-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
             )}
           >
-            <Clock className="size-4 text-amber-600" />
+            <Clock className="hidden size-4 text-amber-600 sm:block" />
             <span>Pending</span>
             <span
               className={cn(
-                "px-2 py-0.5 rounded-full text-xs font-bold transition-colors",
+                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs",
                 activeTab === "pending"
                   ? "bg-amber-500 text-white"
                   : "bg-slate-200/80 text-slate-700"
               )}
             >
-              {pendingDevices.length}
+              {loading ? <span className="block h-3 w-4 animate-pulse rounded bg-slate-300" /> : pendingDevices.length}
             </span>
           </button>
 
@@ -372,38 +372,88 @@ export default function HardwareNodesPage() {
             type="button"
             onClick={() => setActiveTab("in_storage")}
             className={cn(
-              "flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer",
+              "flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1.5 py-3 text-[11px] font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "in_storage"
                 ? "border-sky-600 text-sky-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
             )}
           >
-            <Boxes className="size-4 text-sky-600" />
-            <span>In storage</span>
+            <Boxes className="hidden size-4 text-sky-600 sm:block" />
+            <span>Storage</span>
             <span
               className={cn(
-                "px-2 py-0.5 rounded-full text-xs font-bold transition-colors",
+                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs",
                 activeTab === "in_storage"
                   ? "bg-sky-600 text-white"
                   : "bg-slate-200/80 text-slate-700"
               )}
             >
-              {inStorageDevices.length}
+              {loading ? <span className="block h-3 w-4 animate-pulse rounded bg-slate-300" /> : inStorageDevices.length}
             </span>
           </button>
         </div>
 
         {/* Table Content */}
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-slate-500 gap-2">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Loading {activeTab.replace("_", " ")} traps…
+          <div className="space-y-3 p-3 sm:p-5" aria-label="Loading traps">
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3">
+                <span className="h-4 w-20 animate-pulse rounded bg-slate-200" />
+                <span className="h-4 min-w-0 flex-1 animate-pulse rounded bg-slate-100" />
+                <span className="h-8 w-20 animate-pulse rounded bg-slate-100" />
+              </div>
+            ))}
           </div>
         ) : error ? (
           <div className="py-16 text-center text-rose-600 text-sm">{error}</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <>
+          <div className="divide-y divide-slate-100 md:hidden">
+            {filteredDevices.map((device) => {
+              const pendingReq = pendingRequests.get(device.id);
+              const hasLocation = device.latitude != null && device.longitude != null;
+
+              return (
+                <article key={device.id} className="flex min-w-0 items-center gap-2.5 px-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <span className="shrink-0 text-xs font-bold text-slate-900">{device.device_code}</span>
+                      <span className="min-w-0 truncate text-xs text-slate-500">
+                        {device.description || device.notes || formatDeployedBy(device.users)}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-slate-500">
+                      <span className="truncate">{formatDeployedBy(device.users)}</span>
+                      {hasLocation && (
+                        <button
+                          type="button"
+                          onClick={() => handleViewLocation(device)}
+                          className="shrink-0 font-semibold text-emerald-700"
+                        >
+                          Map
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    {pendingReq ? (
+                      <span className="text-[10px] font-medium text-amber-700">Pending</span>
+                    ) : activeTab === "deployed" ? (
+                      <Button size="sm" onClick={() => openRequestModal(device, "Request Pick-up")} className="h-8 px-2 text-[10px]">
+                        Pick-up
+                      </Button>
+                    ) : activeTab === "in_storage" ? (
+                      <Button size="sm" onClick={() => openRequestModal(device, "Request Deployment")} className="h-8 px-2 text-[10px]">
+                        Deploy
+                      </Button>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[700px] text-sm">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200">
                   <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
@@ -500,6 +550,7 @@ export default function HardwareNodesPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {!loading && !error && filteredDevices.length === 0 && (

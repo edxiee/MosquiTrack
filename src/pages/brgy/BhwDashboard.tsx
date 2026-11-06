@@ -97,12 +97,14 @@ function MetricCard({
   value,
   detail,
   accent = "emerald",
+  isLoading = false,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   detail: string;
   accent?: "emerald" | "amber" | "sky" | "slate";
+  isLoading?: boolean;
 }) {
   const accentStyles = {
     emerald: "bg-emerald-50 text-emerald-700",
@@ -112,14 +114,18 @@ function MetricCard({
   }[accent];
 
   return (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
-      <CardContent className="flex items-start justify-between gap-4 p-6">
+    <Card className="rounded-xl border-slate-200 bg-white shadow-sm sm:rounded-2xl">
+    <CardContent className="flex items-start justify-between gap-3 p-4 sm:gap-4 sm:p-6">
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
             {label}
           </p>
-          <div className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
-            {value}
+          <div className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 sm:mt-4 sm:text-3xl">
+            {isLoading ? (
+              <span className="block h-8 w-16 animate-pulse rounded bg-slate-200 sm:h-9" />
+            ) : (
+              value
+            )}
           </div>
           <p className="mt-2 text-sm text-slate-500">{detail}</p>
         </div>
@@ -201,10 +207,10 @@ export default function BhwDashboard() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
             Barangay Health Worker
           </p>
-          <h1 className="mt-1 text-4xl font-bold tracking-tight text-slate-950">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
             Barangay overview
           </h1>
-          <p className="mt-1 text-base text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 sm:text-base">
             {profile
               ? `Welcome back, ${profile.first_name}. Monitor trap devices and log field actions for your barangay.`
               : "Welcome back. Monitor trap devices and log field actions for your barangay."}
@@ -225,10 +231,10 @@ export default function BhwDashboard() {
       {/* Status banner */}
       <section
         role="status"
-        className={`flex items-center gap-4 rounded-2xl border p-5 shadow-sm ${banner.style}`}
+        className={`flex items-start gap-3 rounded-xl border p-4 shadow-sm sm:items-center sm:gap-4 sm:rounded-2xl sm:p-5 ${banner.style}`}
       >
         <div className={`rounded-xl p-3 ${banner.iconStyle}`}>
-          <BannerIcon className="size-6" />
+          <BannerIcon className="size-5 sm:size-6" />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -257,13 +263,14 @@ export default function BhwDashboard() {
       </section>
 
       {/* Metric cards */}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={Droplets}
           label="Barangay DVI"
           value={heroMetrics.barangayDvi}
           detail="Current reading for the active coverage area."
           accent="emerald"
+          isLoading={metricsLoading}
         />
 
         <MetricCard
@@ -272,6 +279,7 @@ export default function BhwDashboard() {
           value={heroMetrics.activeTrapNodes}
           detail="Devices currently reporting in the barangay."
           accent="sky"
+          isLoading={metricsLoading}
         />
 
         <MetricCard
@@ -280,6 +288,7 @@ export default function BhwDashboard() {
           value={heroMetrics.lowBatteryNodes}
           detail="Devices below the safe voltage threshold."
           accent="amber"
+          isLoading={metricsLoading}
         />
 
         <MetricCard
@@ -288,11 +297,12 @@ export default function BhwDashboard() {
           value={heroMetrics.openTriageActions}
           detail="Unresolved or pending log items."
           accent="slate"
+          isLoading={metricsLoading}
         />
       </section>
 
       {/* Recent field alerts + triage log */}
-      <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle>Recent field alerts</CardTitle>
@@ -312,11 +322,15 @@ export default function BhwDashboard() {
               </TableHeader>
               <TableBody>
                 {metricsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-slate-500">
-                      Loading recent alerts...
-                    </TableCell>
-                  </TableRow>
+                  [0, 1, 2].map((row) => (
+                    <TableRow key={row}>
+                      {[0, 1, 2, 3].map((cell) => (
+                        <TableCell key={cell}>
+                          <span className="block h-4 w-full max-w-28 animate-pulse rounded bg-slate-200" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
                 ) : recentAlerts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="py-6 text-center text-slate-500">
@@ -366,9 +380,13 @@ export default function BhwDashboard() {
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
             {metricsLoading ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                Loading action log...
-              </div>
+              [0, 1].map((row) => (
+                <div key={row} className="rounded-xl border border-slate-200 p-4">
+                  <span className="block h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+                  <span className="mt-3 block h-3 w-full animate-pulse rounded bg-slate-100" />
+                  <span className="mt-2 block h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+                </div>
+              ))
             ) : actionLog.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
                 No recent Action logs.

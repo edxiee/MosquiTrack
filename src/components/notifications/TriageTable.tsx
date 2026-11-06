@@ -99,11 +99,25 @@ export default function TriageTable({
   if (isLoading) {
     if (borderless) {
       return (
-        <div className="space-y-3 p-6">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100" />
-          ))}
-        </div>
+        <>
+          <div className="divide-y divide-slate-100 md:hidden" aria-label="Loading actions">
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="space-y-2 px-3 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+                  <span className="h-5 w-16 animate-pulse rounded-full bg-slate-100" />
+                </div>
+                <span className="block h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+                <span className="block h-3 w-3/4 animate-pulse rounded bg-slate-100" />
+              </div>
+            ))}
+          </div>
+          <div className="hidden space-y-3 p-6 md:block" aria-label="Loading actions">
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="h-14 animate-pulse rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        </>
       );
     }
     return (
@@ -118,7 +132,7 @@ export default function TriageTable({
   }
 
   const tableElement = (
-    <Table>
+    <Table className="min-w-[900px]">
       <TableHeader>
         <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
           <TableHead className="text-xs uppercase tracking-wide">Task</TableHead>

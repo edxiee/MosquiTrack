@@ -4,12 +4,14 @@ interface TriageStatisticsProps {
   counts: Record<TriageView, number>;
   selectedView: TriageView;
   onViewChange: (view: TriageView) => void;
+  isLoading?: boolean;
 }
 
 export default function TriageStatistics({
   counts,
   selectedView,
   onViewChange,
+  isLoading = false,
 }: TriageStatisticsProps) {
   const cards = [
     {
@@ -58,7 +60,11 @@ export default function TriageStatistics({
                 {label}
               </span>
               <span className="mt-1 block text-xl font-bold tabular-nums text-slate-900 sm:text-3xl">
-                {value}
+                {isLoading ? (
+                  <span className="block h-6 w-10 animate-pulse rounded bg-slate-200 sm:h-9 sm:w-14" />
+                ) : (
+                  value
+                )}
               </span>
             </span>
           </button>
