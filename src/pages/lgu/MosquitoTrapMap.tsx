@@ -156,15 +156,10 @@ const createCustomMarker = (activity: string, isOffline: boolean = false) => {
 };  
 
 export default function MacroGeospatialHeatmapPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const viewId = searchParams.get("viewId");
-  const urlBarangayId = searchParams.get("barangayId");
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
 
-  // LGU defaults to "all" (All Barangays in municipality) unless overridden in URL
-  const [selectedBarangayId, setSelectedBarangayId] = useState<string>(
-    urlBarangayId || "all"
-  );
   const [data, setData] = useState<BarangaySurveillanceData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -183,16 +178,23 @@ export default function MacroGeospatialHeatmapPage() {
   const loadData = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetchBarangaySurveillanceData(
-        selectedBarangayId || "all"
+      // Fetch specifically for Barangay San Juan
+      const res = await fetchBarangaySurveillanceData("all");
+      const sanJuanBarangay = res.availableBarangays?.find((b) =>
+        b.barangay_name.trim().toLowerCase().includes("san juan")
       );
-      setData(res);
+
+      let finalData = res;
+      if (sanJuanBarangay) {
+        finalData = await fetchBarangaySurveillanceData(sanJuanBarangay.id);
+      }
+      setData(finalData);
 
       // Check URL query param ?viewId=...
       if (viewId) {
         const trapFromUrl =
-          res.traps.find((t) => t.id === viewId) ||
-          res.traps.find((t) => t.device_code === viewId);
+          finalData.traps.find((t) => t.id === viewId) ||
+          finalData.traps.find((t) => t.device_code === viewId);
 
         if (trapFromUrl) {
           setSelectedTrap(trapFromUrl);
@@ -207,9 +209,9 @@ export default function MacroGeospatialHeatmapPage() {
       // Fallback selection
       setSelectedTrap((prev) => {
         const next =
-          prev && res.traps.find((t) => t.id === prev.id)
-            ? res.traps.find((t) => t.id === prev.id)!
-            : res.traps.find((t) => hasValidCoords(t)) ?? null;
+          prev && finalData.traps.find((t) => t.id === prev.id)
+            ? finalData.traps.find((t) => t.id === prev.id)!
+            : finalData.traps.find((t) => hasValidCoords(t)) ?? null;
 
         return next && hasValidCoords(next) ? next : null;
       });
@@ -221,7 +223,7 @@ export default function MacroGeospatialHeatmapPage() {
     } finally {
       setLoading(false);
     }
-  }, [viewId, selectedBarangayId]);
+  }, [viewId]);
 
   useEffect(() => {
     loadData();
@@ -260,18 +262,6 @@ export default function MacroGeospatialHeatmapPage() {
       supabase.removeChannel(actionsSub);
     };
   }, [loadData]);
-
-  const handleBarangayChange = (newBarangayId: string) => {
-    setSelectedBarangayId(newBarangayId);
-    setSearchParams((prev) => {
-      if (newBarangayId === "all") {
-        prev.delete("barangayId");
-      } else {
-        prev.set("barangayId", newBarangayId);
-      }
-      return prev;
-    });
-  };
 
   // Filter strictly to DEPLOYED traps
   const deployedTraps = useMemo(() => {
@@ -345,10 +335,9 @@ export default function MacroGeospatialHeatmapPage() {
     );
   }
 
-  const barangayName = data?.barangayName ?? "All Barangays";
+  const barangayName = data?.barangayName ?? "Barangay San Juan";
   const municipality = data?.municipality ?? "";
   const province = data?.province ?? "";
-  const availableBarangays = data?.availableBarangays ?? [];
   const mapCenter = data?.barangayCenter ?? { lat: 14.561, lng: 121.118 };
 
   return (
@@ -365,11 +354,7 @@ export default function MacroGeospatialHeatmapPage() {
                 Mosquito Trap Map
               </h1>
               <Badge className="bg-emerald-100/80 text-emerald-800 border-none font-bold px-2.5 py-0.5 text-xs">
-                {selectedBarangayId === "all"
-                  ? municipality
-                    ? `All Barangays (${municipality})`
-                    : "All Barangays"
-                  : barangayName}
+                {barangayName || "Barangay San Juan"}
               </Badge>
               {municipality && (
                 <span className="text-xs text-slate-400 font-medium hidden md:inline">
@@ -379,7 +364,7 @@ export default function MacroGeospatialHeatmapPage() {
               )}
             </div>
             <p className="text-[11px] text-slate-500">
-              {municipality ? `${municipality} Municipal` : "Municipal"} Geographic Information System field deployment map & IoT monitoring station
+              Barangay San Juan Geographic Information System field deployment map & IoT monitoring station
             </p>
           </div>
         </div>
@@ -397,23 +382,6 @@ export default function MacroGeospatialHeatmapPage() {
             />
             <span>{onlineCount} Online</span>
           </div>
-
-          {availableBarangays.length > 0 && (
-            <select
-              value={selectedBarangayId}
-              onChange={(e) => handleBarangayChange(e.target.value)}
-              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="all">
-                All Barangays {municipality ? `(${municipality})` : ""}
-              </option>
-              {availableBarangays.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.barangay_name}
-                </option>
-              ))}
-            </select>
-          )}
 
           <Button
             variant="outline"
@@ -542,11 +510,7 @@ export default function MacroGeospatialHeatmapPage() {
                 <p className="text-sm font-semibold text-slate-800">
                   {search.trim()
                     ? "No matching deployed traps"
-                    : `No deployed traps found in ${
-                        selectedBarangayId === "all"
-                          ? municipality || "this municipality"
-                          : barangayName
-                      }`}
+                    : `No deployed traps found in ${barangayName || "Barangay San Juan"}`}
                 </p>
                 <p className="text-xs text-slate-400 max-w-xs mx-auto">
                   {search.trim()
