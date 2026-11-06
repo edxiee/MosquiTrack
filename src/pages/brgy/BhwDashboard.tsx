@@ -97,12 +97,14 @@ function MetricCard({
   value,
   detail,
   accent = "emerald",
+  isLoading = false,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   detail: string;
   accent?: "emerald" | "amber" | "sky" | "slate";
+  isLoading?: boolean;
 }) {
   const accentStyles = {
     emerald: "bg-emerald-50 text-emerald-700",
@@ -119,7 +121,11 @@ function MetricCard({
             {label}
           </p>
           <div className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 sm:mt-4 sm:text-3xl">
-            {value}
+            {isLoading ? (
+              <span className="block h-8 w-16 animate-pulse rounded bg-slate-200 sm:h-9" />
+            ) : (
+              value
+            )}
           </div>
           <p className="mt-2 text-sm text-slate-500">{detail}</p>
         </div>
@@ -264,6 +270,7 @@ export default function BhwDashboard() {
           value={heroMetrics.barangayDvi}
           detail="Current reading for the active coverage area."
           accent="emerald"
+          isLoading={metricsLoading}
         />
 
         <MetricCard
@@ -272,6 +279,7 @@ export default function BhwDashboard() {
           value={heroMetrics.activeTrapNodes}
           detail="Devices currently reporting in the barangay."
           accent="sky"
+          isLoading={metricsLoading}
         />
 
         <MetricCard
@@ -280,6 +288,7 @@ export default function BhwDashboard() {
           value={heroMetrics.lowBatteryNodes}
           detail="Devices below the safe voltage threshold."
           accent="amber"
+          isLoading={metricsLoading}
         />
 
         <MetricCard
@@ -288,6 +297,7 @@ export default function BhwDashboard() {
           value={heroMetrics.openTriageActions}
           detail="Unresolved or pending log items."
           accent="slate"
+          isLoading={metricsLoading}
         />
       </section>
 
@@ -312,11 +322,15 @@ export default function BhwDashboard() {
               </TableHeader>
               <TableBody>
                 {metricsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-slate-500">
-                      Loading recent alerts...
-                    </TableCell>
-                  </TableRow>
+                  [0, 1, 2].map((row) => (
+                    <TableRow key={row}>
+                      {[0, 1, 2, 3].map((cell) => (
+                        <TableCell key={cell}>
+                          <span className="block h-4 w-full max-w-28 animate-pulse rounded bg-slate-200" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
                 ) : recentAlerts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="py-6 text-center text-slate-500">
@@ -366,9 +380,13 @@ export default function BhwDashboard() {
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
             {metricsLoading ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                Loading action log...
-              </div>
+              [0, 1].map((row) => (
+                <div key={row} className="rounded-xl border border-slate-200 p-4">
+                  <span className="block h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+                  <span className="mt-3 block h-3 w-full animate-pulse rounded bg-slate-100" />
+                  <span className="mt-2 block h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+                </div>
+              ))
             ) : actionLog.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
                 No recent Action logs.
