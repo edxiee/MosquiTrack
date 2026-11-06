@@ -36,7 +36,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -597,9 +596,6 @@ export default function ReportsAnalyticsPage() {
                 <Bug className="size-5" />
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Total mosquitoes detected where wingbeat frequency and beam break matched criteria
-            </p>
           </CardContent>
         </Card>
 
@@ -633,9 +629,6 @@ export default function ReportsAnalyticsPage() {
                 <AlertTriangle className="size-5" />
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Sensor triggers where frequency (Hz) or beam break (ms) did not match
-            </p>
           </CardContent>
         </Card>
 
@@ -675,9 +668,6 @@ export default function ReportsAnalyticsPage() {
                 <ShieldAlert className="size-5" />
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Trap vector danger classification based on surveillance thresholds
-            </p>
           </CardContent>
         </Card>
 
@@ -714,9 +704,6 @@ export default function ReportsAnalyticsPage() {
                 <Clock className="size-5" />
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Days remaining before the current 7-day surveillance cycle completes
-            </p>
           </CardContent>
         </Card>
       </section>
@@ -734,10 +721,6 @@ export default function ReportsAnalyticsPage() {
                   <Activity className="size-4 text-emerald-600" />
                   Mosquito Population Growth Trend & Intervention Impact
                 </CardTitle>
-                <CardDescription className="mt-0.5 text-xs text-slate-500">
-                  Daily confirmed mosquito counts {" "}
-                  with markers for completed misting & clean-up interventions.
-                </CardDescription>
               </div>
               <div className="flex items-center gap-3 text-xs">
                 <span className="inline-flex items-center gap-1.5 font-medium text-slate-600">
@@ -894,9 +877,6 @@ export default function ReportsAnalyticsPage() {
             <CardTitle className="text-base font-bold text-slate-900">
               Intervention Distribution
             </CardTitle>
-            <CardDescription className="text-xs text-slate-500">
-              Breakdown of field actions and mosquito-control work.
-            </CardDescription>
           </CardHeader>
 
           <CardContent className="pt-5 flex-1 flex flex-col justify-between gap-4">
