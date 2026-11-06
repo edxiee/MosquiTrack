@@ -98,16 +98,16 @@ export default function UpdateStatusDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-1rem)] max-h-[65dvh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl sm:max-h-[90dvh] sm:max-w-lg sm:p-6">
         <DialogHeader>
-          <DialogTitle>Manage Action</DialogTitle>
+          <DialogTitle className="pr-7 text-base sm:text-lg">Manage Action</DialogTitle>
         </DialogHeader>
 
         {action && (
-          <div className="space-y-5">
-            <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-              <p className="font-semibold text-slate-800">{action.triggerSource}</p>
-              <p className="mt-1 text-sm text-slate-500">
+          <div className="space-y-4 sm:space-y-5">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="break-words text-sm font-semibold leading-5 text-slate-800">{action.triggerSource}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
                 {action.barangayName}
                 {action.deviceCode ? ` · ${action.deviceCode}` : ""} ·{" "}
                 <span className="font-medium">{action.priority}</span> priority
@@ -116,7 +116,7 @@ export default function UpdateStatusDialog({
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
                 {STATUSES.map((s) => {
                   const active = status === s;
                   return (
@@ -124,7 +124,7 @@ export default function UpdateStatusDialog({
                       key={s}
                       type="button"
                       onClick={() => setStatus(s)}
-                      className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium ring-1 ring-inset transition-all hover:-translate-y-0.5 ${
+                      className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium ring-1 ring-inset transition-colors ${
                         active
                           ? `${STATUS_STYLES[s]} shadow-sm ring-2`
                           : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
@@ -160,7 +160,7 @@ export default function UpdateStatusDialog({
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isProcessingImage || isSaving}
-                    className="w-full flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/70 hover:bg-emerald-50/40 hover:border-emerald-400 px-4 py-5 transition-colors cursor-pointer"
+                    className="flex min-h-24 w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/70 px-4 py-4 transition-colors hover:border-emerald-400 hover:bg-emerald-50/40"
                   >
                     {isProcessingImage ? (
                       <Loader2 className="h-6 w-6 text-emerald-600 animate-spin" />
@@ -175,11 +175,11 @@ export default function UpdateStatusDialog({
                   </button>
                 ) : (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 space-y-2">
-                    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white flex items-center justify-center max-h-48">
+                    <div className="flex max-h-36 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white sm:max-h-48">
                       <img
                         src={imageUrl}
                         alt="Proof of completion"
-                        className="max-h-48 w-auto object-contain"
+                        className="max-h-36 w-auto object-contain sm:max-h-48"
                       />
                     </div>
                     <div className="flex items-center justify-end gap-1.5">
@@ -227,10 +227,11 @@ export default function UpdateStatusDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
+            className="min-h-10 w-full sm:w-auto"
           >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || isProcessingImage}>
+          <Button onClick={handleSave} disabled={isSaving || isProcessingImage} className="min-h-10 w-full sm:w-auto">
             {isSaving ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>

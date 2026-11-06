@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import TriageStatistics from "@/components/notifications/TriageStatistics";
+import TriageStatistics, { type TriageView } from "@/components/notifications/TriageStatistics";
 import TriageFilters from "@/components/notifications/TriageFilters";
 import TriageTable from "@/components/notifications/TriageTable";
 import UpdateStatusDialog from "@/components/notifications/UpdateStatusDialog";
 import CompleteActionDialog from "@/components/notifications/CompleteActionDialog";
+import CancelActionDialog from "@/components/notifications/CancelActionDialog";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, Filter, RefreshCw, RotateCcw } from "lucide-react";
+import { ClipboardList, RefreshCw, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   TriageAction,
@@ -15,12 +16,9 @@ import type {
 import {
   getActionById,
   getAssignedActions,
-  getBarangayOptions,
   updateActionStatus,
-  type BarangayFilterOption,
 } from "@/services/triage.service";
 import { supabase } from "@/lib/supabase";
-import { computeTriageStats } from "@/utils/triageHelpers";
 import { dispatchTriageStatusChange } from "@/hooks/useSidebarBadges";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -37,27 +35,22 @@ const DEFAULT_FILTERS: TriageFilterValues = {
 export default function ActionTriageLogPage() {
   const [actions, setActions] = useState<TriageAction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [barangayOptions, setBarangayOptions] = useState<BarangayFilterOption[]>([]);
   const [filters, setFilters] = useState<TriageFilterValues>(DEFAULT_FILTERS);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<TriageAction | null>(null);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [actionToComplete, setActionToComplete] = useState<TriageAction | null>(null);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [actionToCancel, setActionToCancel] = useState<TriageAction | null>(null);
   const { profile, loading: authLoading } = useAuth();
-  const isSysAdmin =
-    profile?.role?.role_code === "SYS_ADMIN" ||
-    profile?.role?.role_code === "ADMIN";
-  // Profiles no longer carry a barangay assignment (single-barangay system:
-  // Barangay San Juan), so all users see every action log.
-  const scopedBarangayId: string | undefined = undefined;
-  const scopedBarangayName: string | undefined = undefined;
+  const [selectedView, setSelectedView] = useState<TriageView>("pending");
 
-  async function loadActions(barangayId: string | undefined, barangayName: string | undefined) {
-    if (authLoading || !profile) return;
+  async function loadActions() {
+    if (authLoading || !profile?.id) return;
     setIsLoading(true);
     try {
-      const data = await getAssignedActions({ barangayId, barangayName });
+      const data = await getAssignedActions();
       setActions(data);
     } catch (err) {
       console.error("Failed to load action items:", err);
@@ -67,16 +60,11 @@ export default function ActionTriageLogPage() {
   }
 
   useEffect(() => {
-    if (authLoading || !profile) return;
+    if (authLoading || !profile?.id) return;
 
     let cancelled = false;
 
-    // Barangay changed: drop old rows and any stale barangay filter right away
-    setActions([]);
-    setFilters((prev) => ({ ...prev, barangay: "all" }));
-    setIsLoading(true);
-
-    getAssignedActions({ barangayId: scopedBarangayId, barangayName: scopedBarangayName })
+    getAssignedActions()
       .then((data) => {
         if (!cancelled) setActions(data);
       })
@@ -84,18 +72,6 @@ export default function ActionTriageLogPage() {
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
-
-    // Only fetch all barangay options for SYS_ADMIN.
-    // For barangay-scoped users (BHW, etc.) restrict the list strictly to their own barangay.
-if (!isSysAdmin && scopedBarangayName) {
-  setBarangayOptions([
-    { value: `::${scopedBarangayName}`, label: scopedBarangayName },
-  ]);
-} else if (isSysAdmin) {
-  getBarangayOptions()
-    .then(setBarangayOptions)
-    .catch((err) => console.error("Failed to load barangays:", err));
-}
 
     const channel = supabase
       .channel("action_triage_log_page_realtime")
@@ -105,9 +81,6 @@ if (!isSysAdmin && scopedBarangayName) {
           event: "*",
           schema: "public",
           table: "action_triage_log",
-          ...(scopedBarangayId
-            ? { filter: `barangay_id=eq.${scopedBarangayId}` }
-            : {}),
         },
         async (payload) => {
           if (payload.eventType === "INSERT" && payload.new && (payload.new as { id?: string }).id) {
@@ -148,15 +121,15 @@ if (newAction) {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [authLoading, scopedBarangayId, scopedBarangayName, isSysAdmin, profile?.id]);
+  }, [authLoading, profile?.id]);
 
-  const filteredActions = useMemo(() => {
+  const baseFilteredActions = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
     const statusOrder: Record<string, number> = {
       Pending: 0,
       "In Progress": 1,
-      Cancelled: 2,
-      Completed: 3,
+      Cancelled: 3,
+      Completed: 2,
     };
     const priorityOrder: Record<string, number> = {
       Critical: 0,
@@ -165,21 +138,14 @@ if (newAction) {
       Low: 3,
     };
     return actions.filter((a) => {
-      // Hard scope guard: when the user is not a system administrator,
-      // strictly focus ONLY on their assigned barangay.
-      // Under no circumstances should actions from other barangays be visible.
-      const matchesScope = true;
-
       const matchesSearch =
         q === "" ||
+        a.priority.toLowerCase().includes(q) ||
         a.barangayName.toLowerCase().includes(q) ||
         (a.deviceCode ?? "").toLowerCase().includes(q) ||
         (a.requestedByName ?? "").toLowerCase().includes(q);
       const matchesPriority =
         filters.priority === "all" || a.priority === filters.priority;
-      const matchesStatus =
-        filters.status === "all" || a.status === filters.status;
-      const matchesBarangay = true;
       const actionDate = (a.assignedDate ?? "").slice(0, 10);
       const matchesFrom =
         !filters.dateFrom || (actionDate !== "" && actionDate >= filters.dateFrom);
@@ -187,11 +153,8 @@ if (newAction) {
         !filters.dateTo || (actionDate !== "" && actionDate <= filters.dateTo);
 
       return (
-        matchesScope &&
         matchesSearch &&
         matchesPriority &&
-        matchesStatus &&
-        matchesBarangay &&
         matchesFrom &&
         matchesTo
       );
@@ -201,17 +164,44 @@ if (newAction) {
       (priorityOrder[a.priority] ?? Number.MAX_SAFE_INTEGER) -
       (priorityOrder[b.priority] ?? Number.MAX_SAFE_INTEGER),
     );
-  }, [actions, filters, scopedBarangayId, scopedBarangayName, isSysAdmin]);
+  }, [actions, filters]);
 
-  const stats = useMemo(
-    () => computeTriageStats(filteredActions),
-    [filteredActions],
+  const filteredActions = useMemo(
+    () =>
+      baseFilteredActions.filter((action) => {
+        if (selectedView === "pending") return action.status === "Pending";
+        if (selectedView === "inProgress") return action.status === "In Progress";
+        return action.status === "Completed" || action.status === "Cancelled";
+      }),
+    [baseFilteredActions, selectedView],
+  );
+
+  const sectionActionCount = useMemo(
+    () =>
+      actions.filter((action) => {
+        if (selectedView === "pending") return action.status === "Pending";
+        if (selectedView === "inProgress") return action.status === "In Progress";
+        return action.status === "Completed" || action.status === "Cancelled";
+      }).length,
+    [actions, selectedView],
+  );
+
+  const triageCounts = useMemo(
+    () => ({
+      pending: baseFilteredActions.filter((action) => action.status === "Pending")
+        .length,
+      inProgress: baseFilteredActions.filter(
+        (action) => action.status === "In Progress",
+      ).length,
+      closed: baseFilteredActions.filter(
+        (action) => action.status === "Completed" || action.status === "Cancelled",
+      ).length,
+    }),
+    [baseFilteredActions],
   );
 
   const hasActiveFilters =
     filters.search.trim() !== "" ||
-    filters.priority !== "all" ||
-    filters.status !== "all" ||
     Boolean(filters.dateFrom) ||
     Boolean(filters.dateTo);
 
@@ -223,6 +213,25 @@ if (newAction) {
   function handleOpenCompleteDialog(action: TriageAction) {
     setActionToComplete(action);
     setIsCompleteDialogOpen(true);
+  }
+
+  function handleOpenCancelDialog(action: TriageAction) {
+    setActionToCancel(action);
+    setIsCancelDialogOpen(true);
+  }
+
+  async function handleConfirmCancel(actionId: string, remarks: string) {
+    const previousAction = actions.find((action) => action.id === actionId);
+    if (previousAction?.status === "Pending") {
+      dispatchTriageStatusChange(
+        actionId,
+        "Cancelled",
+        previousAction.status,
+        previousAction.barangayId,
+      );
+    }
+    await updateActionStatus(actionId, { status: "Cancelled", remarks });
+    await loadActions();
   }
 
   async function handleConfirmComplete(
@@ -239,7 +248,7 @@ if (newAction) {
       imageUrl,
       remarks,
     });
-    await loadActions(scopedBarangayId, scopedBarangayName);
+    await loadActions();
   }
 
   async function handleSubmitUpdate(
@@ -257,7 +266,7 @@ if (newAction) {
       remarks,
       ...(imageUrl !== undefined ? { imageUrl } : {}),
     });
-    await loadActions(scopedBarangayId, scopedBarangayName);
+    await loadActions();
   }
 
   async function handleQuickStatus(action: TriageAction, status: TriageStatus) {
@@ -280,17 +289,17 @@ if (newAction) {
         status,
         ...(action.remarks ? { remarks: action.remarks } : {}),
       });
-      await loadActions(scopedBarangayId, scopedBarangayName);
+      await loadActions();
     } catch (err) {
       console.error("Failed to update action:", err);
-      await loadActions(scopedBarangayId, scopedBarangayName);
+      await loadActions();
     }
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div>
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
@@ -305,75 +314,67 @@ if (newAction) {
           </p>
         </div>
 
-        <div>
+        <div className="flex w-full items-center gap-2">
+          <TriageFilters
+            className="min-w-0 flex-1"
+            filters={filters}
+            onFiltersChange={setFilters}
+          />
           <Button
-            variant="outline"
+            variant={hasActiveFilters ? "ghost" : "outline"}
             size="sm"
-            onClick={() => loadActions(scopedBarangayId, scopedBarangayName)}
+            onClick={() =>
+              hasActiveFilters
+                ? setFilters(DEFAULT_FILTERS)
+                : loadActions()
+            }
             disabled={isLoading}
-            className="h-9 px-3 gap-1.5 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
+            className={cn(
+              "h-10 w-10 shrink-0 rounded-lg p-0",
+              hasActiveFilters
+                ? "bg-rose-100 text-rose-700 hover:bg-rose-200"
+                : "border-slate-200 text-slate-700 hover:bg-slate-50"
+            )}
+            aria-label={hasActiveFilters ? "Reset filters" : "Refresh"}
           >
-            <RefreshCw className={cn("size-3.5", isLoading && "animate-spin")} />
-            <span>Refresh</span>
+            {hasActiveFilters ? (
+              <RotateCcw className="size-3.5" />
+            ) : (
+              <RefreshCw className={cn("size-3.5", isLoading && "animate-spin")} />
+            )}
           </Button>
         </div>
       </div>
 
       {/* Overview Metric Stats */}
-      <TriageStatistics stats={stats} />
+      <TriageStatistics
+        counts={triageCounts}
+        selectedView={selectedView}
+        onViewChange={setSelectedView}
+      />
 
       {/* Main Unified Container */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {/* Container Filter & Search Toolbar */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/60">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Filter className="size-4 text-slate-500" />
-                <span className="text-sm font-semibold text-slate-800">
-                  Filter & Search Action Log
-                </span>
-              </div>
-              {hasActiveFilters && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setFilters(DEFAULT_FILTERS)}
-                  className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 rounded-lg cursor-pointer"
-                >
-                  <RotateCcw className="size-3 mr-1.5" />
-                  Reset Filters
-                </Button>
-              )}
-            </div>
-
-            <TriageFilters
-              filters={filters}
-              onFiltersChange={setFilters}
-              barangayOptions={barangayOptions}
-              hideBarangayFilter={true}
-            />
-          </div>
-        </div>
-
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:rounded-2xl">
         {/* Seamless Table Content */}
         <TriageTable
           actions={filteredActions}
+          view={selectedView}
           isLoading={isLoading}
           onUpdateStatus={handleUpdateStatus}
           onQuickStatus={handleQuickStatus}
           onCompleteAction={handleOpenCompleteDialog}
+          onCancelAction={handleOpenCancelDialog}
           borderless
         />
 
         {/* Container Footer */}
-        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between text-xs text-slate-500">
+        <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/40 px-3 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <span className="text-[11px] text-slate-400">
             MosquiTrack Field Response Operations
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-2xs ring-1 ring-slate-200">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-2xs ring-1 ring-slate-200">
             <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            Showing {filteredActions.length} of {actions.length} Actions
+            Showing {filteredActions.length} of {sectionActionCount} Actions
           </span>
         </div>
       </div>
@@ -390,6 +391,14 @@ if (newAction) {
         onOpenChange={setIsCompleteDialogOpen}
         action={actionToComplete}
         onConfirmComplete={handleConfirmComplete}
+      />
+
+      <CancelActionDialog
+        key={`${actionToCancel?.id ?? "none"}-${isCancelDialogOpen}`}
+        open={isCancelDialogOpen}
+        onOpenChange={setIsCancelDialogOpen}
+        action={actionToCancel}
+        onConfirmCancel={handleConfirmCancel}
       />
     </div>
   );
