@@ -206,8 +206,8 @@ export default function BhwDashboard() {
           </h1>
           <p className="mt-1 text-base text-slate-600">
             {profile
-              ? `Welcome back, ${profile.first_name}. Monitor trap nodes and log field actions for your barangay.`
-              : "Welcome back. Monitor trap nodes and log field actions for your barangay."}
+              ? `Welcome back, ${profile.first_name}. Monitor trap devices and log field actions for your barangay.`
+              : "Welcome back. Monitor trap devices and log field actions for your barangay."}
           </p>
         </div>
 
@@ -268,9 +268,9 @@ export default function BhwDashboard() {
 
         <MetricCard
           icon={MapPinned}
-          label="Active trap nodes"
+          label="Active trap devices"
           value={heroMetrics.activeTrapNodes}
-          detail="Nodes currently reporting in the barangay."
+          detail="Devices currently reporting in the barangay."
           accent="sky"
         />
 
@@ -278,7 +278,7 @@ export default function BhwDashboard() {
           icon={BatteryLow}
           label="Low-battery alerts"
           value={heroMetrics.lowBatteryNodes}
-          detail="Nodes below the safe voltage threshold."
+          detail="Devices below the safe voltage threshold."
           accent="amber"
         />
 
