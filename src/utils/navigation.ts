@@ -30,17 +30,29 @@ export const ROUTES = {
     systemControls: "/admin/system-controls",
     requestActionsOverview: "/admin/request-actions-overview",
   },
+  barangay: {
+    dashboard: "/barangay/dashboard",
+    trapMap: "/barangay/trap-map",
+    trapActionRequests: "/barangay/trap-action-requests",
+    reports: "/barangay/reports",
+  },
   lgu: {
-    dashboard: "/lgu/dashboard",
-    trapMap: "/lgu/trap-map",
-    trapActionRequests: "/lgu/trap-action-requests",
-    reports: "/lgu/reports",
+    dashboard: "/barangay/dashboard",
+    trapMap: "/barangay/trap-map",
+    trapActionRequests: "/barangay/trap-action-requests",
+    reports: "/barangay/reports",
+  },
+  fieldOps: {
+    dashboard: "/field-ops/dashboard",
+    surveillance: "/field-ops/surveillance",
+    trapOverview: "/field-ops/traps-overview",
+    actionLogs: "/field-ops/action-logs",
   },
   bhw: {
-    dashboard: "/bhw/dashboard",
-    surveillance: "/bhw/surveillance",
-    trapOverview: "/bhw/traps-overview",
-    actionLogs: "/bhw/action-logs",
+    dashboard: "/field-ops/dashboard",
+    surveillance: "/field-ops/surveillance",
+    trapOverview: "/field-ops/traps-overview",
+    actionLogs: "/field-ops/action-logs",
   },
 } as const;
 
@@ -82,19 +94,19 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       ],
     },
     {
-      title: "LGU MONITORING",
+      title: "BARANGAY SURVEILLANCE & COMMAND",
       items: [
-        { name: "Mosquito Trap Map", path: ROUTES.lgu.trapMap, icon: Map },
-        { name: "Traps List & Requests", path: ROUTES.lgu.trapActionRequests, icon: ClipboardList },
-        { name: "Trap Reports", path: ROUTES.lgu.reports, icon: BarChart3 },
+        { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
+        { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
+        { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
       ],
     },
     {
-      title: "BARANGAY OPERATIONS",
+      title: "FIELD OPERATIONS",
       items: [
-        { name: "Barangay Surveillance", path: ROUTES.bhw.surveillance, icon: Eye },
-        { name: "Traps Deployment", path: ROUTES.bhw.trapOverview, icon: Boxes },
-        { name: "Action Logs", path: ROUTES.bhw.actionLogs, icon: FileText },
+        { name: "Barangay Surveillance", path: ROUTES.fieldOps.surveillance, icon: Eye },
+        { name: "Traps Deployment", path: ROUTES.fieldOps.trapOverview, icon: Boxes },
+        { name: "Action Logs", path: ROUTES.fieldOps.actionLogs, icon: FileText },
       ],
     },
   ],
@@ -119,32 +131,32 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
     },
   ],
 
-  [ROLES.LGU_ADMIN]: [
+  [ROLES.BARANGAY_ADMIN]: [
     {
       title: "",
-      items: [{ name: "Dashboard", path: ROUTES.lgu.dashboard, icon: LayoutDashboard }],
+      items: [{ name: "Dashboard", path: ROUTES.barangay.dashboard, icon: LayoutDashboard }],
     },
     {
-      title: "LGU MONITORING",
+      title: "BARANGAY SURVEILLANCE & COMMAND",
       items: [
-        { name: "Mosquito Trap Map", path: ROUTES.lgu.trapMap, icon: Map },
-        { name: "Traps List & Requests", path: ROUTES.lgu.trapActionRequests, icon: ClipboardList },
-        { name: "Trap Reports", path: ROUTES.lgu.reports, icon: BarChart3 },
+        { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
+        { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
+        { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
       ],
     },
   ],
 
-  [ROLES.BHW]: [
+  [ROLES.FIELD_OPERATIVE]: [
     {
       title: "",
-      items: [{ name: "Dashboard", path: ROUTES.bhw.dashboard, icon: LayoutDashboard }],
+      items: [{ name: "Dashboard", path: ROUTES.fieldOps.dashboard, icon: LayoutDashboard }],
     },
     {
-      title: "BARANGAY OPERATIONS",
+      title: "FIELD OPERATIONS",
       items: [
-        { name: "Barangay Surveillance", path: ROUTES.bhw.surveillance, icon: Eye },
-        { name: "Traps Deployment", path: ROUTES.bhw.trapOverview, icon: Boxes },
-        { name: "Action Logs", path: ROUTES.bhw.actionLogs, icon: FileText },
+        { name: "Barangay Surveillance", path: ROUTES.fieldOps.surveillance, icon: Eye },
+        { name: "Traps Deployment", path: ROUTES.fieldOps.trapOverview, icon: Boxes },
+        { name: "Action Logs", path: ROUTES.fieldOps.actionLogs, icon: FileText },
       ],
     },
   ],

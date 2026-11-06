@@ -63,8 +63,8 @@ export default function RoleAssignmentForm({
               </SelectItem>
             )}
 
-            <SelectItem value="MHO">Municipal Health Officer</SelectItem>
-            <SelectItem value="BHW">Barangay Health Worker</SelectItem>
+            <SelectItem value="BRGY_ADMIN">Barangay Administrator</SelectItem>
+            <SelectItem value="FIELD_OP">Field Operative</SelectItem>
           </SelectContent>
         </Select>
 

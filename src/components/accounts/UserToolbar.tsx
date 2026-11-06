@@ -59,8 +59,9 @@ export default function UserToolbar({
           <SelectContent>
             <SelectItem value="all">All Roles</SelectItem>
             <SelectItem value="SYS_ADMIN">System Administrator</SelectItem>
-            <SelectItem value="MHO">Municipal Health Officer</SelectItem>
-            <SelectItem value="BHW">Barangay Health Worker</SelectItem>
+            <SelectItem value="ADMIN">Site Administrator</SelectItem>
+            <SelectItem value="BRGY_ADMIN">Barangay Administrator</SelectItem>
+            <SelectItem value="FIELD_OP">Field Operative</SelectItem>
           </SelectContent>
         </Select>
         {/* Status Filter */}

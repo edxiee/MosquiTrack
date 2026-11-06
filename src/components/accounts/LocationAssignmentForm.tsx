@@ -120,8 +120,8 @@ export default function LocationAssignmentForm({
         )}
       </div>
 
-      {/* Barangay – for BHW / SYS_ADMIN / ADMIN */}
-      {(role === "BHW" || role === "SYS_ADMIN" || role === "ADMIN") && (
+      {/* Barangay – for FIELD_OP / BRGY_ADMIN / BHW / SYS_ADMIN / ADMIN */}
+      {(role === "FIELD_OP" || role === "BRGY_ADMIN" || role === "BHW" || role === "SYS_ADMIN" || role === "ADMIN") && (
         <div className="space-y-2">
           <Label htmlFor="barangay">
             Barangay <span className="text-rose-500">*</span>

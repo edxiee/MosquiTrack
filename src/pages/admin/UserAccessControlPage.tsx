@@ -54,6 +54,8 @@ export default function UserAccessControlPage() {
   const ROLE_ORDER: Record<string, number> = {
     SYS_ADMIN: 0,
     ADMIN: 1,
+    BRGY_ADMIN: 2,
+    FIELD_OP: 3,
     MHO: 2,
     BHW: 3,
   };

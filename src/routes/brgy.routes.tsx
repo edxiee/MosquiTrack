@@ -12,10 +12,38 @@ const ActionLogs = lazyWithRetry(() => import("@/pages/brgy/ActionLogs"));
 
 export const brgyRoutes: RouteObject[] = [
   {
+    path: "/field-ops",
+    element: (
+      <ProtectedRoute>
+        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.FIELD_OPERATIVE]}>
+          <DashboardLayout />
+        </RoleGuard>
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        path: "dashboard",
+        element: <BhwDashboard />,
+      },
+      {
+        path: "surveillance",
+        element: <BarangaySurveillancePage />,
+      },
+      {
+        path: "traps-overview",
+        element: <TrapsOverview />,
+      },
+      {
+        path: "action-logs",
+        element: <ActionLogs />,
+      },
+    ],
+  },
+  {
     path: "/bhw",
     element: (
       <ProtectedRoute>
-        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.BHW]}>
+        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.FIELD_OPERATIVE]}>
           <DashboardLayout />
         </RoleGuard>
       </ProtectedRoute>

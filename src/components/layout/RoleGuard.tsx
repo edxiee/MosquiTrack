@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import type { RoleCode } from "@/constants/roles";
+import { ROLES, type RoleCode } from "@/constants/roles";
 
 interface RoleGuardProps {
   allow?: RoleCode[];
@@ -38,12 +38,12 @@ export default function RoleGuard({ allow, allowedRoles, children }: RoleGuardPr
 
   // Not allowed for this route
   if (!allowed.includes(roleCode)) {
-    // Special redirect for BHW and MHO
-    if (roleCode === "BHW") {
-      return <Navigate to="/bhw/dashboard" replace />;
+    // Special redirect for Field Operatives and Barangay Admin
+    if (roleCode === ROLES.FIELD_OPERATIVE || (roleCode as string) === "BHW") {
+      return <Navigate to="/field-ops/dashboard" replace />;
     }
-    if (roleCode === "MHO") {
-      return <Navigate to="/lgu/dashboard" replace />;
+    if (roleCode === ROLES.BARANGAY_ADMIN || (roleCode as string) === "MHO") {
+      return <Navigate to="/barangay/dashboard" replace />;
     }
 
     // Everyone else

@@ -5,7 +5,7 @@ import type {
   AuthProfile,
   AuthRole,
 } from "@/types/auth.types";
-import type { RoleCode } from "@/constants/roles";
+import { ROLES, type RoleCode } from "@/constants/roles";
 
 export async function getCurrentProfile(): Promise<AuthProfile> {
   const {
@@ -38,13 +38,15 @@ export async function getCurrentProfile(): Promise<AuthProfile> {
 
   const roleCodeFromColumn = data.role as RoleCode | undefined;
   const roleCodeFromJoin = (data.roles as any)?.role_code as RoleCode | undefined;
-  const effectiveRoleCode: RoleCode = roleCodeFromColumn ?? roleCodeFromJoin ?? "BHW";
+  const effectiveRoleCode: RoleCode = roleCodeFromColumn ?? roleCodeFromJoin ?? ROLES.FIELD_OPERATIVE;
 
   const roleNameMap: Record<string, string> = {
     SYS_ADMIN: "System Administrator",
     ADMIN: "Administrator",
-    MHO: "Municipal Health Officer",
-    BHW: "Barangay Health Worker",
+    BRGY_ADMIN: "Barangay Administrator",
+    FIELD_OP: "Field Operative",
+    MHO: "Barangay Administrator",
+    BHW: "Field Operative",
   };
 
   const authRole: AuthRole = {

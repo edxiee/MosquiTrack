@@ -50,7 +50,7 @@ export function validateCreateUserForm(formData: CreateUserForm): UserFormErrors
 
   // FIXED: Added parentheses for correct logical grouping
   if (
-    (formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
+    (formData.role === "FIELD_OP" || formData.role === "BRGY_ADMIN" || formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
     !formData.barangay?.trim()
   ) {
     errors.barangay = "Barangay is required";
@@ -103,7 +103,7 @@ export function validateUpdateUserForm(
 
   // FIXED: Added parentheses for correct logical grouping
   if (
-    (formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
+    (formData.role === "FIELD_OP" || formData.role === "BRGY_ADMIN" || formData.role === "BHW" || formData.role === "SYS_ADMIN") &&
     !formData.barangay?.trim()
   ) {
     errors.barangay = "Barangay is required";
