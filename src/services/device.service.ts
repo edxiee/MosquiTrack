@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice, DeviceStatus, Barangay, UserName } from "@/types/device.types";
 import { getConsecutiveCriticalDays } from "@/utils/dangerTiers";
-import { isSameLocalDay } from "@/utils/dateHelpers";
+import { getLocalDateKey, isSameLocalDay } from "@/utils/dateHelpers";
 
 let hasSurveillanceRpc = true;
 let hasOperationalStatusColumn = true;
@@ -150,7 +150,7 @@ export async function getDeviceSurveillanceSummary(
         todayCountMap.set(r.device_id, cur + (r.mosquito_count ?? 0));
       }
 
-      const day = time.slice(0, 10);
+      const day = getLocalDateKey(new Date(time));
       const deviceDays =
         dailyCountMap.get(r.device_id) ?? new Map<string, number>();
       deviceDays.set(day, (deviceDays.get(day) ?? 0) + (r.mosquito_count ?? 0));
@@ -161,8 +161,8 @@ export async function getDeviceSurveillanceSummary(
   for (const id of deviceIds) {
     const days = Array.from({ length: 3 }, (_, offset) => {
       const day = new Date();
-      day.setUTCDate(day.getUTCDate() - offset);
-      return dailyCountMap.get(id)?.get(day.toISOString().slice(0, 10)) ?? 0;
+      day.setDate(day.getDate() - offset);
+      return dailyCountMap.get(id)?.get(getLocalDateKey(day)) ?? 0;
     });
 
     summaryMap.set(id, {

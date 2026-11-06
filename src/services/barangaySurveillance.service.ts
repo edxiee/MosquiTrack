@@ -714,6 +714,7 @@ export async function submitTriageRequest(payload: {
   priority: "Low" | "Medium" | "High" | "Critical";
   remarks: string;
   dueDate: string;
+  automated?: boolean;
 }): Promise<void> {
   const {
     data: { user },

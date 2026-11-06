@@ -1,5 +1,5 @@
 // src/pages/lgu/PrescriptiveAnalyticsPage.tsx
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronDown,
@@ -41,7 +41,12 @@ import { getLocalDateKey } from "@/utils/dateHelpers";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchMySubmittedTriageLogs, type TriageLogRow } from "@/services/trapRequest.service";
+import {
+  fetchMySubmittedTriageLogs,
+  fetchTriageRequestsByDevice,
+  SYSTEM_AUTOMATED_ACTION_MARKER,
+  type TriageLogRow,
+} from "@/services/trapRequest.service";
 
 // --- HELPER FUNCTION FOR TIME AGO ---
 function formatTimeAgo(dateStr?: string | null): string {
@@ -66,6 +71,26 @@ const REQUEST_TYPES = ["Send Monitoring Personnel", "Clean-up Drive", "Solution 
 type RequestType = (typeof REQUEST_TYPES)[number];
 const PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 type PriorityType = (typeof PRIORITIES)[number];
+
+function getDeviceDangerCount(device: OvitrapDevice): number | null {
+  return device.today_mosquito_count ?? 0;
+}
+
+function getRequestDefaults(danger: ReturnType<typeof getTrapDangerLevel>): {
+  requestType: RequestType;
+  priority: PriorityType;
+} {
+  if (danger.level === "Critical") {
+    return { requestType: "Solution Misting", priority: "Critical" };
+  }
+  if (danger.level === "High") {
+    return { requestType: "Solution Misting", priority: "High" };
+  }
+  if (danger.level === "Moderate") {
+    return { requestType: "Clean-up Drive", priority: "Medium" };
+  }
+  return { requestType: "Send Monitoring Personnel", priority: "Low" };
+}
 
 // --- REQUEST ACTION MODAL COMPONENT ---
 interface RequestActionModalProps {
@@ -96,13 +121,14 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
     if (open && device) {
       setDescription(device.description || device.notes || "");
       setNotes("");
-      setRequestType("");
       setDueDate(getLocalDateKey());
-      const tier = getDangerTier(
-        device.today_mosquito_count,
+      const danger = getTrapDangerLevel(
+        getDeviceDangerCount(device),
         device.consecutive_critical_days,
       );
-      setPriority(tier === "Moderate" ? "Medium" : tier);
+      const defaults = getRequestDefaults(danger);
+      setRequestType(defaults.requestType);
+      setPriority(defaults.priority);
       setError(null);
     }
   }, [open, device]);
@@ -202,6 +228,7 @@ function RequestActionModal({ open, device, onClose, onSubmit }: RequestActionMo
 export default function PrescriptiveAnalyticsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const automatedRequestChecks = useRef(new Set<string>());
 
   // --- EXISTING STATE (First Container) ---
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
@@ -225,6 +252,38 @@ export default function PrescriptiveAnalyticsPage() {
   const [myRequestDetailOpen, setMyRequestDetailOpen] = useState(false);
   const [selectedMyRequest, setSelectedMyRequest] = useState<TriageLogRow | null>(null);
 
+  async function ensureAutomatedCriticalActions(criticalDevices: OvitrapDevice[]) {
+    await Promise.all(criticalDevices.map(async (device) => {
+      if (!device.barangay_id || automatedRequestChecks.current.has(device.id)) return;
+      automatedRequestChecks.current.add(device.id);
+
+      try {
+        const existing = await fetchTriageRequestsByDevice(device.barangay_id, device.device_code);
+        const hasActiveAutomatedAction = existing.some((action) =>
+          action.remarks?.split(" | ").includes(SYSTEM_AUTOMATED_ACTION_MARKER) &&
+          action.trigger_source === "Solution Misting" &&
+          action.priority === "Critical" &&
+          (action.status === "Pending" || action.status === "In Progress")
+        );
+
+        if (!hasActiveAutomatedAction) {
+          await submitTriageRequest({
+            barangayId: device.barangay_id,
+            deviceId: device.id,
+            triggerSource: "Solution Misting",
+            priority: "Critical",
+            remarks: [SYSTEM_AUTOMATED_ACTION_MARKER, `Trap: ${device.device_code}`, "Critical mosquito activity detected"].join(" | "),
+            dueDate: getLocalDateKey(),
+            automated: true,
+          });
+        }
+      } catch (err) {
+        automatedRequestChecks.current.delete(device.id);
+        console.error(`Failed to automate critical request for trap ${device.device_code}:`, err);
+      }
+    }));
+  }
+
   // --- EXISTING LOGIC (First Container) ---
   const toggleExpand = (deviceId: string) => {
     setExpandedTrapIds((prev) => {
@@ -247,6 +306,10 @@ export default function PrescriptiveAnalyticsPage() {
         return (a.device_code || "").localeCompare(b.device_code || "");
       });
       setDevices(sorted);
+      const criticalDevices = sorted.filter((device) =>
+        getDangerTier(getDeviceDangerCount(device), device.consecutive_critical_days) === "Critical"
+      );
+      void ensureAutomatedCriticalActions(criticalDevices);
     } catch (err: unknown) {
       const msg = getErrorMessage(err, "Failed to load devices");
       setError(msg);
@@ -283,6 +346,7 @@ export default function PrescriptiveAnalyticsPage() {
   };
 
   const openRequestModal = (device: OvitrapDevice) => {
+    if (getDangerTier(getDeviceDangerCount(device), device.consecutive_critical_days) === "Critical") return;
     setSelectedDevice(device);
     setModalOpen(true);
   };
@@ -312,6 +376,7 @@ export default function PrescriptiveAnalyticsPage() {
         priority: payload.priority,
         remarks: combinedRemarks,
         dueDate: payload.dueDate,
+        automated: false,
       });
 
       setLastRequestType(payload.requestType);
@@ -429,7 +494,7 @@ export default function PrescriptiveAnalyticsPage() {
                 {filteredDevices.map((device) => {
                   const hasLocation = device.latitude != null;
                   const isExpanded = expandedTrapIds.has(device.id);
-                  const countForDanger = device.today_mosquito_count ?? 0;
+                  const countForDanger = getDeviceDangerCount(device);
                   const danger = getTrapDangerLevel(
                     countForDanger,
                     device.consecutive_critical_days,
@@ -475,8 +540,8 @@ export default function PrescriptiveAnalyticsPage() {
                           </Button>
                         </td>
                         <td className="px-5 py-4">
-                          <Button size="sm" onClick={(e) => { e.stopPropagation(); openRequestModal(device); }} className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer">
-                            <Send className="w-3.5 h-3.5" />Post Request Action
+                          <Button size="sm" disabled={danger.level === "Critical"} onClick={(e) => { e.stopPropagation(); openRequestModal(device); }} className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-60">
+                            <Send className="w-3.5 h-3.5" />{danger.level === "Critical" ? "System Automated" : "Post Request Action"}
                           </Button>
                         </td>
                         

@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import type { TelemetryReading } from "@/types/telemetry.types";
-import { isSameLocalDay } from "@/utils/dateHelpers";
 
 // Raw shape as it comes back from Supabase before flattening the joins
 interface RawReadingRow {
@@ -118,9 +117,10 @@ export async function getDeviceReadings(
   deviceId: string,
   limit = 100,
 ): Promise<DeviceReadingSummary[]> {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
-  sevenDaysAgo.setUTCHours(0, 0, 0, 0);
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const nextDayStart = new Date(dayStart);
+  nextDayStart.setDate(nextDayStart.getDate() + 1);
 
   const { data, error } = await supabase
     .from("ovitrap_readings")
@@ -128,7 +128,8 @@ export async function getDeviceReadings(
       "id, device_id, captured_at, created_at, updated_at, mosquito_count, battery_level, temperature_c, humidity_percent, frequency_hz, beam_break_ms, image_path",
     )
     .eq("device_id", deviceId)
-    .gte("captured_at", sevenDaysAgo.toISOString())
+    .gte("captured_at", dayStart.toISOString())
+    .lt("captured_at", nextDayStart.toISOString())
     .order("captured_at", { ascending: false })
     .limit(limit);
 
@@ -142,62 +143,56 @@ export async function getDeviceReadings(
 export interface DeviceMosquitoStats {
   todaySum: number;
   todayPingsCount: number;
-  allTimeSum: number;
-  allTimePingsCount: number;
   latestCount: number | null;
 }
 
 /**
- * Calculates mosquito counts and ping metrics from ovitrap_readings bounded to a 7-day window.
+ * Calculates complete mosquito counts and ping metrics for the current local day.
  */
 export async function getDeviceMosquitoStats(
   deviceId: string,
 ): Promise<DeviceMosquitoStats> {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
-  sevenDaysAgo.setUTCHours(0, 0, 0, 0);
-
-  const { data, error } = await supabase
-    .from("ovitrap_readings")
-    .select("captured_at, created_at, mosquito_count")
-    .eq("device_id", deviceId)
-    .gte("captured_at", sevenDaysAgo.toISOString())
-    .order("captured_at", { ascending: false })
-    .limit(500);
-
-  if (error) {
-    console.error("Failed to fetch device mosquito stats:", error);
-    return {
-      todaySum: 0,
-      todayPingsCount: 0,
-      allTimeSum: 0,
-      allTimePingsCount: 0,
-      latestCount: null,
-    };
-  }
-
-  const readings = data ?? [];
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const nextDayStart = new Date(dayStart);
+  nextDayStart.setDate(nextDayStart.getDate() + 1);
   let todaySum = 0;
   let todayPingsCount = 0;
-  let allTimeSum = 0;
-  const latestCount = readings.length > 0 ? readings[0]?.mosquito_count ?? 0 : null;
+  let latestCount: number | null = null;
+  const pageSize = 1000;
 
-  for (const r of readings) {
-    const time = r.captured_at || r.created_at || "";
-    const count = r.mosquito_count ?? 0;
-    allTimeSum += count;
+  try {
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from("ovitrap_readings")
+        .select("captured_at, created_at, mosquito_count")
+        .eq("device_id", deviceId)
+        .gte("captured_at", dayStart.toISOString())
+        .lt("captured_at", nextDayStart.toISOString())
+        .order("captured_at", { ascending: false })
+        .range(offset, offset + pageSize - 1);
 
-    if (isSameLocalDay(time)) {
-      todaySum += count;
-      todayPingsCount++;
+      if (error) throw error;
+      const readings = data ?? [];
+      if (offset === 0 && readings.length > 0) {
+        latestCount = readings[0]?.mosquito_count ?? null;
+      }
+
+      for (const reading of readings) {
+        todaySum += reading.mosquito_count ?? 0;
+        todayPingsCount++;
+      }
+
+      if (readings.length < pageSize) break;
     }
+  } catch (error) {
+    console.error("Failed to fetch device mosquito stats:", error);
+    return { todaySum: 0, todayPingsCount: 0, latestCount: null };
   }
 
   return {
     todaySum,
     todayPingsCount,
-    allTimeSum,
-    allTimePingsCount: readings.length,
     latestCount,
   };
 }
