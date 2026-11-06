@@ -53,6 +53,10 @@ export interface DeviceStatusSummaryEntry {
 // ─── Epidemiological Reports & Analytics Types ───────────────────────────────
 
 export interface EpidemiologicalKpis {
+  totalSuccessCount: number;
+  failedCount: number;
+  dangerLevel: "Low" | "Moderate" | "High" | "Critical";
+  daysBeforeCycleEnd: number;
   avgDvi: number;
   dviTrendPct: number;
   totalConfirmedVectors: number;
@@ -116,6 +120,12 @@ export interface BarangayRiskTableRow {
 export interface EpidemiologicalReportData {
   municipality: string | null;
   barangayOptions: Array<{ id: string; name: string }>;
+  trapOptions: Array<{
+    id: string;
+    deviceCode: string;
+    barangayId: string | null;
+    barangayName: string | null;
+  }>;
   kpis: EpidemiologicalKpis;
   vectorTrend: VectorGrowthTrendPoint[];
   interventions: InterventionMarker[];

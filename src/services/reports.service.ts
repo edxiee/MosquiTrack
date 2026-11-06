@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import { getDangerTier } from "@/utils/dangerTiers";
+import { getDangerTier, getConsecutiveCriticalDays } from "@/utils/dangerTiers";
+import { fetchDeviceConfigsMap, DEFAULT_DEVICE_CONFIG } from "@/services/deviceConfig.service";
 import type {
   BarangayRankingEntry,
   BarangayRiskTableRow,
@@ -335,6 +336,63 @@ function inferRiskFromDvi(dvi: number, consecutiveCriticalDays: number): {
   return { levelName, displayColor, priority };
 }
 
+function evaluateReadingDetection(
+  reading: {
+    frequency_hz?: number | null;
+    beam_break_ms?: number | null;
+    mosquito_count?: number | null;
+  },
+  config: { min_freq_hz: number; max_freq_hz: number; max_beam_break_ms: number },
+): { isSuccess: boolean; isFailed: boolean; successCount: number } {
+  const freqVal =
+    reading.frequency_hz != null ? Number(reading.frequency_hz) : null;
+  const beamVal =
+    reading.beam_break_ms != null ? Number(reading.beam_break_ms) : null;
+  const count = Number(reading.mosquito_count ?? 0);
+
+  const hasFreq = freqVal !== null;
+  const hasBeam = beamVal !== null;
+
+  if (hasFreq || hasBeam) {
+    const isFreqGood =
+      freqVal !== null &&
+      freqVal >= config.min_freq_hz &&
+      freqVal <= config.max_freq_hz;
+    const isBeamGood =
+      beamVal !== null && beamVal > 0 && beamVal <= config.max_beam_break_ms;
+
+    if (isFreqGood && isBeamGood) {
+      return {
+        isSuccess: true,
+        isFailed: false,
+        successCount: count > 0 ? count : 1,
+      };
+    } else {
+      // Frequency or beam break did not match mosquito parameters
+      return {
+        isSuccess: false,
+        isFailed: true,
+        successCount: 0,
+      };
+    }
+  }
+
+  // Fallback for readings without frequency/beam break sensor fields
+  if (count > 0) {
+    return {
+      isSuccess: true,
+      isFailed: false,
+      successCount: count,
+    };
+  }
+
+  return {
+    isSuccess: false,
+    isFailed: true,
+    successCount: 0,
+  };
+}
+
 function isDeviceDeployedAndActive(device: any): boolean {
   if (device.operational_status) {
     const op = String(device.operational_status).toLowerCase();
@@ -373,9 +431,10 @@ function isDeviceDeployedAndActive(device: any): boolean {
 
 export async function fetchEpidemiologicalReportData(params: {
   barangayId: string; // "all" or barangay id / name
+  deviceId?: string; // "all" or trap device id / code
   dateRange: DateRangePreset;
 }): Promise<EpidemiologicalReportData> {
-  const { barangayId, dateRange } = params;
+  const { barangayId, deviceId = "all", dateRange } = params;
   const periodDays = getPeriodDays(dateRange);
   const now = Date.now();
   const periodStart = new Date(now);
@@ -457,6 +516,8 @@ export async function fetchEpidemiologicalReportData(params: {
       latitude,
       longitude,
       last_seen_at,
+      installation_date,
+      created_at,
       operational_status,
       device_statuses ( id, status_name )
     `
@@ -467,6 +528,8 @@ export async function fetchEpidemiologicalReportData(params: {
       latitude,
       longitude,
       last_seen_at,
+      installation_date,
+      created_at,
       device_statuses ( id, status_name )
     `,
     );
@@ -487,6 +550,8 @@ export async function fetchEpidemiologicalReportData(params: {
         latitude,
         longitude,
         last_seen_at,
+        installation_date,
+        created_at,
         device_statuses ( id, status_name )
       `,
       );
@@ -501,15 +566,28 @@ export async function fetchEpidemiologicalReportData(params: {
         )
       : allDevicesRaw;
 
+  municipalityDevices.sort((a, b) =>
+    String(a.device_code || "").localeCompare(String(b.device_code || "")),
+  );
+
+  const trapOptions = municipalityDevices.map((d) => ({
+    id: d.id as string,
+    deviceCode: String(d.device_code || `TRAP-${String(d.id).slice(0, 4)}`),
+    barangayId: (d.barangay_id as string | null) ?? null,
+    barangayName: d.barangay_id ? (barangayMap.get(d.barangay_id) ?? null) : null,
+  }));
+
   const deviceToBarangayId = new Map<string, string | null>();
+  const deviceCodeMap = new Map<string, string>();
   for (const d of municipalityDevices) {
     deviceToBarangayId.set(d.id, d.barangay_id ?? null);
+    deviceCodeMap.set(d.id, String(d.device_code || ""));
   }
 
-  const [readingsRes, riskRes, triageRes, requestActionsRes] = await Promise.all([
+  const [readingsRes, riskRes, triageRes, requestActionsRes, deviceConfigsMapRaw] = await Promise.all([
     supabase
       .from("ovitrap_readings")
-      .select("id, device_id, mosquito_count, captured_at, created_at")
+      .select("id, device_id, mosquito_count, frequency_hz, beam_break_ms, captured_at, created_at")
       .gte("captured_at", fetchSinceIso)
       .order("captured_at", { ascending: true })
       .limit(10000),
@@ -548,12 +626,20 @@ export async function fetchEpidemiologicalReportData(params: {
       .from("request_actions")
       .select("req_id, device_id, request, descriptions, notes, status, created_at, approved_at, completed_at")
       .order("created_at", { ascending: false }),
+    fetchDeviceConfigsMap().catch(() => ({})),
   ]);
+
+  const deviceConfigsMap = (deviceConfigsMapRaw ?? {}) as Record<
+    string,
+    { min_freq_hz: number; max_freq_hz: number; max_beam_break_ms: number }
+  >;
 
   const rawReadings = (readingsRes.data ?? []) as Array<{
     id: string;
     device_id: string;
     mosquito_count: number | null;
+    frequency_hz?: number | null;
+    beam_break_ms?: number | null;
     captured_at: string;
     created_at?: string;
   }>;
@@ -562,18 +648,39 @@ export async function fetchEpidemiologicalReportData(params: {
   const rawTriage = (triageRes.data ?? []) as any[];
   const rawRequests = (requestActionsRes.data ?? []) as any[];
 
-  // Filter devices for current barangay selection
-  const scopedDevices = isFilteredByBarangay
+  // Filter devices for current barangay or trap selection
+  const isFilteredByDevice = deviceId !== "all";
+  let scopedDevices = isFilteredByBarangay
     ? municipalityDevices.filter((d) => d.barangay_id && scopedBarangayIds.has(d.barangay_id))
     : municipalityDevices;
 
+  if (isFilteredByDevice) {
+    scopedDevices = scopedDevices.filter(
+      (d) =>
+        d.id === deviceId ||
+        String(d.device_code || "").toLowerCase() === deviceId.toLowerCase(),
+    );
+  }
+
   const scopedDeviceIds = new Set(scopedDevices.map((d) => d.id));
+  const selectedTrapCodesLower = new Set(
+    scopedDevices
+      .map((d) => String(d.device_code || "").toLowerCase())
+      .filter(Boolean),
+  );
+  const selectedTrapBarangayIds = new Set(
+    scopedDevices
+      .map((d) => d.barangay_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
+  );
 
   const activeDeployedTraps = scopedDevices.filter(isDeviceDeployedAndActive).length;
   const activeTrapsDenominator = Math.max(1, activeDeployedTraps || scopedDevices.length || 1);
 
   // 4. Process readings for KPIs & Daily Vector Growth Trend
   let totalConfirmedVectors = 0;
+  let totalSuccessCount = 0;
+  let failedCount = 0;
   let prevPeriodVectors = 0;
   let totalReadingsCount = 0;
 
@@ -618,10 +725,19 @@ export async function fetchEpidemiologicalReportData(params: {
     const ts = Date.parse(tsStr);
     if (Number.isNaN(ts)) continue;
 
-    const count = r.mosquito_count ?? 0;
+    const devConfig =
+      deviceConfigsMap[r.device_id] || DEFAULT_DEVICE_CONFIG;
+    const evalResult = evaluateReadingDetection(r, devConfig);
+    const count = evalResult.isSuccess
+      ? evalResult.successCount
+      : (r.mosquito_count ?? 0);
     const brgyId = deviceToBarangayId.get(r.device_id) ?? null;
 
-    // Update per-barangay stats (across municipality)
+    if (isFilteredByDevice && !scopedDeviceIds.has(r.device_id)) {
+      continue;
+    }
+
+    // Update per-barangay stats (across municipality or selected trap)
     if (brgyId && barangayStatsMap.has(brgyId)) {
       const bStat = barangayStatsMap.get(brgyId)!;
       const dayKey = new Date(ts).toISOString().slice(0, 10);
@@ -639,7 +755,9 @@ export async function fetchEpidemiologicalReportData(params: {
     }
 
     // Check if reading belongs to scoped selection
-    if (isFilteredByBarangay) {
+    if (isFilteredByDevice) {
+      if (!scopedDeviceIds.has(r.device_id)) continue;
+    } else if (isFilteredByBarangay) {
       const matchesScoped =
         scopedDeviceIds.has(r.device_id) ||
         (brgyId !== null && scopedBarangayIds.has(brgyId));
@@ -653,13 +771,19 @@ export async function fetchEpidemiologicalReportData(params: {
     }
 
     if (ts >= currentPeriodStartMs) {
-      totalConfirmedVectors += count;
+      if (evalResult.isSuccess) {
+        totalSuccessCount += evalResult.successCount;
+        totalConfirmedVectors += evalResult.successCount;
+      } else if (evalResult.isFailed) {
+        failedCount += 1;
+      }
+
       totalReadingsCount += 1;
 
       const dateKey = new Date(ts).toISOString().slice(0, 10);
       const bucket = dailyBuckets.get(dateKey);
       if (bucket) {
-        bucket.count += count;
+        bucket.count += evalResult.isSuccess ? evalResult.successCount : 0;
         bucket.readingsCount += 1;
       }
     } else if (ts >= prevPeriodStartMs && ts < currentPeriodStartMs) {
@@ -693,6 +817,18 @@ export async function fetchEpidemiologicalReportData(params: {
   const scopedTriage = rawTriage.filter((t) => {
     if (String(t.status || "").toLowerCase() === "cancelled") {
       return false;
+    }
+
+    if (isFilteredByDevice) {
+      const remarksLower = String(t.remarks || "").toLowerCase();
+      const mentionsAnyTrap = remarksLower.includes("trap:");
+      if (mentionsAnyTrap) {
+        for (const code of selectedTrapCodesLower) {
+          if (remarksLower.includes(code)) return true;
+        }
+        return false;
+      }
+      return t.barangay_id != null && selectedTrapBarangayIds.has(t.barangay_id);
     }
 
     if (isFilteredByBarangay) {
@@ -747,6 +883,9 @@ export async function fetchEpidemiologicalReportData(params: {
 
   // Also include approved/completed request_actions as intervention markers if within date buckets
   const scopedRequests = rawRequests.filter((req) => {
+    if (isFilteredByDevice) {
+      return req.device_id != null && scopedDeviceIds.has(req.device_id);
+    }
     const brgyId = req.device_id ? deviceToBarangayId.get(req.device_id) : null;
     if (isFilteredByBarangay) {
       return brgyId && scopedBarangayIds.has(brgyId);
@@ -907,7 +1046,7 @@ export async function fetchEpidemiologicalReportData(params: {
     string,
     { active: number; total: number }
   >();
-  for (const d of municipalityDevices) {
+  for (const d of isFilteredByDevice ? scopedDevices : municipalityDevices) {
     if (!d.barangay_id) continue;
     const cur = devicesByBarangay.get(d.barangay_id) ?? { active: 0, total: 0 };
     cur.total += 1;
@@ -917,9 +1056,11 @@ export async function fetchEpidemiologicalReportData(params: {
     devicesByBarangay.set(d.barangay_id, cur);
   }
 
-  const targetTableBarangays = isFilteredByBarangay
-    ? scopedBarangays
-    : allBarangays;
+  const targetTableBarangays = isFilteredByDevice
+    ? allBarangays.filter((b) => selectedTrapBarangayIds.has(b.id))
+    : isFilteredByBarangay
+      ? scopedBarangays
+      : allBarangays;
 
   const unrankedRows: Omit<BarangayRiskTableRow, "rank">[] =
     targetTableBarangays.map((b) => {
@@ -1021,10 +1162,77 @@ export async function fetchEpidemiologicalReportData(params: {
   }
   const criticalHighRiskZones = criticalCount + highRiskCount;
 
+  // Compute Danger Level
+  const todayKey = new Date(now).toISOString().slice(0, 10);
+  const day1Key = new Date(now - DAY_MS).toISOString().slice(0, 10);
+  const day2Key = new Date(now - 2 * DAY_MS).toISOString().slice(0, 10);
+
+  const day0Count = dailyBuckets.get(todayKey)?.count ?? 0;
+  const day1Count = dailyBuckets.get(day1Key)?.count ?? 0;
+  const day2Count = dailyBuckets.get(day2Key)?.count ?? 0;
+  const consecutiveDays = getConsecutiveCriticalDays([
+    day0Count,
+    day1Count,
+    day2Count,
+  ]);
+
+  let dangerLevel: "Low" | "Moderate" | "High" | "Critical" = "Low";
+  if (isFilteredByDevice) {
+    const effectiveTrapCount =
+      day0Count > 0
+        ? day0Count
+        : Math.round(totalSuccessCount / Math.max(1, periodDays));
+    dangerLevel = getDangerTier(effectiveTrapCount, consecutiveDays);
+  } else {
+    dangerLevel =
+      criticalCount > 0
+        ? "Critical"
+        : highRiskCount > 0
+          ? "High"
+          : avgDvi >= 6
+            ? "Moderate"
+            : "Low";
+  }
+
+  // Compute Days Before 7 Days Cycle Ends
+  let daysBeforeCycleEnd = 7;
+  const targetDevice = isFilteredByDevice ? scopedDevices[0] : null;
+  const refDateStr =
+    targetDevice?.installation_date || targetDevice?.created_at;
+
+  if (refDateStr) {
+    const ref = new Date(refDateStr);
+    const nowDate = new Date(now);
+    const startOfToday = new Date(
+      nowDate.getFullYear(),
+      nowDate.getMonth(),
+      nowDate.getDate(),
+    ).getTime();
+    const startOfRef = new Date(
+      ref.getFullYear(),
+      ref.getMonth(),
+      ref.getDate(),
+    ).getTime();
+    const diffDays = Math.max(
+      0,
+      Math.floor((startOfToday - startOfRef) / (24 * 60 * 60 * 1000)),
+    );
+    const dayInCycle = diffDays % 7;
+    daysBeforeCycleEnd = 7 - dayInCycle;
+  } else {
+    const dayOfWeek = new Date(now).getDay(); // 0 is Sunday, 1 is Monday ...
+    daysBeforeCycleEnd = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
+  }
+
   return {
     municipality,
     barangayOptions,
+    trapOptions,
     kpis: {
+      totalSuccessCount,
+      failedCount,
+      dangerLevel,
+      daysBeforeCycleEnd,
       avgDvi,
       dviTrendPct,
       totalConfirmedVectors,

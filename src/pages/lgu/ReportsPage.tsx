@@ -15,21 +15,19 @@ import {
 } from "recharts";
 import {
   Activity,
-  ArrowDownRight,
-  ArrowUpRight,
+  AlertTriangle,
   Bug,
   Calendar,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
   Download,
   Droplets,
-  MapPin,
-  Minus,
   Printer,
   RefreshCw,
   ShieldAlert,
   Sparkles,
-  TrendingDown,
-  TrendingUp,
   UserCheck,
 } from "lucide-react";
 
@@ -50,18 +48,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { supabase } from "@/lib/supabase";
 import { fetchEpidemiologicalReportData } from "@/services/reports.service";
 import type {
-  BarangayRiskTableRow,
   DateRangePreset,
   EpidemiologicalReportData,
   InterventionDistributionItem,
@@ -187,71 +176,8 @@ function InterventionPieTooltip({
   );
 }
 
-// ─── Risk Level Badge (using display_color from risk_levels) ─────────────────
-function RiskLevelBadge({
-  levelName,
-  displayColor,
-}: {
-  levelName: string;
-  displayColor: string;
-}) {
-  return (
-    <Badge
-      variant="outline"
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold shadow-2xs"
-      style={{
-        backgroundColor: `${displayColor}15`,
-        borderColor: `${displayColor}45`,
-        color: displayColor,
-      }}
-    >
-      <span
-        className="h-1.5 w-1.5 rounded-full shrink-0"
-        style={{ backgroundColor: displayColor }}
-      />
-      {levelName}
-    </Badge>
-  );
-}
-
-// ─── 7-Day Trend Cell ────────────────────────────────────────────────────────
-function Trend7DayBadge({ row }: { row: BarangayRiskTableRow }) {
-  const pct = row.trend7DayPct;
-  if (pct === null || pct === 0) {
-    return (
-      <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-        <Minus className="size-3" />
-        <span>0% (Stable)</span>
-      </div>
-    );
-  }
-
-  const isRising = pct > 0;
-  return (
-    <div
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-        isRising
-          ? "bg-rose-50 text-rose-700 border border-rose-200/70"
-          : "bg-emerald-50 text-emerald-700 border border-emerald-200/70"
-      }`}
-    >
-      {isRising ? (
-        <TrendingUp className="size-3.5 text-rose-600" />
-      ) : (
-        <TrendingDown className="size-3.5 text-emerald-600" />
-      )}
-      <span>
-        {isRising ? `+${pct}%` : `${pct}%`}
-      </span>
-      <span className="text-[10px] font-normal opacity-75">
-        ({row.recent7DayCount} vs {row.prev7DayCount})
-      </span>
-    </div>
-  );
-}
-
 export default function ReportsAnalyticsPage() {
-  const [selectedBarangay, setSelectedBarangay] = useState<string>("all");
+  const [selectedTrap, setSelectedTrap] = useState<string>("");
   const [dateRange, setDateRange] = useState<DateRangePreset>("7d");
   const [reportData, setReportData] =
     useState<EpidemiologicalReportData | null>(null);
@@ -264,10 +190,14 @@ export default function ReportsAnalyticsPage() {
       setError(null);
       try {
         const res = await fetchEpidemiologicalReportData({
-          barangayId: selectedBarangay,
+          barangayId: "all",
+          deviceId: selectedTrap || "all",
           dateRange,
         });
         setReportData(res);
+        if (!selectedTrap && res.trapOptions.length > 0 && res.trapOptions[0]) {
+          setSelectedTrap(res.trapOptions[0].id);
+        }
       } catch (err) {
         console.error("Failed to load epidemiological report data:", err);
         setError(
@@ -280,7 +210,7 @@ export default function ReportsAnalyticsPage() {
         if (showLoading) setIsLoading(false);
       }
     },
-    [selectedBarangay, dateRange],
+    [selectedTrap, dateRange],
   );
 
   useEffect(() => {
@@ -316,26 +246,47 @@ export default function ReportsAnalyticsPage() {
     };
   }, [loadData]);
 
-  // Ensure barangay dropdown options include database barangays + "Brgy. San Juan" if not already present
-  const barangaySelectOptions = useMemo(() => {
-    const dbOptions = reportData?.barangayOptions ?? [];
-    const list: Array<{ value: string; label: string }> = dbOptions.map(
-      (b) => ({
-        value: b.id,
-        label: formatBarangayDisplay(b.name),
-      }),
-    );
+  const trapSelectOptions = useMemo(() => {
+    const dbTraps = reportData?.trapOptions ?? [];
+    return dbTraps.map((t) => ({
+      value: t.id,
+      deviceCode: t.deviceCode,
+      label: t.barangayName
+        ? `${t.deviceCode} (${formatBarangayDisplay(t.barangayName)})`
+        : t.deviceCode,
+    }));
+  }, [reportData?.trapOptions]);
 
-    const hasSanJuan = list.some((item) =>
-      item.label.toLowerCase().includes("san juan"),
-    );
-    if (!hasSanJuan) {
-      list.push({ value: "San Juan", label: "Brgy. San Juan" });
-    }
-    return list;
-  }, [reportData?.barangayOptions]);
+  const currentTrapIndex = useMemo(() => {
+    if (!selectedTrap || trapSelectOptions.length === 0) return -1;
+    return trapSelectOptions.findIndex((t) => t.value === selectedTrap);
+  }, [selectedTrap, trapSelectOptions]);
+
+  const handlePrevTrap = () => {
+    if (trapSelectOptions.length === 0) return;
+    const nextIdx =
+      currentTrapIndex <= 0
+        ? trapSelectOptions.length - 1
+        : currentTrapIndex - 1;
+    const target = trapSelectOptions[nextIdx];
+    if (target) setSelectedTrap(target.value);
+  };
+
+  const handleNextTrap = () => {
+    if (trapSelectOptions.length === 0) return;
+    const nextIdx =
+      currentTrapIndex === -1 || currentTrapIndex >= trapSelectOptions.length - 1
+        ? 0
+        : currentTrapIndex + 1;
+    const target = trapSelectOptions[nextIdx];
+    if (target) setSelectedTrap(target.value);
+  };
 
   const kpis = reportData?.kpis ?? {
+    totalSuccessCount: 0,
+    failedCount: 0,
+    dangerLevel: "Low" as const,
+    daysBeforeCycleEnd: 7,
     avgDvi: 0,
     dviTrendPct: 12,
     totalConfirmedVectors: 0,
@@ -354,11 +305,10 @@ export default function ReportsAnalyticsPage() {
   const vectorTrend = reportData?.vectorTrend ?? [];
   const interventionDistribution = reportData?.interventionDistribution ?? [];
   const barangayRankings = reportData?.barangayRankings ?? [];
-  const rankingScopeLabel =
-    selectedBarangay === "all"
-      ? "All barangays"
-      : barangaySelectOptions.find((option) => option.value === selectedBarangay)?.label ??
-        selectedBarangay;
+  const selectedTrapOption = useMemo(
+    () => trapSelectOptions.find((option) => option.value === selectedTrap) ?? null,
+    [trapSelectOptions, selectedTrap],
+  );
 
   // Points on the AreaChart that have completed misting or clean-up interventions
   const interventionPoints = useMemo(() => {
@@ -405,31 +355,27 @@ export default function ReportsAnalyticsPage() {
 
     const lines: string[] = [];
     const dateStamp = new Date().toISOString().slice(0, 10);
-    const selectedBarangayLabel =
-      selectedBarangay === "all"
-        ? "All Barangays"
-        : barangaySelectOptions.find((o) => o.value === selectedBarangay)
-            ?.label ?? selectedBarangay;
+    const selectedTrapLabel = selectedTrapOption?.label ?? "All Traps";
 
     lines.push('"EPIDEMIOLOGICAL REPORTS & ANALYTICS"');
     lines.push(
-      `"Scope","${selectedBarangayLabel}","Period","${DATE_RANGE_LABELS[dateRange]}","Generated","${dateStamp}"`,
+      `"Scope","${selectedTrapLabel}","Period","${DATE_RANGE_LABELS[dateRange]}","Generated","${dateStamp}"`,
     );
     lines.push("");
 
     lines.push('"KPI SUMMARY"');
     lines.push('"Metric","Value","Details"');
     lines.push(
-      `"Average mosquitoes per active trap per day","${kpis.avgDvi.toFixed(2)}","Total detections divided by ${kpis.activeDeployedTraps} active traps and ${kpis.periodDays} days; ${kpis.dviTrendPct >= 0 ? `+${kpis.dviTrendPct}%` : `${kpis.dviTrendPct}%`} vs previous period"`,
+      `"Total Successful Mosquito Count","${kpis.totalSuccessCount}","Hz and ms matched thresholds"`,
     );
     lines.push(
-      `"Total Mosquitoes Detected","${kpis.totalConfirmedVectors}","${kpis.totalReadingsCount} readings"`,
+      `"Failed to Count","${kpis.failedCount}","Hz and ms outside mosquito threshold"`,
     );
     lines.push(
-      `"Critical / High-Risk Zones","${kpis.criticalHighRiskZones}","${kpis.criticalCount} Critical, ${kpis.highRiskCount} High-Risk"`,
+      `"Danger Level","${kpis.dangerLevel}","Current trap risk status"`,
     );
     lines.push(
-      `"Action Completion Rate","${kpis.triageCompletionRate}%","${kpis.completedTriageCount} of ${kpis.totalTriageCount} completed"`,
+      `"Days Before 7-Day Cycle End","${kpis.daysBeforeCycleEnd} days","Surveillance cycle remaining"`,
     );
     lines.push("");
 
@@ -507,29 +453,54 @@ export default function ReportsAnalyticsPage() {
             In-depth mosquito population surveillance trends, barangay risk rankings, and
             intervention efficacy.
           </p>
+
+          {/* Trap Filter Dropdown with Left & Right Navigation Arrows */}
+          <div className="mt-3.5 flex items-center gap-1.5 print:hidden">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={handlePrevTrap}
+              disabled={isLoading || trapSelectOptions.length === 0}
+              title="Previous trap"
+              aria-label="Previous trap"
+              className="h-9 w-9 bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+
+            <Select value={selectedTrap} onValueChange={setSelectedTrap}>
+              <SelectTrigger
+                aria-label="Select Trap"
+                className="h-9 min-w-[220px] sm:min-w-[260px] bg-white border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs"
+              >
+                <Bug className="size-3.5 text-emerald-600 shrink-0 mr-1" />
+                <SelectValue placeholder="Select trap…" />
+              </SelectTrigger>
+              <SelectContent align="start">
+                {trapSelectOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={handleNextTrap}
+              disabled={isLoading || trapSelectOptions.length === 0}
+              title="Next trap"
+              aria-label="Next trap"
+              className="h-9 w-9 bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Right-aligned Controls */}
-        <div className="flex flex-wrap items-center gap-2.5 print:hidden">
-          {/* Barangay Filter Select */}
-          <Select value={selectedBarangay} onValueChange={setSelectedBarangay}>
-            <SelectTrigger
-              aria-label="Filter by Barangay"
-              className="h-9 min-w-[175px] bg-white border-slate-200 text-xs font-medium text-slate-700 shadow-2xs"
-            >
-              <MapPin className="size-3.5 text-emerald-600 shrink-0" />
-              <SelectValue placeholder="All Barangays" />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="all">All Barangays</SelectItem>
-              {barangaySelectOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
+        <div className="flex flex-wrap items-center gap-2.5 print:hidden self-start xl:self-center">
           {/* Date Range Select */}
           <Select
             value={dateRange}
@@ -593,86 +564,32 @@ export default function ReportsAnalyticsPage() {
       )}
 
       {/* ==================================================================== */}
-      {/* 2. 4 KPI SUMMARY CARDS                                               */}
+      {/* 2. 4 KPI SUMMARY CONTAINERS                                          */}
       {/* ==================================================================== */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* KPI 1: Average daily detections per active trap */}
+        {/* Container 1: Total Success Count of Mosquito */}
         <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
           <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
           <CardContent className="p-5 pt-6">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Avg. Mosquitoes per Active Trap per Day (7 Days)
+                  Total Success Count of Mosquito
                 </p>
                 {isLoading ? (
                   <Skeleton className="h-9 w-24 mt-1" />
                 ) : (
                   <div className="flex items-baseline gap-2.5 pt-1">
                     <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-900">
-                      {kpis.avgDvi.toFixed(2)}
+                      {kpis.totalSuccessCount.toLocaleString()}
                     </span>
                     <Badge
                       variant="outline"
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full gap-0.5 ${
-                        kpis.dviTrendPct >= 0
-                          ? "bg-amber-50 text-amber-800 border-amber-200"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      }`}
+                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-semibold px-2 py-0.5 rounded-full gap-1"
                     >
-                      {kpis.dviTrendPct >= 0 ? (
-                        <ArrowUpRight className="size-3" />
-                      ) : (
-                        <ArrowDownRight className="size-3" />
-                      )}
-                      {kpis.dviTrendPct >= 0
-                        ? `+${kpis.dviTrendPct}%`
-                        : `${kpis.dviTrendPct}%`}{" "}
-                      vs last period
+                      <CheckCircle2 className="size-3 text-emerald-600" />
+                      Counted
                     </Badge>
-                  </div>
-                )}
-              </div>
-              <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 border border-emerald-100 shrink-0">
-                <Activity className="size-5" />
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Total mosquitoes ÷ {kpis.activeDeployedTraps} active deployed traps ÷{" "}
-              {kpis.periodDays} days. This is the average count per trap each day.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* KPI 2: Total Confirmed Vectors */}
-        <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
-          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
-          <CardContent className="p-5 pt-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Total Mosquitoes Detected
-                </p>
-                {isLoading ? (
-                  <Skeleton className="h-9 w-28 mt-1" />
-                ) : (
-                  <div className="flex items-baseline gap-2.5 pt-1">
-                    <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-900">
-                      {kpis.totalConfirmedVectors.toLocaleString()}
-                    </span>
-                    {kpis.vectorsTrendPct !== null && (
-                      <span
-                        className={`inline-flex items-center text-xs font-semibold ${
-                          kpis.vectorsTrendPct > 0
-                            ? "text-rose-600"
-                            : "text-emerald-600"
-                        }`}
-                      >
-                        {kpis.vectorsTrendPct > 0
-                          ? `+${kpis.vectorsTrendPct}%`
-                          : `${kpis.vectorsTrendPct}%`}
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
@@ -681,36 +598,75 @@ export default function ReportsAnalyticsPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Total mosquito detections across {kpis.totalReadingsCount.toLocaleString()} readings
+              Total mosquitoes detected where wingbeat frequency and beam break matched criteria
             </p>
           </CardContent>
         </Card>
 
-        {/* KPI 3: Critical / High-Risk Zones */}
+        {/* Container 2: Failed to Count */}
         <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
           <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
           <CardContent className="p-5 pt-6">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Critical / High-Risk Zones
+                  Failed to Count
                 </p>
                 {isLoading ? (
-                  <Skeleton className="h-9 w-20 mt-1" />
+                  <Skeleton className="h-9 w-24 mt-1" />
                 ) : (
                   <div className="flex items-baseline gap-2.5 pt-1">
                     <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-900">
-                      {kpis.criticalHighRiskZones}
+                      {kpis.failedCount.toLocaleString()}
                     </span>
                     <Badge
                       variant="outline"
-                      className={
-                        kpis.criticalHighRiskZones > 0
-                          ? "bg-rose-50 text-rose-700 border-rose-200 text-[11px]"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px]"
-                      }
+                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-semibold px-2 py-0.5 rounded-full gap-1"
                     >
-                      {kpis.criticalCount} Critical · {kpis.highRiskCount} High
+                      <AlertTriangle className="size-3 text-emerald-600" />
+                      Hz/ms Mismatch
+                    </Badge>
+                  </div>
+                )}
+              </div>
+              <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 border border-emerald-100 shrink-0">
+                <AlertTriangle className="size-5" />
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Sensor triggers where frequency (Hz) or beam break (ms) did not match
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Container 3: Danger Level */}
+        <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
+          <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
+          <CardContent className="p-5 pt-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Danger Level
+                </p>
+                {isLoading ? (
+                  <Skeleton className="h-9 w-24 mt-1" />
+                ) : (
+                  <div className="flex items-baseline gap-2.5 pt-1">
+                    <span className="text-3xl font-bold tracking-tight text-slate-900">
+                      {kpis.dangerLevel}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-semibold px-2 py-0.5 rounded-full gap-1"
+                    >
+                      <ShieldAlert className="size-3 text-emerald-600" />
+                      {kpis.dangerLevel === "Critical"
+                        ? "Action Needed"
+                        : kpis.dangerLevel === "High"
+                          ? "High Activity"
+                          : kpis.dangerLevel === "Moderate"
+                            ? "Moderate"
+                            : "Normal"}
                     </Badge>
                   </div>
                 )}
@@ -720,42 +676,46 @@ export default function ReportsAnalyticsPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Barangays currently rated High or Critical for the selected period
+              Trap vector danger classification based on surveillance thresholds
             </p>
           </CardContent>
         </Card>
 
-        {/* KPI 4: Triage Completion Rate */}
+        {/* Container 4: Days Before 7 Days Cycle End */}
         <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs transition hover:shadow-md">
           <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500" />
           <CardContent className="p-5 pt-6">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Action Completion Rate
+                  Days Before 7 Days Cycle End
                 </p>
                 {isLoading ? (
                   <Skeleton className="h-9 w-24 mt-1" />
                 ) : (
-                  <div className="flex items-baseline gap-2.5 pt-1">
+                  <div className="flex items-baseline gap-2 pt-1">
                     <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-900">
-                      {kpis.triageCompletionRate}%
+                      {kpis.daysBeforeCycleEnd}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-600">
+                      {kpis.daysBeforeCycleEnd === 1 ? "day left" : "days left"}
                     </span>
                     <Badge
                       variant="outline"
-                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px]"
+                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-semibold px-2 py-0.5 rounded-full gap-1 ml-1"
                     >
-                      {kpis.completedTriageCount} / {kpis.totalTriageCount} done
+                      <Clock className="size-3 text-emerald-600" />
+                      Day {Math.max(1, 7 - kpis.daysBeforeCycleEnd + 1)} of 7
                     </Badge>
                   </div>
                 )}
               </div>
               <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 border border-emerald-100 shrink-0">
-                <CheckCircle2 className="size-5" />
+                <Clock className="size-5" />
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Completed field interventions in the selected time period
+              Days remaining before the current 7-day surveillance cycle completes
             </p>
           </CardContent>
         </Card>
@@ -1022,194 +982,6 @@ export default function ReportsAnalyticsPage() {
           </CardContent>
         </Card>
       </section>
-
-      {/* ==================================================================== */}
-      {/* 4. BARANGAY RISK RANKING DATA TABLE                                  */}
-      {/* ==================================================================== */}
-      <Card className="overflow-hidden rounded-2xl border-slate-200 bg-white shadow-xs">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div>
-            <CardTitle className="text-base font-bold text-slate-900">
-              Barangay Risk Ranking · {DATE_RANGE_LABELS[dateRange]}
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-              <span className="font-medium text-slate-600">{rankingScopeLabel}</span>
-              {" · "}
-              Based on the selected {DATE_RANGE_LABELS[dateRange].toLowerCase()}.
-              <br />
-              <span className="text-slate-500">
-                Average mosquitoes per active trap per day = total detections ÷ active traps ÷ {kpis.periodDays} days.
-              </span>
-              <br />
-              <span className="text-slate-500">
-                Danger levels:{" "}
-                <span className="text-emerald-600 font-medium">Low (0–5)</span>,{" "}
-                <span className="text-amber-600 font-medium">Moderate (6–15)</span>,{" "}
-                <span className="text-orange-600 font-medium">High (16–29)</span>,{" "}
-                <span className="text-rose-600 font-medium">Critical (30+ for 3 consecutive days)</span>.
-              </span>
-            </CardDescription>
-          </div>
-          <Badge
-            variant="outline"
-            className="bg-slate-50 text-slate-700 border-slate-200 text-xs font-semibold self-start sm:self-auto"
-          >
-            {barangayRankings.length}{" "}
-            {barangayRankings.length === 1 ? "Barangay" : "Barangays"} Evaluated
-          </Badge>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          <div
-            tabIndex={0}
-            role="region"
-            aria-labelledby="barangay-risk-ranking-caption"
-            className="overflow-auto max-w-full max-h-[min(560px,80vh)] [container-type:inline-size]"
-          >
-            <Table>
-              <caption id="barangay-risk-ranking-caption" className="sr-only">
-                Barangay Risk Ranking Table showing rank, barangay name, active
-                traps, total detections, average mosquitoes per active trap per day,
-                danger level, and 7-day trend.
-              </caption>
-              <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-                <TableRow className="hover:bg-transparent border-slate-100">
-                  <TableHead className="w-20 pl-6 text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Rank
-                  </TableHead>
-                  <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Barangay 
-                  </TableHead>
-                  <TableHead className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Active Traps
-                  </TableHead>
-                  <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Total Detections
-                  </TableHead>
-                  <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Avg. Mosquitoes / Trap / Day
-                  </TableHead>
-                  <TableHead className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Danger Level
-                  </TableHead>
-                  <TableHead className="pr-6 text-right text-xs font-bold uppercase tracking-wider text-slate-500">
-                    7-Day Trend
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody className="divide-y divide-slate-100">
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell colSpan={7} className="py-4 px-6">
-                        <Skeleton className="h-6 w-full" />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : barangayRankings.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="py-12 text-center text-sm text-slate-500"
-                    >
-                      No barangay surveillance records found for the selected
-                      filters.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  barangayRankings.map((row) => (
-                    <TableRow
-                      key={row.barangayId}
-                      className="hover:bg-slate-50/80 transition-colors"
-                    >
-                      {/* Rank */}
-                      <TableCell className="pl-6 py-3.5 font-mono text-xs font-bold text-slate-500">
-                        <span
-                          className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                            row.rank === 1
-                              ? "bg-rose-100 text-rose-700"
-                              : row.rank === 2
-                                ? "bg-orange-100 text-orange-700"
-                                : row.rank === 3
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-slate-100 text-slate-600"
-                          }`}
-                        >
-                          #{row.rank}
-                        </span>
-                      </TableCell>
-
-                      {/* Barangay Name & Municipality */}
-                      <th
-                        scope="row"
-                        className="sticky left-0 bg-white px-2 py-3.5 text-left font-semibold text-slate-900 whitespace-nowrap"
-                      >
-                        <div className="flex items-center gap-2">
-                          <MapPin className="size-3.5 text-slate-400 shrink-0" />
-                          <div>
-                            <span className="block font-semibold text-slate-900">
-                              {formatBarangayDisplay(row.barangayName)}
-                            </span>
-                            {row.municipality && (
-                              <span className="block text-xs font-normal text-slate-500">
-                                {row.municipality}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </th>
-
-                      {/* Active Traps */}
-                      <TableCell className="py-3.5 text-center tabular-nums">
-                        <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800">
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              row.activeTraps > 0
-                                ? "bg-emerald-500"
-                                : "bg-slate-400"
-                            }`}
-                          />
-                          {row.activeTraps}
-                          <span className="text-slate-400 font-normal">
-                            / {row.totalTraps}
-                          </span>
-                        </span>
-                      </TableCell>
-
-                      {/* Total Detections */}
-                      <TableCell className="py-3.5 text-right font-bold tabular-nums text-slate-900">
-                        {row.totalDetections.toLocaleString()}{" "}
-                        <span className="text-[11px] font-normal text-slate-400">
-                          mosq
-                        </span>
-                      </TableCell>
-
-                      {/* Average mosquitoes per active trap per day */}
-                      <TableCell className="py-3.5 text-right font-mono font-bold tabular-nums text-slate-800">
-                        {row.calculatedScoreDvi.toFixed(2)}
-                      </TableCell>
-
-                      {/* Risk Level Badge (using display_color) */}
-                      <TableCell className="py-3.5 text-center">
-                        <RiskLevelBadge
-                          levelName={row.riskLevelName}
-                          displayColor={row.displayColor}
-                        />
-                      </TableCell>
-
-                      {/* 7-Day Trend */}
-                      <TableCell className="pr-6 py-3.5 text-right">
-                        <Trend7DayBadge row={row} />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

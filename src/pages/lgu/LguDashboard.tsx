@@ -1,6 +1,5 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import {
   Area,
   AreaChart,
@@ -11,22 +10,16 @@ import {
   YAxis,
 } from "recharts";
 import {
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpRight,
-  BarChart3,
   Bug,
-  ClipboardList,
+  ChevronDown,
+  Clock,
   FileText,
+  Loader2,
+  MapPin,
   MapPinned,
-  Minus,
-  ShieldAlert,
-  ShieldCheck,
-  Siren,
   User,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,56 +28,44 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  useLguDashboardData,
-  type AlertTier,
-  type BarangayMosquitoStatus,
-} from "@/hooks/useLguDashboardData";
-import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
-import { ROUTES } from "@/utils/navigation";
+import { type AlertTier } from "@/hooks/useLguDashboardData";
+import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 import { fetchDevices } from "@/services/device.service";
-import { getDangerTier, type DangerTier } from "@/utils/dangerTiers";
+import type { OvitrapDevice } from "@/types/device.types";
+import {
+  getConsecutiveCriticalDays,
+  getDangerTier,
+  type DangerTier,
+} from "@/utils/dangerTiers";
+import { formatTelemetryTimestamp, getLocalDateKey } from "@/utils/dateHelpers";
+import { getDeviceStatusName } from "@/utils/deviceHelpers";
+import { ROUTES } from "@/utils/navigation";
 
 const TRAP_DANGER_CONFIG: Record<
   DangerTier,
-  { label: string; badge: string; dot: string; tone: string; desc: string }
+  { label: string; badge: string; dot: string }
 > = {
   Low: {
-    label: "Low Danger",
+    label: "Low Risk (0-5)",
     badge: "bg-emerald-50 text-emerald-700 ring-emerald-200 border-emerald-200",
     dot: "bg-emerald-500",
-    tone: "bg-emerald-50 text-emerald-700",
-    desc: "Normal range (0-5)",
   },
   Moderate: {
-    label: "Moderate Danger",
+    label: "Moderate (6-15)",
     badge: "bg-yellow-50 text-yellow-800 ring-yellow-200 border-yellow-200",
     dot: "bg-yellow-500",
-    tone: "bg-yellow-50 text-yellow-700",
-    desc: "Moderate activity (6-15)",
   },
   High: {
-    label: "High Danger",
+    label: "High (16-29)",
     badge: "bg-orange-50 text-orange-700 ring-orange-200 border-orange-200",
     dot: "bg-orange-500",
-    tone: "bg-orange-50 text-orange-700",
-    desc: "High risk cluster (16-29)",
   },
   Critical: {
-    label: "Critical Danger",
+    label: "Critical (30+, 3 days)",
     badge: "bg-rose-50 text-rose-700 ring-rose-200 border-rose-200",
     dot: "bg-rose-500 animate-pulse",
-    tone: "bg-rose-50 text-rose-700",
-    desc: "3+ consecutive days 30+",
   },
 };
 
@@ -118,73 +99,6 @@ const TIER_STYLES: Record<
   },
 };
 
-const quickLinks = [
-  {
-    label: "Traps Reports and Request",
-    description: "Review municipal trend recommendations.",
-    href: ROUTES.lgu.trapActionRequests,
-    icon: BarChart3,
-  },
-  {
-    label: "Mosquito Trap Map",
-    description: "Open the barangay-level spatial view.",
-    href: ROUTES.lgu.trapMap,
-    icon: MapPinned,
-  },
-  {
-    label: "Trap Reports",
-    description: "Export municipal summaries and case reports.",
-    href: ROUTES.lgu.reports,
-    icon: FileText,
-  },
-] as const;
-
-function TierBadge({ tier }: { tier: AlertTier | null }) {
-  if (!tier) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-inset ring-slate-200">
-        No data
-      </span>
-    );
-  }
-  const s = TIER_STYLES[tier];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${s.badge}`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-      {s.label}
-    </span>
-  );
-}
-
-function ChangeIndicator({ changePct }: { changePct: number | null }) {
-  if (changePct === null) {
-    return <span className="text-xs text-slate-400">—</span>;
-  }
-  const rounded = Math.round(changePct);
-  if (rounded === 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
-        <Minus className="size-3.5" /> 0%
-      </span>
-    );
-  }
-  const rising = rounded > 0;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 text-xs font-semibold ${rising ? "text-rose-600" : "text-emerald-600"}`}
-    >
-      {rising ? (
-        <ArrowUpRight className="size-3.5" />
-      ) : (
-        <ArrowDownRight className="size-3.5" />
-      )}
-      {Math.abs(rounded)}%
-    </span>
-  );
-}
-
 function maskEmail(email: string): string {
   if (!email || !email.includes("@")) return email;
 
@@ -205,39 +119,6 @@ function maskEmail(email: string): string {
   return `${firstThree}${maskedStars}@${domain}`;
 }
 
-function KpiCard({
-  icon: Icon,
-  label,
-  value,
-  detail,
-  tone,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  detail: React.ReactNode;
-  tone: string;
-}) {
-  return (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-      <CardContent className="flex items-start justify-between gap-4 p-5">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {label}
-          </p>
-          <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-slate-900">
-            {value}
-          </p>
-          <div className="mt-1 text-sm text-slate-500">{detail}</div>
-        </div>
-        <div className={`rounded-xl p-3 ${tone}`}>
-          <Icon className="size-5" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function formatShortDate(iso: string) {
   return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
     month: "short",
@@ -245,89 +126,283 @@ function formatShortDate(iso: string) {
   });
 }
 
+interface ReadingRow {
+  device_id: string;
+  mosquito_count: number | null;
+  captured_at: string;
+  created_at?: string;
+}
+
+function TrapExpandedAnalytics({
+  device,
+  readings,
+  isLoading,
+}: {
+  device: OvitrapDevice;
+  readings: ReadingRow[];
+  isLoading: boolean;
+}) {
+  const { dailyTrend, tierCounts, totalTiered } = useMemo(() => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const days: string[] = [];
+    const buckets = new Map<string, { total: number; readings: number }>();
+
+    for (let i = 6; i >= 0; i -= 1) {
+      const d = new Date(now.getTime() - i * DAY_MS);
+      const dateKey = getLocalDateKey(d);
+      days.push(dateKey);
+      buckets.set(dateKey, { total: 0, readings: 0 });
+    }
+
+    const deviceReadings = readings.filter((r) => r.device_id === device.id);
+    for (const r of deviceReadings) {
+      const tsStr = r.captured_at || r.created_at;
+      if (!tsStr) continue;
+      const parsed = new Date(tsStr);
+      if (Number.isNaN(parsed.getTime())) continue;
+      const dateKey = getLocalDateKey(parsed);
+      const bucket = buckets.get(dateKey);
+      if (bucket) {
+        bucket.total += r.mosquito_count ?? 0;
+        bucket.readings += 1;
+      }
+    }
+
+    const trend = days.map((date) => {
+      const b = buckets.get(date) ?? { total: 0, readings: 0 };
+      return {
+        date,
+        total: b.total,
+        readings: b.readings,
+      };
+    });
+
+    const counts: Record<AlertTier, number> = {
+      green: 0,
+      yellow: 0,
+      orange: 0,
+      red: 0,
+    };
+
+    for (let idx = 0; idx < trend.length; idx++) {
+      const dayItem = trend[idx]!;
+      const prev1 = idx >= 1 ? trend[idx - 1]!.total : 0;
+      const prev2 = idx >= 2 ? trend[idx - 2]!.total : 0;
+      const consecutiveCrit = getConsecutiveCriticalDays([
+        dayItem.total,
+        prev1,
+        prev2,
+      ]);
+      const danger = getDangerTier(dayItem.total, consecutiveCrit);
+      const tier: AlertTier =
+        danger === "Critical"
+          ? "red"
+          : danger === "High"
+            ? "orange"
+            : danger === "Moderate"
+              ? "yellow"
+              : "green";
+      counts[tier] += 1;
+    }
+
+    const total = counts.green + counts.yellow + counts.orange + counts.red;
+
+    return {
+      dailyTrend: trend,
+      tierCounts: counts,
+      totalTiered: total,
+    };
+  }, [device.id, readings]);
+
+  return (
+    <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr] animate-in fade-in-50 duration-200">
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+        <CardHeader className="border-b border-slate-100 pb-4">
+          <CardTitle>
+            Mosquito activity, last 7 days ({device.device_code})
+          </CardTitle>
+          <CardDescription>
+            Daily mosquito count for {device.device_code}.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-5">
+          {isLoading ? (
+            <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
+          ) : dailyTrend.every((d) => d.readings === 0) ? (
+            <div className="flex h-64 items-center justify-center text-sm text-slate-500">
+              No trap readings in the last 7 days for {device.device_code}.
+            </div>
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={dailyTrend}
+                  margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient
+                      id={`lguTrendFill-${device.id}`}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#e2e8f0"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={formatShortDate}
+                    tick={{ fontSize: 11, fill: "#64748b" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#64748b" }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    labelFormatter={(v) => formatShortDate(String(v))}
+                    formatter={(value) => [String(value), "Total count"]}
+                    contentStyle={{ borderRadius: 12, borderColor: "#e2e8f0" }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="total"
+                    stroke="#059669"
+                    strokeWidth={2.5}
+                    fill={`url(#lguTrendFill-${device.id})`}
+                    dot={{ r: 3 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+        <CardHeader className="border-b border-slate-100 pb-4">
+          <CardTitle>Risk level distribution</CardTitle>
+          <CardDescription>
+            7-day risk level distribution for {device.device_code} based on daily
+            mosquito counts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-5">
+          {(["red", "orange", "yellow", "green"] as const).map((tier) => {
+            const count = tierCounts[tier];
+            const pct = totalTiered > 0 ? (count / totalTiered) * 100 : 0;
+            const s = TIER_STYLES[tier];
+            return (
+              <div key={tier}>
+                <div className="mb-1.5 flex items-center justify-between text-sm">
+                  <span className="inline-flex items-center gap-2 font-medium text-slate-700">
+                    <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
+                    {s.label}
+                  </span>
+                  <span className="font-semibold tabular-nums text-slate-900">
+                    {isLoading ? "…" : `${count} ${count === 1 ? "day" : "days"}`}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${s.bar}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 export default function LguDashboard() {
   const { profile, user } = useAuth();
-  const { data: metrics, isLoading } = useLguDashboardData();
 
   const userEmail = profile?.email ?? user?.email ?? "";
   const maskedUserEmail = maskEmail(userEmail);
 
-  const tierCounts = metrics?.alertTierCounts ?? {
-    green: 0,
-    yellow: 0,
-    orange: 0,
-    red: 0,
+  const [devices, setDevices] = useState<OvitrapDevice[]>([]);
+  const [readings, setReadings] = useState<ReadingRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedTrapId, setSelectedTrapId] = useState<string | null>(null);
+
+  const loadDashboardData = async () => {
+    try {
+      const devicesList = await fetchDevices();
+      setDevices(devicesList);
+
+      const deviceIds = devicesList.map((d) => d.id);
+      if (deviceIds.length > 0) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        sevenDaysAgo.setHours(0, 0, 0, 0);
+
+        const { data: readingsData } = await supabase
+          .from("ovitrap_readings")
+          .select("device_id, mosquito_count, captured_at, created_at")
+          .in("device_id", deviceIds)
+          .gte("captured_at", sevenDaysAgo.toISOString())
+          .order("captured_at", { ascending: false })
+          .limit(5000);
+
+        setReadings((readingsData as ReadingRow[]) ?? []);
+      } else {
+        setReadings([]);
+      }
+    } catch (err) {
+      console.error("Failed to load LGU dashboard traps:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const barangayStatus: BarangayMosquitoStatus[] = metrics?.barangayStatus ?? [];
-  const dailyTrend = metrics?.dailyTrend ?? [];
-  const recentEscalations = metrics?.recentEscalations ?? [];
+  useEffect(() => {
+    loadDashboardData();
 
-  const redCount = tierCounts.red;
-  const orangeCount = tierCounts.orange;
-  const highAlertCount = redCount + orangeCount;
-  const totalTiered =
-    tierCounts.green + tierCounts.yellow + tierCounts.orange + tierCounts.red;
+    const channel = supabase
+      .channel("lgu_dashboard_traps_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_readings" },
+        () => loadDashboardData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_devices" },
+        () => loadDashboardData()
+      )
+      .subscribe();
 
-  const avg3 = metrics?.dviAverage3Day ?? 0;
-  const prev3 = metrics?.dviAveragePrev3Day ?? 0;
-  const overallChange = prev3 > 0 ? ((avg3 - prev3) / prev3) * 100 : null;
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
-  const watchlist = barangayStatus.filter(
-    (b) => b.tier === "red" || b.tier === "orange",
+  const toggleTrap = (id: string) => {
+    setSelectedTrapId((prev) => (prev === id ? null : id));
+  };
+
+  const selectedTrap = useMemo(
+    () => devices.find((d) => d.id === selectedTrapId) ?? null,
+    [devices, selectedTrapId]
   );
-
-  const { data: devices = [], isLoading: isLoadingDevices } = useQuery({
-    queryKey: ["lgu-dashboard-devices"],
-    queryFn: fetchDevices,
-  });
-
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-
-  const activeTrap = useMemo(() => {
-    if (!devices || devices.length === 0) return null;
-    if (selectedDeviceId) {
-      const found = devices.find((d) => d.id === selectedDeviceId);
-      if (found) return found;
-    }
-    return devices[0];
-  }, [devices, selectedDeviceId]);
-
-  const trapDangerTier: DangerTier = useMemo(() => {
-    if (!activeTrap) return "Low";
-    return getDangerTier(
-      activeTrap.today_mosquito_count,
-      activeTrap.consecutive_critical_days ?? 0
-    );
-  }, [activeTrap]);
-
-  const banner =
-    redCount > 0
-      ? {
-          level: "Critical alert",
-          text: `${redCount} barangay${redCount === 1 ? " is" : "s are"} at critical mosquito risk${orangeCount > 0 ? `, plus ${orangeCount} at high risk` : ""}. Coordinate field response immediately.`,
-          style: "border-rose-200 bg-gradient-to-r from-rose-50 to-white text-rose-900",
-          icon: Siren,
-          iconStyle: "bg-rose-100 text-rose-600",
-        }
-      : orangeCount > 0
-        ? {
-            level: "High alert",
-            text: `${orangeCount} barangay${orangeCount === 1 ? " is" : "s are"} at high mosquito risk. Prepare intervention and monitor closely.`,
-            style: "border-orange-200 bg-gradient-to-r from-orange-50 to-white text-orange-900",
-            icon: ShieldAlert,
-            iconStyle: "bg-orange-100 text-orange-600",
-          }
-        : {
-            level: "All clear",
-            text: "No barangays are currently at high or critical mosquito risk.",
-            style: "border-emerald-200 bg-gradient-to-r from-emerald-50 to-white text-emerald-900",
-            icon: ShieldCheck,
-            iconStyle: "bg-emerald-100 text-emerald-600",
-          };
-  const BannerIcon = banner.icon;
-
-  const show = (v: string) => (isLoading ? "…" : v);
 
   return (
     <div className="space-y-6">
@@ -366,7 +441,12 @@ export default function LguDashboard() {
                 Trap map
               </Link>
             </Button>
-            <Button asChild size="sm" variant="outline" className="rounded-full px-4">
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="rounded-full px-4"
+            >
               <Link to={ROUTES.lgu.reports}>
                 <FileText className="mr-1 size-4" />
                 Generate report
@@ -376,438 +456,165 @@ export default function LguDashboard() {
         </div>
       </div>
 
-      {/* Alert banner */}
-      <div
-        role="status"
-        className={`flex items-center gap-4 rounded-2xl border p-5 shadow-sm ${banner.style}`}
-      >
-        <div className={`rounded-xl p-3 ${banner.iconStyle}`}>
-          <BannerIcon className="size-6" />
+      {/* Traps Rectangle Containers (Side-by-Side Columns) */}
+      {isLoading ? (
+        <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 text-slate-500 shadow-sm">
+          <div className="inline-flex items-center gap-2">
+            <Loader2 className="size-5 animate-spin text-emerald-600" />
+            <span className="text-sm font-medium">Loading traps data…</span>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold uppercase tracking-wide opacity-80">
-            {isLoading ? "Checking alert status…" : banner.level}
-          </p>
-          <p className="mt-0.5 text-sm font-medium sm:text-base">
-            {isLoading ? "Loading latest risk assessments." : banner.text}
-          </p>
+      ) : devices.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-500 shadow-sm">
+          No monitored traps found.
         </div>
-        {highAlertCount > 0 && (
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="hidden rounded-full sm:inline-flex"
-          >
-            <Link to={ROUTES.lgu.reports}>
-              Review <ArrowRight className="ml-1 size-4" />
-            </Link>
-          </Button>
-        )}
-      </div>
+      ) : (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {devices.map((device) => {
+            const isSelected = selectedTrapId === device.id;
+            const todayCount = device.today_mosquito_count ?? 0;
+            const dangerTier = getDangerTier(
+              todayCount,
+              device.consecutive_critical_days ?? 0
+            );
+            const dangerConfig = TRAP_DANGER_CONFIG[dangerTier];
+            const statusName = getDeviceStatusName(device);
+            const isOnline = statusName === "Online";
+            const barangayLabel = [
+              device.barangays?.barangay_name,
+              device.barangays?.municipality,
+            ]
+              .filter(Boolean)
+              .join(", ");
 
-      {/* KPIs */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          icon={Bug}
-          label="Avg mosquito count (3-day)"
-          value={show(Math.round(avg3).toString())}
-          tone="bg-emerald-50 text-emerald-700"
-          detail={
-            <span className="inline-flex items-center gap-1.5">
-              <ChangeIndicator changePct={overallChange} />
-              <span>vs previous 3 days</span>
-            </span>
-          }
-        />
-        <KpiCard
-          icon={Siren}
-          label="Barangays on high alert"
-          value={show(String(highAlertCount))}
-          tone={
-            highAlertCount > 0
-              ? "bg-rose-50 text-rose-600"
-              : "bg-red-50 text-red-700"
-          }
-          detail={`${redCount} critical · ${orangeCount} high`}
-        />
-        {/* Monitored Traps & Danger Level (Barangays Monitored Container) */}
-        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
-          <CardContent className="p-5 flex flex-col justify-between h-full">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Barangays Monitored
-                  </p>
-                  <p className="text-xs text-slate-500 font-semibold truncate mt-0.5">
-                    Barangay San Juan {devices.length > 0 ? `· ${devices.length} trap${devices.length > 1 ? "s" : ""}` : ""}
-                  </p>
-                </div>
-                <div className="rounded-xl p-2 bg-sky-50 text-sky-700 shrink-0">
-                  <MapPinned className="size-4" />
-                </div>
-              </div>
+            return (
+              <Card
+                key={device.id}
+                onClick={() => toggleTrap(device.id)}
+                className={cn(
+                  "cursor-pointer rounded-2xl border transition-all hover:-translate-y-0.5 hover:shadow-md",
+                  isSelected
+                    ? "border-emerald-500 bg-emerald-50/30 ring-2 ring-emerald-500/20 shadow-md"
+                    : "border-slate-200 bg-white shadow-sm hover:border-slate-300"
+                )}
+              >
+                <CardContent className="flex h-full flex-col justify-between p-5">
+                  <div className="space-y-3">
+                    {/* Top Row: Trap Code & Danger Badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Monitored Trap
+                        </p>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <span className="font-mono text-lg font-bold tracking-tight text-slate-900">
+                            {device.device_code}
+                          </span>
+                        </div>
+                      </div>
 
-              {isLoadingDevices ? (
-                <div className="py-4 text-center text-xs text-slate-400">Loading trap info…</div>
-              ) : activeTrap ? (
-                <div className="space-y-2 mt-1">
-                  <div className="flex items-center justify-between gap-2">
-                    {devices.length > 1 ? (
-                      <select
-                        value={activeTrap.id}
-                        onChange={(e) => setSelectedDeviceId(e.target.value)}
-                        aria-label="Select Monitored Trap"
-                        className="text-sm font-bold font-mono text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ring-1 ring-inset ${dangerConfig.badge}`}
                       >
-                        {devices.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.device_code}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-base font-bold font-mono text-slate-900 tracking-tight">
-                        {activeTrap.device_code}
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${dangerConfig.dot}`}
+                        />
+                        {dangerConfig.label}
                       </span>
-                    )}
-
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border ring-1 ring-inset ${TRAP_DANGER_CONFIG[trapDangerTier].badge}`}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${TRAP_DANGER_CONFIG[trapDangerTier].dot}`} />
-                      {TRAP_DANGER_CONFIG[trapDangerTier].label}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Today's Count</p>
-                      <p className="text-lg font-bold text-slate-800 tabular-nums leading-tight">
-                        {activeTrap.today_mosquito_count ?? 0}
-                        <span className="text-[10px] font-normal text-slate-400 ml-1">mosq</span>
-                      </p>
                     </div>
 
-                    <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span
-                          className={`h-2 w-2 rounded-full ${
-                            activeTrap.status === "Online" || activeTrap.status === "Active"
-                              ? "bg-emerald-500 animate-pulse"
-                              : "bg-slate-400"
-                          }`}
-                        />
-                        <span className="text-sm font-semibold text-slate-700 truncate">
-                          {activeTrap.status ?? "Offline"}
+                    {/* Location & Description */}
+                    <div className="space-y-1 text-xs text-slate-600">
+                      <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                        <MapPin className="size-3.5 shrink-0 text-emerald-600" />
+                        <span className="truncate">
+                          {barangayLabel || "Unassigned Barangay"}
                         </span>
+                      </div>
+                      {(device.description || device.notes) && (
+                        <p className="truncate pl-5 text-slate-500">
+                          {device.description || device.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Data Metrics Box */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/90 p-2.5">
+                        <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          <Bug className="size-3 text-emerald-600" />
+                          Today's Count
+                        </p>
+                        <p className="mt-1 text-xl font-bold tabular-nums leading-tight text-slate-900">
+                          {todayCount}
+                          <span className="ml-1 text-[11px] font-normal text-slate-400">
+                            mosq
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-100 bg-slate-50/90 p-2.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Status
+                        </p>
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "h-2 w-2 rounded-full",
+                              isOnline
+                                ? "bg-emerald-500 animate-pulse"
+                                : "bg-slate-400"
+                            )}
+                          />
+                          <span className="truncate text-sm font-semibold text-slate-800">
+                            {statusName}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="py-4 text-xs text-slate-400 text-center">No traps deployed</div>
-              )}
-            </div>
 
-            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-medium">San Juan, Taytay</span>
-              <Link
-                to={ROUTES.lgu.trapMap}
-                className="font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5"
-              >
-                View Map <ArrowRight className="size-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* REPLACED: Standalone Response Actions Card */}
-        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Response Actions
-              </p>
-              <div className="rounded-xl p-2 bg-amber-50 text-amber-700">
-                <ClipboardList className="size-4" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Pending */}
-              <div className="rounded-lg bg-amber-50/60 border border-amber-100 p-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800/80 mb-0.5">Pending</p>
-                <p className="text-xl font-bold text-amber-900 tabular-nums leading-tight">{show(String(metrics?.pendingActions ?? 0))}</p>
-              </div>
-              {/* In Progress */}
-              <div className="rounded-lg bg-indigo-50/60 border border-indigo-100 p-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-800/80 mb-0.5">In Progress</p>
-                <p className="text-xl font-bold text-indigo-900 tabular-nums leading-tight">{show(String(metrics?.inProgressActions ?? 0))}</p>
-              </div>
-              {/* Completed */}
-              <div className="rounded-lg bg-emerald-50/60 border border-emerald-100 p-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800/80 mb-0.5">Completed</p>
-                <p className="text-xl font-bold text-emerald-900 tabular-nums leading-tight">{show(String(metrics?.completedActions ?? 0))}</p>
-              </div>
-              {/* Cancelled */}
-              <div className="rounded-lg bg-slate-50/60 border border-slate-200 p-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">Cancelled</p>
-                <p className="text-xl font-bold text-slate-800 tabular-nums leading-tight">{show(String(metrics?.cancelledActions ?? 0))}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+                  {/* Footer Info */}
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                    <div className="flex items-center gap-1 truncate">
+                      <Clock className="size-3 shrink-0 text-slate-400" />
+                      <span className="truncate">
+                        {device.last_seen_at
+                          ? formatTelemetryTimestamp(device.last_seen_at)
+                          : "No readings yet"}
+                      </span>
+                    </div>
 
-      {/* Trend + tier distribution */}
-      <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
-          <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle>Mosquito activity, last 7 days</CardTitle>
-            <CardDescription>
-              Daily mosquito count across all monitored traps.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-5">
-            {isLoading ? (
-              <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
-            ) : dailyTrend.every((d) => d.readings === 0) ? (
-              <div className="flex h-64 items-center justify-center text-sm text-slate-500">
-                No trap readings in the last 7 days.
-              </div>
-            ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={dailyTrend}
-                    margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
-                  >
-                    <defs>
-                      <linearGradient id="lguTrendFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatShortDate}
-                      tick={{ fontSize: 11, fill: "#64748b" }}
-                      tickLine={false}
-                      axisLine={false}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "#64748b" }}
-                      tickLine={false}
-                      axisLine={false}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      labelFormatter={(v) => formatShortDate(String(v))}
-                      formatter={(value) => [String(value), "Total count"]}
-                      contentStyle={{ borderRadius: 12, borderColor: "#e2e8f0" }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="total"
-                      stroke="#059669"
-                      strokeWidth={2.5}
-                      fill="url(#lguTrendFill)"
-                      dot={{ r: 3 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
-          <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle>Risk level distribution</CardTitle>
-            <CardDescription>
-              Latest saved assessment per barangay; numeric cutoffs are set by
-              the assessment, not shared across count-based risk tiers.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-5">
-            {(["red", "orange", "yellow", "green"] as const).map((tier) => {
-              const count = tierCounts[tier];
-              const pct = totalTiered > 0 ? (count / totalTiered) * 100 : 0;
-              const s = TIER_STYLES[tier];
-              return (
-                <div key={tier}>
-                  <div className="mb-1.5 flex items-center justify-between text-sm">
-                    <span className="inline-flex items-center gap-2 font-medium text-slate-700">
-                      <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
-                      {s.label}
-                    </span>
-                    <span className="font-semibold tabular-nums text-slate-900">
-                      {show(String(count))}
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 font-semibold transition-colors",
+                        isSelected ? "text-emerald-700" : "text-slate-500"
+                      )}
+                    >
+                      <span>{isSelected ? "Hide" : "View"}</span>
+                      <ChevronDown
+                        className={cn(
+                          "size-3.5 transition-transform duration-200",
+                          isSelected && "rotate-180"
+                        )}
+                      />
                     </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${s.bar}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Watchlist */}
-      <Card className="overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm">
-        <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-slate-100 pb-4">
-          <div>
-            <CardTitle>Barangay watchlist</CardTitle>
-            <CardDescription>
-              Sorted by risk level, then by recent mosquito count. Trend compares the last 3
-              days with the 3 days before.
-            </CardDescription>
-          </div>
-          {watchlist.length > 0 && (
-            <Badge variant="destructive" className="shrink-0">
-              {watchlist.length} need attention
-            </Badge>
-          )}
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
-                <TableHead className="text-xs uppercase tracking-wide">Barangay</TableHead>
-                <TableHead className="text-xs uppercase tracking-wide">Risk level</TableHead>
-                <TableHead className="text-xs uppercase tracking-wide">Avg count (3d)</TableHead>
-                <TableHead className="text-xs uppercase tracking-wide">Trend</TableHead>
-                <TableHead className="text-xs uppercase tracking-wide">Last reading</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-slate-500">
-                    Loading barangay data…
-                  </TableCell>
-                </TableRow>
-              ) : barangayStatus.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-slate-500">
-                    No monitored barangays found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                barangayStatus.slice(0, 10).map((b) => (
-                  <TableRow
-                    key={b.id}
-                    className={
-                      b.tier === "red"
-                        ? "bg-rose-50/40"
-                        : b.tier === "orange"
-                          ? "bg-orange-50/40"
-                          : ""
-                    }
-                  >
-                    <TableCell className="font-medium text-slate-900">{b.name}</TableCell>
-                    <TableCell>
-                      <TierBadge tier={b.tier} />
-                    </TableCell>
-                    <TableCell className="tabular-nums text-slate-700">
-                      {b.avg3Day.toFixed(1)}
-                    </TableCell>
-                    <TableCell>
-                      <ChangeIndicator changePct={b.changePct} />
-                    </TableCell>
-                    <TableCell className="text-sm text-slate-500">
-                      {b.lastReadingAt ? formatTelemetryTimestamp(b.lastReadingAt) : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Escalations + quick links */}
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
-          <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle>Recent alert escalations</CardTitle>
-            <CardDescription>Barangays whose risk level recently increased.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Barangay</TableHead>
-                  <TableHead>Tier transition</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
-                      Loading escalation history…
-                    </TableCell>
-                  </TableRow>
-                ) : recentEscalations.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
-                      No recent escalations. Risk levels are stable.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  recentEscalations.map((item) => (
-                    <TableRow key={`${item.barangay}-${item.timestamp}`}>
-                      <TableCell className="font-medium text-slate-900">
-                        {item.barangay}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="destructive">{item.transition}</Badge>
-                      </TableCell>
-                      <TableCell>{formatTelemetryTimestamp(item.timestamp)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-3">
-          {quickLinks.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Button
-                key={item.href}
-                asChild
-                variant="outline"
-                className="h-auto justify-start rounded-2xl border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50/40"
-              >
-                <Link to={item.href}>
-                  <div className="flex w-full items-start gap-4">
-                    <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700">
-                      <Icon className="size-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-950">{item.label}</p>
-                      <p className="mt-0.5 text-sm text-slate-500">{item.description}</p>
-                    </div>
-                  </div>
-                </Link>
-              </Button>
+                </CardContent>
+              </Card>
             );
           })}
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* Selected Trap Analytics: Mosquito Activity Graph & Risk Level Distribution */}
+      {selectedTrap && (
+        <TrapExpandedAnalytics
+          device={selectedTrap}
+          readings={readings}
+          isLoading={isLoading}
+        />
+      )}
     </div>
   );
 }

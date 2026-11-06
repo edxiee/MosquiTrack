@@ -174,7 +174,7 @@ export default function MacroGeospatialHeatmapPage() {
   // Filter state for deployed traps side list
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">(
-    "online"
+    "all"
   );
 
   // Diagnostics modal
