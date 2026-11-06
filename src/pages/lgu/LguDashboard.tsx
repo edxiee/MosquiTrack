@@ -13,10 +13,14 @@ import {
   Bug,
   ChevronDown,
   Clock,
+  Droplets,
   FileText,
   Loader2,
   MapPin,
   MapPinned,
+  Moon,
+  Sun,
+  Thermometer,
   User,
 } from "lucide-react";
 
@@ -33,6 +37,7 @@ import { type AlertTier } from "@/hooks/useLguDashboardData";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { fetchDevices } from "@/services/device.service";
+import { getTrapWeather } from "@/services/weather.service";
 import type { OvitrapDevice } from "@/types/device.types";
 import {
   getConsecutiveCriticalDays,
@@ -129,8 +134,257 @@ function formatShortDate(iso: string) {
 interface ReadingRow {
   device_id: string;
   mosquito_count: number | null;
+  temperature_c?: number | null;
+  humidity_percent?: number | null;
   captured_at: string;
   created_at?: string;
+}
+
+interface MosquitoSurgePrediction {
+  possibilityPct: number;
+  level: "Very High" | "High" | "Moderate" | "Low";
+  headline: string;
+  summary: string;
+  recommendation: string;
+  tempScore: number;
+  tempCondition: string;
+  humidityScore: number;
+  humidityCondition: string;
+  isNight: boolean;
+  periodLabel: "Nighttime" | "Daytime";
+  timeScore: number;
+  timeCondition: string;
+  formattedTime: string;
+  badgeClass: string;
+  barClass: string;
+  accentClass: string;
+}
+
+/**
+ * Entomological microclimate & circadian algorithm that evaluates the probability of
+ * elevated mosquito flight, host-seeking, and breeding activity based on ambient
+ * temperature (°C), relative humidity (%), and the latest time of upload (Day vs Night).
+ *
+ * Reference thresholds:
+ * - Optimal Temperature: 26°C – 31°C (peak ~28.5°C); drops sharply <18°C or >36°C
+ * - Optimal Relative Humidity: 65% – 88% (peak ~78%); desiccation stress <45%
+ * - Circadian Activity (Time of Upload):
+ *   - Night / Dusk / Dawn (6:00 PM – 5:59 AM): Higher mosquito activity
+ *   - Daytime (6:00 AM – 5:59 PM): Less mosquito activity due to sunlight and heat
+ */
+function computeMosquitoSurgePossibility(
+  temperatureC: number | null,
+  humidityPercent: number | null,
+  latestUploadAt: string | null
+): MosquitoSurgePrediction | null {
+  if (temperatureC === null && humidityPercent === null) {
+    return null;
+  }
+
+  const temp = temperatureC ?? 28.0;
+  const hum = humidityPercent ?? 75.0;
+
+  // Determine hour from latest upload timestamp (or fallback to current local time)
+  const parsedUpload = latestUploadAt ? new Date(latestUploadAt) : new Date();
+  const validUploadDate = Number.isNaN(parsedUpload.getTime())
+    ? new Date()
+    : parsedUpload;
+  const uploadHour = validUploadDate.getHours();
+  const formattedTime = validUploadDate.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  // Night is 6:00 PM (18) to 5:59 AM (5); Daytime is 6:00 AM (6) to 5:59 PM (17)
+  const isNight = uploadHour >= 18 || uploadHour < 6;
+  const periodLabel: "Nighttime" | "Daytime" = isNight ? "Nighttime" : "Daytime";
+
+  // 1. Time of Upload Suitability Score (0 - 100) — Daytime has fewer mosquitoes
+  let timeScore = 50;
+  let timeCondition = "Daytime (Reduced Activity)";
+
+  if (uploadHour >= 18 && uploadHour <= 22) {
+    timeScore = 96;
+    timeCondition = "Night / Dusk Peak (High Activity)";
+  } else if (uploadHour >= 23 || uploadHour < 4) {
+    timeScore = 88;
+    timeCondition = "Nighttime Active Hours";
+  } else if (uploadHour >= 4 && uploadHour < 6) {
+    timeScore = 94;
+    timeCondition = "Dawn Peak (High Activity)";
+  } else if (uploadHour >= 6 && uploadHour < 9) {
+    timeScore = 52;
+    timeCondition = "Morning (Daytime — Less Mosquitoes)";
+  } else if (uploadHour >= 9 && uploadHour < 16) {
+    timeScore = 26;
+    timeCondition = "Midday Sun (Daytime — Less Mosquitoes)";
+  } else {
+    timeScore = 48;
+    timeCondition = "Late Afternoon (Daytime — Less Mosquitoes)";
+  }
+
+  // 2. Temperature Suitability Score (0 - 100)
+  let tempScore = 50;
+  let tempCondition = "Moderate";
+
+  if (temp >= 26 && temp <= 31.5) {
+    const distFromPeak = Math.abs(temp - 28.5);
+    tempScore = Math.round(100 - distFromPeak * 4);
+    tempCondition = "Optimal (26–31.5°C)";
+  } else if (temp >= 23 && temp < 26) {
+    tempScore = Math.round(68 + ((temp - 23) / 3) * 20);
+    tempCondition = "Favorable Warm (23–25.9°C)";
+  } else if (temp > 31.5 && temp <= 35) {
+    tempScore = Math.round(88 - ((temp - 31.5) / 3.5) * 28);
+    tempCondition = "Warm / Hot (31.6–35°C)";
+  } else if (temp >= 18 && temp < 23) {
+    tempScore = Math.round(30 + ((temp - 18) / 5) * 35);
+    tempCondition = "Cool (18–22.9°C)";
+  } else if (temp > 35 && temp <= 38) {
+    tempScore = Math.round(55 - ((temp - 35) / 3) * 30);
+    tempCondition = "High Heat Stress (>35°C)";
+  } else {
+    tempScore = 15;
+    tempCondition = temp < 18 ? "Too Cold (<18°C)" : "Extreme Heat (>38°C)";
+  }
+
+  // 3. Relative Humidity Suitability Score (0 - 100)
+  let humidityScore = 50;
+  let humidityCondition = "Moderate";
+
+  if (hum >= 65 && hum <= 88) {
+    const distFromPeak = Math.abs(hum - 78);
+    humidityScore = Math.round(100 - distFromPeak * 0.9);
+    humidityCondition = "Optimal Humid (65–88%)";
+  } else if (hum >= 52 && hum < 65) {
+    humidityScore = Math.round(60 + ((hum - 52) / 13) * 26);
+    humidityCondition = "Favorable (52–64%)";
+  } else if (hum > 88 && hum <= 100) {
+    humidityScore = Math.round(88 - ((hum - 88) / 12) * 18);
+    humidityCondition = "Very Humid / Saturated (>88%)";
+  } else if (hum >= 38 && hum < 52) {
+    humidityScore = Math.round(28 + ((hum - 38) / 14) * 30);
+    humidityCondition = "Dry (38–51%)";
+  } else {
+    humidityScore = 15;
+    humidityCondition = "Too Dry (<38%)";
+  }
+
+  tempScore = Math.max(5, Math.min(100, tempScore));
+  humidityScore = Math.max(5, Math.min(100, humidityScore));
+
+  // 4. Weighted Combination (Temp 40%, Humidity 35%, Time of Upload 25%) + Day/Night Adjustment
+  let combined = tempScore * 0.4 + humidityScore * 0.35 + timeScore * 0.25;
+
+  if (isNight) {
+    // Nighttime synergy when warm and humid
+    if (tempScore >= 75 && humidityScore >= 75) {
+      combined += 6;
+    }
+  } else {
+    // Daytime reduction: during daytime there are significantly fewer active mosquitoes
+    combined *= uploadHour >= 9 && uploadHour < 16 ? 0.68 : 0.78;
+  }
+
+  // Limiting factor penalty if either climate parameter is severely unfavorable
+  if (tempScore < 30 || humidityScore < 30) {
+    combined *= 0.75;
+  }
+
+  const possibilityPct = Math.max(5, Math.min(98, Math.round(combined)));
+  const timeContextText = isNight
+    ? `latest upload was at Night (${formattedTime}), when mosquitoes are most active`
+    : `latest upload was during the Day (${formattedTime}), when mosquitoes shelter from sunlight and fewer mosquitoes are active`;
+
+  if (possibilityPct >= 80) {
+    return {
+      possibilityPct,
+      level: "Very High",
+      headline: "High Possibility of Many Mosquitoes Today",
+      summary: `Current conditions (${temp.toFixed(1)}°C, ${hum.toFixed(0)}% RH) combined with ${timeContextText}, creating peak conditions for mosquito flight and host-seeking.`,
+      recommendation:
+        "Expect peak vector density—prioritize larviciding, misting readiness, and stagnant water inspection around this trap.",
+      tempScore,
+      tempCondition,
+      humidityScore,
+      humidityCondition,
+      isNight,
+      periodLabel,
+      timeScore,
+      timeCondition,
+      formattedTime,
+      badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+      barClass: "bg-rose-500",
+      accentClass: "text-rose-600",
+    };
+  }
+
+  if (possibilityPct >= 65) {
+    return {
+      possibilityPct,
+      level: "High",
+      headline: "Elevated Possibility of Mosquito Activity Today",
+      summary: `With ${temp.toFixed(1)}°C and ${hum.toFixed(0)}% humidity, and because the ${timeContextText}, environmental conditions support elevated mosquito activity.`,
+      recommendation:
+        "Monitor trap counts closely during evening and dawn peak biting hours.",
+      tempScore,
+      tempCondition,
+      humidityScore,
+      humidityCondition,
+      isNight,
+      periodLabel,
+      timeScore,
+      timeCondition,
+      formattedTime,
+      badgeClass: "bg-orange-50 text-orange-700 border-orange-200",
+      barClass: "bg-orange-500",
+      accentClass: "text-orange-600",
+    };
+  }
+
+  if (possibilityPct >= 45) {
+    return {
+      possibilityPct,
+      level: "Moderate",
+      headline: "Moderate Possibility of Mosquito Activity Today",
+      summary: `Temperature (${temp.toFixed(1)}°C) and humidity (${hum.toFixed(0)}% RH) are favorable, but the ${timeContextText}, moderating current active counts.`,
+      recommendation:
+        "Expect activity to rise after sunset as daytime heat subsides into evening.",
+      tempScore,
+      tempCondition,
+      humidityScore,
+      humidityCondition,
+      isNight,
+      periodLabel,
+      timeScore,
+      timeCondition,
+      formattedTime,
+      badgeClass: "bg-amber-50 text-amber-800 border-amber-200",
+      barClass: "bg-amber-500",
+      accentClass: "text-amber-600",
+    };
+  }
+
+  return {
+    possibilityPct,
+    level: "Low",
+    headline: "Low Possibility of Many Mosquitoes Right Now",
+    summary: `With ${temp.toFixed(1)}°C and ${hum.toFixed(0)}% RH, and because the ${timeContextText}, active mosquito presence is currently low.`,
+    recommendation:
+      "Fewer mosquitoes are active during daytime hours; continue standard routine surveillance.",
+    tempScore,
+    tempCondition,
+    humidityScore,
+    humidityCondition,
+    isNight,
+    periodLabel,
+    timeScore,
+    timeCondition,
+    formattedTime,
+    badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    barClass: "bg-emerald-500",
+    accentClass: "text-emerald-600",
+  };
 }
 
 function TrapExpandedAnalytics({
@@ -142,6 +396,94 @@ function TrapExpandedAnalytics({
   readings: ReadingRow[];
   isLoading: boolean;
 }) {
+  const [fallbackWeather, setFallbackWeather] = useState<{
+    temperature: number;
+    humidity: number;
+  } | null>(null);
+  const [isWeatherLoading, setIsWeatherLoading] = useState(false);
+
+  // Find latest telemetry reading with temperature / humidity / timestamp for this trap
+  const latestClimateReading = useMemo(() => {
+    const deviceReadings = readings.filter((r) => r.device_id === device.id);
+    const latestAny = deviceReadings[0];
+    const withTemp = deviceReadings.find((r) => r.temperature_c != null);
+    const withHum = deviceReadings.find((r) => r.humidity_percent != null);
+    return {
+      temperature:
+        withTemp?.temperature_c != null ? Number(withTemp.temperature_c) : null,
+      humidity:
+        withHum?.humidity_percent != null
+          ? Number(withHum.humidity_percent)
+          : null,
+      capturedAt:
+        latestAny?.captured_at ||
+        latestAny?.created_at ||
+        withTemp?.captured_at ||
+        withHum?.captured_at ||
+        device.last_seen_at ||
+        null,
+    };
+  }, [device.id, device.last_seen_at, readings]);
+
+  // Fetch location weather if trap telemetry doesn't have temperature or humidity
+  useEffect(() => {
+    let cancelled = false;
+    if (
+      latestClimateReading.temperature !== null &&
+      latestClimateReading.humidity !== null
+    ) {
+      return;
+    }
+
+    const lat =
+      device.latitude != null && Number(device.latitude) !== 0
+        ? Number(device.latitude)
+        : 14.561;
+    const lng =
+      device.longitude != null && Number(device.longitude) !== 0
+        ? Number(device.longitude)
+        : 121.118;
+
+    setIsWeatherLoading(true);
+    getTrapWeather(lat, lng)
+      .then((weather) => {
+        if (!cancelled && weather) {
+          setFallbackWeather(weather);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsWeatherLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    device.id,
+    device.latitude,
+    device.longitude,
+    latestClimateReading.temperature,
+    latestClimateReading.humidity,
+  ]);
+
+  const effectiveTemp =
+    latestClimateReading.temperature ?? fallbackWeather?.temperature ?? null;
+  const effectiveHumidity =
+    latestClimateReading.humidity ?? fallbackWeather?.humidity ?? null;
+  const isFromSensor =
+    latestClimateReading.temperature !== null ||
+    latestClimateReading.humidity !== null;
+
+  const surgePrediction = useMemo(
+    () =>
+      computeMosquitoSurgePossibility(
+        effectiveTemp,
+        effectiveHumidity,
+        latestClimateReading.capturedAt
+      ),
+    [effectiveTemp, effectiveHumidity, latestClimateReading.capturedAt]
+  );
+
   const { dailyTrend, tierCounts, totalTiered } = useMemo(() => {
     const DAY_MS = 24 * 60 * 60 * 1000;
     const now = new Date();
@@ -217,8 +559,94 @@ function TrapExpandedAnalytics({
     };
   }, [device.id, readings]);
 
+  const locationName =
+    [device.barangays?.barangay_name, device.barangays?.municipality]
+      .filter(Boolean)
+      .join(", ") || "Trap Location";
+
   return (
-    <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr] animate-in fade-in-50 duration-200">
+    <div className="space-y-6 animate-in fade-in-50 duration-200">
+      {/* Minimalist: Today's Mosquito Activity Possibility */}
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+        <CardContent className="p-5">
+          {isLoading || (isWeatherLoading && !surgePrediction) ? (
+            <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
+          ) : !surgePrediction ? (
+            <p className="text-sm text-slate-500">
+              Waiting for temperature and humidity data for {device.device_code}…
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Today's Mosquito Activity Possibility ({device.device_code})
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    {locationName} · {isFromSensor ? "Trap sensor" : "Live weather"}
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${surgePrediction.badgeClass}`}
+                >
+                  <span className={`size-1.5 rounded-full ${surgePrediction.barClass}`} />
+                  {surgePrediction.level}
+                </span>
+              </div>
+
+              <div>
+                <p
+                  className={`text-2xl sm:text-3xl font-bold tracking-tight ${surgePrediction.accentClass}`}
+                >
+                  {surgePrediction.level} Possibility
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  {surgePrediction.headline}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 text-sm">
+                <div>
+                  <p className="flex items-center gap-1 text-[11px] text-slate-500">
+                    <Thermometer className="size-3" /> Temp
+                  </p>
+                  <p className="font-semibold tabular-nums text-slate-900">
+                    {effectiveTemp !== null ? `${effectiveTemp.toFixed(1)}°C` : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="flex items-center gap-1 text-[11px] text-slate-500">
+                    <Droplets className="size-3" /> Humidity
+                  </p>
+                  <p className="font-semibold tabular-nums text-slate-900">
+                    {effectiveHumidity !== null
+                      ? `${effectiveHumidity.toFixed(0)}%`
+                      : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="flex items-center gap-1 text-[11px] text-slate-500">
+                    {surgePrediction.isNight ? (
+                      <Moon className="size-3" />
+                    ) : (
+                      <Sun className="size-3" />
+                    )}
+                    Upload
+                  </p>
+                  <p className="font-semibold text-slate-900">
+                    {surgePrediction.formattedTime}{" "}
+                    <span className="text-xs font-normal text-slate-500">
+                      {surgePrediction.isNight ? "Night" : "Day"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
       <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="border-b border-slate-100 pb-4">
           <CardTitle>
@@ -328,7 +756,8 @@ function TrapExpandedAnalytics({
           })}
         </CardContent>
       </Card>
-    </section>
+      </section>
+    </div>
   );
 }
 
@@ -356,7 +785,9 @@ export default function LguDashboard() {
 
         const { data: readingsData } = await supabase
           .from("ovitrap_readings")
-          .select("device_id, mosquito_count, captured_at, created_at")
+          .select(
+            "device_id, mosquito_count, temperature_c, humidity_percent, captured_at, created_at"
+          )
           .in("device_id", deviceIds)
           .gte("captured_at", sevenDaysAgo.toISOString())
           .order("captured_at", { ascending: false })
