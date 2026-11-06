@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 
-type RoleType = "SYS_ADMIN" | "MHO" | "BHW" | "ADMIN" | (string & {});
+type RoleType = "SYS_ADMIN" | "ADMIN" | "BRGY_ADMIN" | "FIELD_OP" | "MHO" | "BHW" | (string & {});
 
 interface RoleBadgeProps {
   role?: RoleType | null;
@@ -18,12 +18,20 @@ const ROLE_CONFIG: Record<
     label: "Site Admin",
     badge: "bg-purple-700/10 text-purple-700 dark:text-purple-300 border-purple-500/90 hover:bg-purple-500/15",
   },
+  BRGY_ADMIN: {
+    label: "Barangay Admin",
+    badge: "bg-blue-600/10 text-blue-700 dark:text-blue-300 border-blue-500/90 hover:bg-blue-500/15",
+  },
+  FIELD_OP: {
+    label: "Field Operative",
+    badge: "bg-emerald-700/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/90 hover:bg-emerald-500/15",
+  },
   MHO: {
-    label: "Municipal Health Officer",
+    label: "Barangay Admin",
     badge: "bg-blue-600/10 text-blue-700 dark:text-blue-300 border-blue-500/90 hover:bg-blue-500/15",
   },
   BHW: {
-    label: "Barangay Health Worker",
+    label: "Field Operative",
     badge: "bg-emerald-700/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/90 hover:bg-emerald-500/15",
   },
 };

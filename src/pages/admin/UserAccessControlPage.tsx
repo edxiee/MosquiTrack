@@ -20,8 +20,6 @@ export default function UserAccessControlPage() {
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
-  const [municipality, setMunicipality] = useState("all");
-  const [barangay, setBarangay] = useState("all");
 
   const [allUsers, setAllUsers] = useState<DatabaseUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,6 +52,8 @@ export default function UserAccessControlPage() {
   const ROLE_ORDER: Record<string, number> = {
     SYS_ADMIN: 0,
     ADMIN: 1,
+    BRGY_ADMIN: 2,
+    FIELD_OP: 3,
     MHO: 2,
     BHW: 3,
   };
@@ -81,23 +81,6 @@ export default function UserAccessControlPage() {
     });
   }, [allUsers, profile?.role?.role_code]);
 
-  // Municipality / barangay options from visible users only
-  const municipalityOptions = useMemo(() => {
-    const values = new Set(
-      visibleUsers
-        .map((u) => u.municipality)
-        .filter((v): v is string => Boolean(v)),
-    );
-    return Array.from(values).sort();
-  }, [visibleUsers]);
-
-  const barangayOptions = useMemo(() => {
-    const values = new Set(
-      visibleUsers.map((u) => u.barangay).filter((v): v is string => Boolean(v)),
-    );
-    return Array.from(values).sort();
-  }, [visibleUsers]);
-
   // Search / filters run on visible users
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -110,18 +93,13 @@ export default function UserAccessControlPage() {
       const matchesRole = role === "all" || u.role === role;
       const matchesStatus =
         status === "all" || u.status === status.toUpperCase();
-      const matchesMunicipality =
-        municipality === "all" || u.municipality === municipality;
-      const matchesBarangay = barangay === "all" || u.barangay === barangay;
       return (
         matchesSearch &&
         matchesRole &&
-        matchesStatus &&
-        matchesMunicipality &&
-        matchesBarangay
+        matchesStatus
       );
     });
-  }, [visibleUsers, search, role, status, municipality, barangay]);
+  }, [visibleUsers, search, role, status]);
 
   // Stats from visible users (SYS_ADMIN excluded for ADMIN viewers)
   const stats = useMemo(
@@ -264,12 +242,6 @@ export default function UserAccessControlPage() {
         onRoleChange={setRole}
         status={status}
         onStatusChange={setStatus}
-        municipality={municipality}
-        onMunicipalityChange={setMunicipality}
-        municipalityOptions={municipalityOptions}
-        barangay={barangay}
-        onBarangayChange={setBarangay}
-        barangayOptions={barangayOptions}
         onCreateUser={handleCreateUser}
       />
       <UsersTable

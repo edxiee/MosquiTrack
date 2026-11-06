@@ -388,21 +388,6 @@ export async function fetchEpidemiologicalReportData(params: {
 
   // 1. Identify current LGU user's municipality if available
   let municipality: string | null = null;
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("municipality")
-        .eq("id", user.id)
-        .maybeSingle();
-      municipality = (profile as { municipality?: string | null } | null)?.municipality ?? null;
-    }
-  } catch {
-    // Non-fatal
-  }
 
   // 2. Fetch barangays
   let barangaysQuery = supabase

@@ -42,7 +42,7 @@ import {
   type TrapRequest,
   type TrapActionLogEntry,
 } from "@/services/trapRequest.service";
-import { formatRelativeTime, formatTelemetryTimestamp, isSameLocalDay } from "@/utils/dateHelpers";
+import { formatRelativeTime, formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import { cn } from "@/lib/utils";
 import { getDangerTier } from "@/utils/dangerTiers";
 import { supabase } from "@/lib/supabase";
@@ -255,23 +255,23 @@ export default function TrapReportDropdown({
 
   const latestReading = readings[0] ?? null;
 
-  // Calculate Today's Cumulative Mosquito Count from ovitrap_readings
-  const todayReadings = readings.filter((r) =>
-    isSameLocalDay(r.captured_at || r.created_at || "")
-  );
+  // Readings are fetched for the current local day only.
+  const todayReadings = readings;
   const fallbackTodaySum = todayReadings.reduce(
     (acc, r) => acc + (r.mosquito_count ?? 0),
     0
   );
   const effectiveTodayPings = mosquitoStats ? mosquitoStats.todayPingsCount : todayReadings.length;
 
-  // The primary count to display: today's sum from ovitrap_readings (or device today/latest count fallback)
+  // Use today's telemetry total, falling back only to today's loaded readings.
   const displayMosquitoCount = mosquitoStats
-    ? mosquitoStats.todaySum
-    : device.today_mosquito_count ?? fallbackTodaySum;
+    ? mosquitoStats.todayPingsCount > 0 || fallbackTodaySum === 0
+      ? mosquitoStats.todaySum
+      : fallbackTodaySum
+    : fallbackTodaySum;
 
   const danger = getTrapDangerLevel(
-    device.today_mosquito_count ?? displayMosquitoCount,
+    displayMosquitoCount,
     device.consecutive_critical_days,
   );
 
@@ -502,10 +502,10 @@ export default function TrapReportDropdown({
           ) : !latestReading ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
               <p className="text-sm font-medium text-slate-700">
-                No telemetry readings recorded for this trap yet.
+                No telemetry readings recorded for this trap today.
               </p>
               <p className="text-xs text-slate-400 mt-1">
-                Once the IoT device transmits data to ovitrap_readings, live metrics and trends will appear here.
+                Today's telemetry will appear here once the trap sends a reading.
               </p>
             </div>
           ) : (
@@ -686,14 +686,14 @@ export default function TrapReportDropdown({
                 <div className="bg-slate-50/80 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Recent Reading Log
+                      Today's Reading Log
                     </span>
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-200/70 text-slate-600 font-medium">
                       {readings.length} {readings.length === 1 ? "packet" : "packets"}
                     </span>
                   </div>
                   <span className="text-[11px] font-normal text-slate-500">
-                    Real data from ovitrap_readings • Click row to inspect raw payload
+                    Today's data from ovitrap_readings • Click row to inspect raw payload
                   </span>
                 </div>
                 <div className="max-h-72 overflow-y-auto">
@@ -719,7 +719,7 @@ export default function TrapReportDropdown({
                           >
                             <div className="max-w-md mx-auto space-y-2">
                               <p className="font-semibold text-slate-700">
-                                No telemetry packets have been received yet.
+                                No telemetry packets have been received today.
                               </p>
                               <p className="text-xs text-slate-500">
                                 Power on this Smart Ovi Trap to transmit readings to ovitrap_readings.

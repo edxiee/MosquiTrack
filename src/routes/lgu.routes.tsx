@@ -12,10 +12,38 @@ const ReportsPage = lazyWithRetry(() => import("@/pages/lgu/ReportsPage"));
 
 export const lguRoutes: RouteObject[] = [
   {
+    path: "/barangay",
+    element: (
+      <ProtectedRoute>
+        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.BARANGAY_ADMIN]}>
+          <DashboardLayout />
+        </RoleGuard>
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        path: "dashboard",
+        element: <LguDashboard />,
+      },
+      {
+        path: "trap-map",
+        element: <MosquitoTrapMap />,
+      },
+      {
+        path: "trap-action-requests",
+        element: <TrapActionRequest />,
+      },
+      {
+        path: "reports",
+        element: <ReportsPage />,
+      },
+    ],
+  },
+  {
     path: "/lgu",
     element: (
       <ProtectedRoute>
-        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.LGU_ADMIN]}>
+        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.BARANGAY_ADMIN]}>
           <DashboardLayout />
         </RoleGuard>
       </ProtectedRoute>
