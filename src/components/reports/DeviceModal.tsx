@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { emptyDeviceForm } from "@/constants/device";
-import { formatBarangayLabel, getNextDeviceCode } from "@/utils/deviceHelpers";
+import { getNextDeviceCode } from "@/utils/deviceHelpers";
 import {
   createDevice,
   updateDevice,
@@ -69,11 +69,15 @@ export default function DeviceModal({
         statuses.find((s) => s.status_name === "Offline") ??
         statuses[0];
 
+      const sanJuanBarangay = barangays.find((b) =>
+        b.barangay_name.trim().toLowerCase().includes("san juan")
+      );
+
       if (mode === "edit" && device) {
         setForm({
           device_code: device.device_code ?? "",
           serial_number: device.serial_number ?? "",
-          barangay_id: device.barangay_id ?? "",
+          barangay_id: device.barangay_id || sanJuanBarangay?.id || "",
           description: device.description ?? "",
           notes: device.notes ?? "",
           device_status_id: device.device_status_id ?? defaultStatus?.id ?? "",
@@ -86,11 +90,27 @@ export default function DeviceModal({
           ...emptyDeviceForm,
           device_code: nextCode,
           device_status_id: defaultStatus?.id ?? "",
+          barangay_id: sanJuanBarangay?.id ?? (barangays[0]?.id ?? ""),
         });
       }
     }
     prevOpenRef.current = open;
-  }, [open, mode, device, statuses, existingDevices]);
+  }, [open, mode, device, statuses, barangays, existingDevices]);
+
+  // Keep Barangay automatically defaulted to San Juan if barangays load or change while open
+  useEffect(() => {
+    if (open && barangays.length > 0 && !form.barangay_id && mode === "create") {
+      const sanJuan = barangays.find((b) =>
+        b.barangay_name.trim().toLowerCase().includes("san juan")
+      );
+      if (sanJuan) {
+        setForm((prev) => ({
+          ...prev,
+          barangay_id: prev.barangay_id || sanJuan.id,
+        }));
+      }
+    }
+  }, [open, barangays, form.barangay_id, mode]);
 
   const handleClose = () => {
     if (saving) return;
@@ -120,10 +140,16 @@ export default function DeviceModal({
         statuses[0];
       const targetStatusId = form.device_status_id || defaultStatus?.id || null;
 
+      const sanJuanBarangay = barangays.find((b) =>
+        b.barangay_name.trim().toLowerCase().includes("san juan")
+      );
+      const targetBarangayId =
+        form.barangay_id || sanJuanBarangay?.id || (barangays[0]?.id ?? null);
+
       const payload: Record<string, unknown> = {
         device_code: form.device_code.trim(),
         serial_number: form.serial_number.trim() || null,
-        barangay_id: form.barangay_id || null,
+        barangay_id: targetBarangayId,
         description: form.description.trim() || null,
         notes: form.notes.trim() || null,
         device_status_id: targetStatusId,
@@ -242,23 +268,22 @@ export default function DeviceModal({
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600">
-                Barangay <span className="text-rose-500">*</span>
+                Barangay
               </Label>
-              <select
-                value={form.barangay_id}
-                onChange={(e) => handleChange("barangay_id", e.target.value)}
-                className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                required
-              >
-                <option value="" disabled>
-                  Select barangay…
-                </option>
-                {barangays.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {formatBarangayLabel(b)}
-                  </option>
-                ))}
-              </select>
+              <Input
+                value={
+                  (() => {
+                    const match =
+                      barangays.find((b) => b.id === form.barangay_id) ??
+                      barangays.find((b) =>
+                        b.barangay_name.trim().toLowerCase().includes("san juan")
+                      );
+                    return match?.barangay_name ?? "Barangay San Juan";
+                  })()
+                }
+                readOnly
+                className="h-9 text-sm text-slate-700 bg-slate-100 cursor-not-allowed select-none"
+              />
             </div>
 
             <div className="space-y-1.5">
