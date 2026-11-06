@@ -48,10 +48,10 @@ export default function ActionTriageLogPage() {
   const isSysAdmin =
     profile?.role?.role_code === "SYS_ADMIN" ||
     profile?.role?.role_code === "ADMIN";
-  const scopedBarangayId = isSysAdmin ? undefined : profile?.barangay?.id;
-  const scopedBarangayName = isSysAdmin
-    ? undefined
-    : profile?.barangay?.barangay_name;
+  // Profiles no longer carry a barangay assignment (single-barangay system:
+  // Barangay San Juan), so all users see every action log.
+  const scopedBarangayId: string | undefined = undefined;
+  const scopedBarangayName: string | undefined = undefined;
 
   async function loadActions(barangayId: string | undefined, barangayName: string | undefined) {
     if (authLoading || !profile) return;
@@ -114,13 +114,6 @@ if (!isSysAdmin && scopedBarangayName) {
             const newId = (payload.new as { id: string }).id;
           const newAction = await getActionById(newId);
 if (newAction) {
-  const matchesScope =
-    isSysAdmin ||
-    (scopedBarangayId && newAction.barangayId === scopedBarangayId) ||
-    (scopedBarangayName &&
-      newAction.barangayName.trim().toLowerCase() ===
-        scopedBarangayName.trim().toLowerCase());
-  if (!matchesScope) return;
 
   setActions((prev) => {
     if (prev.some((a) => a.id === newAction.id)) return prev;
@@ -139,17 +132,6 @@ if (newAction) {
             const updatedId = (payload.new as { id: string }).id;
             const updated = await getActionById(updatedId);
             if (updated) {
-              const matchesScope =
-                isSysAdmin ||
-                (scopedBarangayId && updated.barangayId === scopedBarangayId) ||
-                (scopedBarangayName &&
-                  updated.barangayName.trim().toLowerCase() ===
-                    scopedBarangayName.trim().toLowerCase());
-              if (!matchesScope) {
-                setActions((prev) => prev.filter((a) => a.id !== updated.id));
-                return;
-              }
-
               setActions((prev) =>
                 prev.map((a) => (a.id === updated.id ? updated : a))
               );
@@ -186,14 +168,7 @@ if (newAction) {
       // Hard scope guard: when the user is not a system administrator,
       // strictly focus ONLY on their assigned barangay.
       // Under no circumstances should actions from other barangays be visible.
-      const matchesScope = isSysAdmin
-        ? true
-        : Boolean(
-            (scopedBarangayId && a.barangayId === scopedBarangayId) ||
-            (scopedBarangayName &&
-              a.barangayName.trim().toLowerCase() ===
-                scopedBarangayName.trim().toLowerCase())
-          );
+      const matchesScope = true;
 
       const matchesSearch =
         q === "" ||
@@ -204,9 +179,7 @@ if (newAction) {
         filters.priority === "all" || a.priority === filters.priority;
       const matchesStatus =
         filters.status === "all" || a.status === filters.status;
-      const matchesBarangay =
-  filters.barangay === "all" ||
-  `${a.municipalityName ?? ""}::${a.barangayName}` === filters.barangay;
+      const matchesBarangay = true;
       const actionDate = (a.assignedDate ?? "").slice(0, 10);
       const matchesFrom =
         !filters.dateFrom || (actionDate !== "" && actionDate >= filters.dateFrom);
@@ -239,7 +212,6 @@ if (newAction) {
     filters.search.trim() !== "" ||
     filters.priority !== "all" ||
     filters.status !== "all" ||
-    filters.barangay !== "all" ||
     Boolean(filters.dateFrom) ||
     Boolean(filters.dateTo);
 
@@ -379,7 +351,7 @@ if (newAction) {
               filters={filters}
               onFiltersChange={setFilters}
               barangayOptions={barangayOptions}
-              hideBarangayFilter={!isSysAdmin}
+              hideBarangayFilter={true}
             />
           </div>
         </div>

@@ -708,7 +708,7 @@ export async function fetchBarangaySurveillanceData(
 }
 
 export async function submitTriageRequest(payload: {
-  barangayId: string;
+  barangayId?: string | null;
   deviceId?: string | null;
   triggerSource: string;
   priority: "Low" | "Medium" | "High" | "Critical";
@@ -722,8 +722,18 @@ export async function submitTriageRequest(payload: {
 
   const todayStr = getLocalDateKey();
 
+  let targetBarangayId = payload.barangayId;
+  if (!targetBarangayId) {
+    const { data: bData } = await supabase
+      .from("barangays")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+    targetBarangayId = bData?.id ?? null;
+  }
+
   const { error } = await supabase.from("action_triage_log").insert({
-    barangay_id: payload.barangayId,
+    barangay_id: targetBarangayId,
     trigger_source: payload.triggerSource,
     priority: payload.priority,
     status: "Pending",

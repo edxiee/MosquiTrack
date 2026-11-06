@@ -73,7 +73,7 @@ function flattenAction(row: RawActionRow): TriageAction {
   return {
     id: row.id,
     barangayId: row.barangay_id,
-    barangayName: row.barangay?.barangay_name ?? "Unknown",
+    barangayName: row.barangay?.barangay_name ?? "Barangay San Juan",
     municipalityName: row.barangay?.municipality ?? null,
     deviceId: null,
     deviceCode: null,

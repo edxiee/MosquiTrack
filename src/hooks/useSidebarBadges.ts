@@ -37,15 +37,8 @@ export async function fetchTriageCount(barangayId?: string) {
       .select("id", { count: "exact", head: true })
       .eq("status", "Pending");
 
-    if (!isCurrentSysAdmin) {
-      if (targetId) {
-        query = query.eq("barangay_id", targetId);
-      } else {
-        // Non-admin without a resolved barangay scope should not count other barangays
-        globalTriageCount = 0;
-        notifySubscribers();
-        return;
-      }
+    if (targetId) {
+      query = query.eq("barangay_id", targetId);
     }
 
     const { count, error } = await query;
@@ -148,10 +141,8 @@ function initGlobalChannels() {
         const rowBarangayId = row?.barangay_id;
 
         // If the user is scoped to a specific barangay and the event is for another barangay, ignore it!
-        if (!isCurrentSysAdmin) {
-          if (!currentScopedBarangayId || rowBarangayId !== currentScopedBarangayId) {
-            return;
-          }
+        if (currentScopedBarangayId && rowBarangayId && rowBarangayId !== currentScopedBarangayId) {
+          return;
         }
 
         if (payload.eventType === "INSERT") {
@@ -201,7 +192,7 @@ export function useSidebarBadges() {
   const isSysAdmin =
     profile?.role?.role_code === "SYS_ADMIN" ||
     profile?.role?.role_code === "ADMIN";
-  const scopedBarangayId = isSysAdmin ? undefined : profile?.barangay?.id;
+  const scopedBarangayId = undefined;
 
   const [, setTick] = useState(0);
 

@@ -361,8 +361,17 @@ export default function PrescriptiveAnalyticsPage() {
     dueDate: string;
   }) => {
     try {
-      if (!payload.barangayId) {
-        throw new Error("Cannot submit triage log: device has no barangay assigned.");
+      let bId = payload.barangayId;
+      if (!bId) {
+        const { data: bData } = await supabase
+          .from("barangays")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+        bId = bData?.id ?? null;
+      }
+      if (!bId) {
+        throw new Error("Cannot submit triage log: no active barangay found.");
       }
 
       const targetDevice = selectedDevice || devices.find((d) => d.id === payload.deviceId);
@@ -370,7 +379,7 @@ export default function PrescriptiveAnalyticsPage() {
       const combinedRemarks = [devLabel, payload.description, payload.notes].filter(Boolean).join(" | ") || "No additional remarks.";
       
       await submitTriageRequest({
-        barangayId: payload.barangayId,
+        barangayId: bId,
         deviceId: payload.deviceId,
         triggerSource: payload.requestType,
         priority: payload.priority,

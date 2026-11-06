@@ -1,4 +1,6 @@
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Area,
   AreaChart,
@@ -49,6 +51,42 @@ import {
 } from "@/hooks/useLguDashboardData";
 import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import { ROUTES } from "@/utils/navigation";
+import { fetchDevices } from "@/services/device.service";
+import { getDangerTier, type DangerTier } from "@/utils/dangerTiers";
+
+const TRAP_DANGER_CONFIG: Record<
+  DangerTier,
+  { label: string; badge: string; dot: string; tone: string; desc: string }
+> = {
+  Low: {
+    label: "Low Danger",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-200 border-emerald-200",
+    dot: "bg-emerald-500",
+    tone: "bg-emerald-50 text-emerald-700",
+    desc: "Normal range (0-5)",
+  },
+  Moderate: {
+    label: "Moderate Danger",
+    badge: "bg-yellow-50 text-yellow-800 ring-yellow-200 border-yellow-200",
+    dot: "bg-yellow-500",
+    tone: "bg-yellow-50 text-yellow-700",
+    desc: "Moderate activity (6-15)",
+  },
+  High: {
+    label: "High Danger",
+    badge: "bg-orange-50 text-orange-700 ring-orange-200 border-orange-200",
+    dot: "bg-orange-500",
+    tone: "bg-orange-50 text-orange-700",
+    desc: "High risk cluster (16-29)",
+  },
+  Critical: {
+    label: "Critical Danger",
+    badge: "bg-rose-50 text-rose-700 ring-rose-200 border-rose-200",
+    dot: "bg-rose-500 animate-pulse",
+    tone: "bg-rose-50 text-rose-700",
+    desc: "3+ consecutive days 30+",
+  },
+};
 
 const TIER_STYLES: Record<
   AlertTier,
@@ -238,13 +276,30 @@ export default function LguDashboard() {
   const watchlist = barangayStatus.filter(
     (b) => b.tier === "red" || b.tier === "orange",
   );
-  const risingBarangays = barangayStatus.filter(
-    (b) =>
-      b.changePct !== null &&
-      b.changePct >= 25 &&
-      b.tier !== "red" &&
-      b.tier !== "orange",
-  );
+
+  const { data: devices = [], isLoading: isLoadingDevices } = useQuery({
+    queryKey: ["lgu-dashboard-devices"],
+    queryFn: fetchDevices,
+  });
+
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+
+  const activeTrap = useMemo(() => {
+    if (!devices || devices.length === 0) return null;
+    if (selectedDeviceId) {
+      const found = devices.find((d) => d.id === selectedDeviceId);
+      if (found) return found;
+    }
+    return devices[0];
+  }, [devices, selectedDeviceId]);
+
+  const trapDangerTier: DangerTier = useMemo(() => {
+    if (!activeTrap) return "Low";
+    return getDangerTier(
+      activeTrap.today_mosquito_count,
+      activeTrap.consecutive_critical_days ?? 0
+    );
+  }, [activeTrap]);
 
   const banner =
     redCount > 0
@@ -376,13 +431,98 @@ export default function LguDashboard() {
           }
           detail={`${redCount} critical · ${orangeCount} high`}
         />
-        <KpiCard
-          icon={MapPinned}
-          label="Barangays monitored"
-          value={show(String(metrics?.barangaysMonitored ?? 0))}
-          tone="bg-sky-50 text-sky-700"
-          detail={`${risingBarangays.length} showing a rising trend`}
-        />
+        {/* Monitored Traps & Danger Level (Barangays Monitored Container) */}
+        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+          <CardContent className="p-5 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Barangays Monitored
+                  </p>
+                  <p className="text-xs text-slate-500 font-semibold truncate mt-0.5">
+                    Barangay San Juan {devices.length > 0 ? `· ${devices.length} trap${devices.length > 1 ? "s" : ""}` : ""}
+                  </p>
+                </div>
+                <div className="rounded-xl p-2 bg-sky-50 text-sky-700 shrink-0">
+                  <MapPinned className="size-4" />
+                </div>
+              </div>
+
+              {isLoadingDevices ? (
+                <div className="py-4 text-center text-xs text-slate-400">Loading trap info…</div>
+              ) : activeTrap ? (
+                <div className="space-y-2 mt-1">
+                  <div className="flex items-center justify-between gap-2">
+                    {devices.length > 1 ? (
+                      <select
+                        value={activeTrap.id}
+                        onChange={(e) => setSelectedDeviceId(e.target.value)}
+                        aria-label="Select Monitored Trap"
+                        className="text-sm font-bold font-mono text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      >
+                        {devices.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.device_code}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-base font-bold font-mono text-slate-900 tracking-tight">
+                        {activeTrap.device_code}
+                      </span>
+                    )}
+
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border ring-1 ring-inset ${TRAP_DANGER_CONFIG[trapDangerTier].badge}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${TRAP_DANGER_CONFIG[trapDangerTier].dot}`} />
+                      {TRAP_DANGER_CONFIG[trapDangerTier].label}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Today's Count</p>
+                      <p className="text-lg font-bold text-slate-800 tabular-nums leading-tight">
+                        {activeTrap.today_mosquito_count ?? 0}
+                        <span className="text-[10px] font-normal text-slate-400 ml-1">mosq</span>
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-slate-50 border border-slate-100 p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            activeTrap.status === "Online" || activeTrap.status === "Active"
+                              ? "bg-emerald-500 animate-pulse"
+                              : "bg-slate-400"
+                          }`}
+                        />
+                        <span className="text-sm font-semibold text-slate-700 truncate">
+                          {activeTrap.status ?? "Offline"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-4 text-xs text-slate-400 text-center">No traps deployed</div>
+              )}
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <span className="font-medium">San Juan, Taytay</span>
+              <Link
+                to={ROUTES.lgu.trapMap}
+                className="font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5"
+              >
+                View Map <ArrowRight className="size-3" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
         
         {/* REPLACED: Standalone Response Actions Card */}
         <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
