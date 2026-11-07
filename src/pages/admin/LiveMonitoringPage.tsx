@@ -22,6 +22,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Sliders,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,10 @@ import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice } from "@/types/device.types";
 import { ONLINE_THRESHOLD_MINUTES } from "@/utils/deviceHelpers";
 import { getConsecutiveCriticalDays, getDangerTier } from "@/utils/dangerTiers";
+import {
+  fetchOrCreateDeviceConfig,
+  type DeviceConfig,
+} from "@/services/deviceConfig.service";
 
 import "leaflet/dist/leaflet.css";
 
@@ -40,6 +45,20 @@ import "leaflet/dist/leaflet.css";
 const DEVICE_SIM_NETWORK: Record<string, string> = {
   "TRAP-001": "GoMo",
 };
+
+function formatInterval(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+  const mins = totalSeconds / 60;
+  // If whole number of minutes (e.g. 60s -> 1 min, 120s -> 2 mins)
+  if (totalSeconds % 60 === 0) {
+    return `${mins} min${mins > 1 ? "s" : ""}`;
+  }
+  // If decimal minutes (e.g. 90s -> 1.5 mins)
+  return `${Number(mins.toFixed(1))} mins`;
+}
 
 function formatTimeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return "Never";
@@ -122,6 +141,8 @@ export default function LiveMonitoringPage() {
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<OvitrapDevice | null>(null);
+  const [deviceConfig, setDeviceConfig] = useState<DeviceConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
 
   const [latestReading, setLatestReading] = useState<{
     battery_level: number | null;
@@ -195,9 +216,9 @@ export default function LiveMonitoringPage() {
       }
 
       setSelectedDevice(prev => {
-        if (!prev) return prev;
+        if (!prev) return allDevices[0] ?? null;
         const updated = allDevices.find(d => d.id === prev.id);
-        return updated ?? prev;
+        return updated ?? allDevices[0] ?? null;
       });
     } catch (err) {
       console.error("Failed to load devices:", err);
@@ -213,11 +234,25 @@ export default function LiveMonitoringPage() {
       setDeviceTodayCount(null);
       setDeviceSevenDayCount(null);
       setDeviceCriticalDays(0);
+      setDeviceConfig(null);
       return;
     }
 
     let isMounted = true;
     const deviceId = selectedDevice.id;
+
+    async function fetchConfig() {
+      setConfigLoading(true);
+      try {
+        const cfg = await fetchOrCreateDeviceConfig(deviceId);
+        if (isMounted) setDeviceConfig(cfg);
+      } catch (err) {
+        console.error("Failed to fetch device config:", err);
+      } finally {
+        if (isMounted) setConfigLoading(false);
+      }
+    }
+    fetchConfig();
 
     async function fetchDeviceTelemetry() {
       try {
@@ -309,6 +344,18 @@ export default function LiveMonitoringPage() {
         },
         () => {
           fetchDeviceTelemetry();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "device_configs",
+          filter: `device_id=eq.${deviceId}`,
+        },
+        () => {
+          fetchConfig();
         }
       )
       .subscribe();
@@ -439,18 +486,6 @@ export default function LiveMonitoringPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const getMockTimeline = () => {
-    if (!latestReading?.captured_at) return null;
-    const baseTime = new Date(latestReading.captured_at).getTime();
-    return [
-      { time: new Date(baseTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), event: "Telemetry Uploaded", color: "bg-emerald-500" },
-      { time: new Date(baseTime - 1 * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), event: "Battery Updated", color: "bg-emerald-400" },
-      { time: new Date(baseTime - 5 * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), event: "Mosquito Detected", color: "bg-amber-500" },
-      { time: new Date(baseTime - 15 * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), event: "Heartbeat Received", color: "bg-sky-500" },
-    ];
-  };
-  const timelineEvents = getMockTimeline();
-
   return (
     <div className="flex flex-col gap-6 p-6 min-h-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -565,11 +600,12 @@ export default function LiveMonitoringPage() {
                   <button
                     key={d.id}
                     onClick={() => setSelectedDevice(d)}
-                    className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors ${
+                    className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-all rounded-lg my-1 mx-2 ${
                       isSelected
-                        ? `${status.bg} border-l-[3px] border-l-${status.dot.replace('bg-', '')}`
-                        : "hover:bg-slate-50 border-l-[3px] border-l-transparent"
+                        ? "bg-emerald-50/80 border-2 border-emerald-500 shadow-sm ring-2 ring-emerald-500/20"
+                        : "hover:bg-slate-50 border-2 border-transparent"
                     }`}
+                    style={{ width: "calc(100% - 1rem)" }}
                   >
                     <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${status.dot} ${status.ping ? 'animate-pulse' : ''}`} />
                     <div className="flex-1 min-w-0">
@@ -802,20 +838,73 @@ export default function LiveMonitoringPage() {
 
                   <Card>
                     <CardContent className="p-5 flex flex-col h-full">
-                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Recent Device Activity</h3>
-                      {!timelineEvents ? (
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Sliders className="h-4 w-4 text-emerald-600" />
+                          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                            Device Configuration
+                          </h3>
+                        </div>
+                        {deviceConfig?.updated_at && (
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            Synced: {new Date(deviceConfig.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
+                      </div>
+
+                      {configLoading ? (
+                        <div className="flex-1 flex items-center justify-center py-8">
+                          <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                        </div>
+                      ) : !deviceConfig ? (
                         <div className="flex-1 flex items-center justify-center rounded-lg bg-slate-50 border border-dashed border-slate-200 min-h-[160px]">
-                          <p className="text-sm text-slate-400 font-medium">No telemetry events have been received yet.</p>
+                          <p className="text-sm text-slate-400 font-medium">No configuration found on Supabase.</p>
                         </div>
                       ) : (
-                        <div className="relative border-l-2 border-slate-100 ml-3 py-2 space-y-6">
-                          {timelineEvents.map((evt, idx) => (
-                            <div key={idx} className="relative pl-6">
-                              <div className={`absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-4 border-white ${evt.color}`} />
-                              <p className="text-xs font-bold text-slate-400">{evt.time}</p>
-                              <p className="text-sm font-semibold text-slate-700 mt-0.5">{evt.event}</p>
+                        <div className="grid grid-cols-2 gap-3.5">
+                          {/* Upload Interval */}
+                          <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-100 flex flex-col justify-between">
+                            <p className="text-xs text-slate-500 font-medium">Upload Interval</p>
+                            <div className="mt-2">
+                              <p className="text-xl font-bold text-slate-800">
+                                {formatInterval(deviceConfig.send_interval_ms)}
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {deviceConfig.send_interval_ms.toLocaleString()} ms interval
+                              </p>
                             </div>
-                          ))}
+                          </div>
+
+                          {/* Beam Break Limit */}
+                          <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-100 flex flex-col justify-between">
+                            <p className="text-xs text-slate-500 font-medium">Beam Break Limit</p>
+                            <div className="mt-2">
+                              <p className="text-xl font-bold text-slate-800">
+                                {deviceConfig.max_beam_break_ms} ms
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Max IR occlusion window
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Wing Beat Frequency */}
+                          <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-100 flex flex-col justify-between col-span-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-slate-500 font-medium">Wing Beat Frequency Range</p>
+                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                Active Filter
+                              </span>
+                            </div>
+                            <div className="mt-2 flex items-baseline justify-between">
+                              <p className="text-xl font-bold text-slate-800">
+                                {deviceConfig.min_freq_hz} Hz - {deviceConfig.max_freq_hz} Hz
+                              </p>
+                              <p className="text-[11px] font-medium text-slate-500">
+                                Min / Max Detection Range
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </CardContent>
