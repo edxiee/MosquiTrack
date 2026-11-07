@@ -15,7 +15,7 @@ export const brgyRoutes: RouteObject[] = [
     path: "/field-ops",
     element: (
       <ProtectedRoute>
-        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.FIELD_OPERATIVE]}>
+        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.ADMIN, ROLES.FIELD_OPERATIVE]}>
           <DashboardLayout />
         </RoleGuard>
       </ProtectedRoute>
@@ -43,7 +43,7 @@ export const brgyRoutes: RouteObject[] = [
     path: "/bhw",
     element: (
       <ProtectedRoute>
-        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.FIELD_OPERATIVE]}>
+        <RoleGuard allowedRoles={[ROLES.SYSTEM_ADMIN, ROLES.ADMIN, ROLES.FIELD_OPERATIVE]}>
           <DashboardLayout />
         </RoleGuard>
       </ProtectedRoute>

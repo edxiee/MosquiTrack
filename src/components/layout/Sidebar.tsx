@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
-import { LogOut, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
+import { LogOut, ChevronLeft, ChevronRight, ChevronDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SIDEBAR_CONFIG } from "@/utils/navigation";
@@ -68,6 +68,42 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
   const role = profile?.role?.role_code as keyof typeof SIDEBAR_CONFIG | undefined;
   const navigationSections = role ? (SIDEBAR_CONFIG[role] ?? []) : [];
   const { getBadgeForPath } = useSidebarBadges();
+  const location = useLocation();
+
+  // Collapsible sections state: defaults to open for active routes, or persisted
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem("mosquitrack-sidebar-sections");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleSection = (sectionTitle: string) => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev, [sectionTitle]: !prev[sectionTitle] };
+      localStorage.setItem("mosquitrack-sidebar-sections", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Automatically keep a section open if the user is currently navigating within one of its items
+  useEffect(() => {
+    navigationSections.forEach((section) => {
+      if (!section.title) return;
+      const hasActiveChild = section.items.some((item) =>
+        location.pathname.startsWith(item.path)
+      );
+      if (hasActiveChild && collapsedSections[section.title]) {
+        setCollapsedSections((prev) => {
+          const next = { ...prev, [section.title]: false };
+          localStorage.setItem("mosquitrack-sidebar-sections", JSON.stringify(next));
+          return next;
+        });
+      }
+    });
+  }, [location.pathname, navigationSections]);
 
   async function handleLogout() {
     try {
@@ -125,93 +161,137 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
-        {navigationSections.map((section: NavSection) => (
-          <div key={section.title || "main"} className="mb-4">
-            {section.title && !isCollapsed && (
-              <h2 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                {section.title}
-              </h2>
-            )}
-            <ul className="space-y-1">
-              {section.items.map((item) => {
-                const IconComponent = item.icon;
-                const badgeInfo = getBadgeForPath(item.path);
-                const showBadge = Boolean(badgeInfo && badgeInfo.count > 0);
-                const badgeCount = badgeInfo?.count ?? 0;
-                return (
-                  <li key={item.path}>
-                    <NavLink
-                      to={item.path}
-                      title={
-                        isCollapsed
-                          ? showBadge
-                            ? `${item.name} (${badgeCount} pending)`
-                            : item.name
-                          : undefined
-                      }
-                      onClick={() => {
-                        if (isMobile && onMobileClose) {
-                          onMobileClose();
-                        }
-                      }}
-                      className={({ isActive }) => {
-                        let baseClasses =
-                          "flex items-center rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ";
-                        if (isCollapsed) {
-                          baseClasses += "justify-center h-10 w-10 mx-auto relative ";
-                          baseClasses += isActive
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
-                        } else {
-                          baseClasses += "px-3 py-2.5 text-[15px] justify-between ";
-                          baseClasses += isActive
-                            ? "border-l-4 border-emerald-600 bg-emerald-50 pl-2 text-emerald-800 font-semibold"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium";
-                        }
-                        return baseClasses;
-                      }}
-                    >
-                      {isCollapsed ? (
-                        <div className="relative flex items-center justify-center">
-                          <IconComponent className="h-5 w-5 flex-shrink-0" />
-                          {showBadge && (
-                            <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-xs">
-                              {badgeInfo?.hasNew && (
-                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
-                              )}
-                              <span className="relative">
-                                {badgeCount > 9 ? "9+" : badgeCount}
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-3 min-w-0">
-                            <IconComponent className="h-5 w-5 flex-shrink-0" />
-                            <span className="truncate">{item.name}</span>
-                          </div>
-                          {showBadge && (
-                            <span
-                              className={cn(
-                                "ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold text-white shadow-xs transition-all",
-                                badgeInfo?.hasNew
-                                  ? "bg-rose-600 animate-bounce"
-                                  : "bg-rose-500 animate-pulse"
-                              )}
-                            >
-                              {badgeCount > 99 ? "99+" : badgeCount}
-                            </span>
-                          )}
-                        </>
+        {navigationSections.map((section: NavSection) => {
+          const isDropdownSection =
+            section.title === "BARANGAY SURVEILLANCE & COMMAND" ||
+            section.title === "FIELD OPERATIONS";
+          const isSectionCollapsed = Boolean(
+            isDropdownSection && section.title && collapsedSections[section.title]
+          );
+
+          // Count any pending badges within the collapsed section so the user doesn't miss them
+          const sectionBadgeTotal = section.items.reduce((sum, item) => {
+            const badge = getBadgeForPath(item.path);
+            return sum + (badge?.count ?? 0);
+          }, 0);
+
+          return (
+            <div key={section.title || "main"} className="mb-4">
+              {section.title && !isCollapsed && (
+                isDropdownSection ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.title!)}
+                    className="group mb-2 flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    aria-expanded={!isSectionCollapsed}
+                    title={isSectionCollapsed ? `Expand ${section.title}` : `Collapse ${section.title}`}
+                  >
+                    <span className="truncate">{section.title}</span>
+                    <div className="flex items-center gap-1.5 ml-1">
+                      {isSectionCollapsed && sectionBadgeTotal > 0 && (
+                        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-xs">
+                          {sectionBadgeTotal > 99 ? "99+" : sectionBadgeTotal}
+                        </span>
                       )}
-                    </NavLink>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+                      <ChevronDown
+                        className={cn(
+                          "h-3.5 w-3.5 text-slate-400 transition-transform duration-200 group-hover:text-slate-600",
+                          isSectionCollapsed ? "-rotate-90" : "rotate-0"
+                        )}
+                      />
+                    </div>
+                  </button>
+                ) : (
+                  <h2 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    {section.title}
+                  </h2>
+                )
+              )}
+
+              {/* Items List (Collapsible if dropdown section) */}
+              {(!isSectionCollapsed || isCollapsed) && (
+                <ul className="space-y-1">
+                  {section.items.map((item) => {
+                    const IconComponent = item.icon;
+                    const badgeInfo = getBadgeForPath(item.path);
+                    const showBadge = Boolean(badgeInfo && badgeInfo.count > 0);
+                    const badgeCount = badgeInfo?.count ?? 0;
+                    return (
+                      <li key={item.path}>
+                        <NavLink
+                          to={item.path}
+                          title={
+                            isCollapsed
+                              ? showBadge
+                                ? `${item.name} (${badgeCount} pending)`
+                                : item.name
+                              : undefined
+                          }
+                          onClick={() => {
+                            if (isMobile && onMobileClose) {
+                              onMobileClose();
+                            }
+                          }}
+                          className={({ isActive }) => {
+                            let baseClasses =
+                              "flex items-center rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ";
+                            if (isCollapsed) {
+                              baseClasses += "justify-center h-10 w-10 mx-auto relative ";
+                              baseClasses += isActive
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
+                            } else {
+                              baseClasses += "px-3 py-2.5 text-[15px] justify-between ";
+                              baseClasses += isActive
+                                ? "border-l-4 border-emerald-600 bg-emerald-50 pl-2 text-emerald-800 font-semibold"
+                                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium";
+                            }
+                            return baseClasses;
+                          }}
+                        >
+                          {isCollapsed ? (
+                            <div className="relative flex items-center justify-center">
+                              <IconComponent className="h-5 w-5 flex-shrink-0" />
+                              {showBadge && (
+                                <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-xs">
+                                  {badgeInfo?.hasNew && (
+                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                                  )}
+                                  <span className="relative">
+                                    {badgeCount > 9 ? "9+" : badgeCount}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <IconComponent className="h-5 w-5 flex-shrink-0" />
+                                <span className="truncate">{item.name}</span>
+                              </div>
+                              {showBadge && (
+                                <span
+                                  className={cn(
+                                    "ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold text-white shadow-xs transition-all",
+                                    badgeInfo?.hasNew
+                                      ? "bg-rose-600 animate-bounce"
+                                      : "bg-rose-500 animate-pulse"
+                                  )}
+                                >
+                                  {badgeCount > 99 ? "99+" : badgeCount}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </NavLink>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer / Logout - Soft Enterprise Red */}

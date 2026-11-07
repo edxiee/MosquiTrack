@@ -129,6 +129,22 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
         { name: "Live Monitoring", path: ROUTES.admin.liveMonitoring, icon: Monitor },
       ],
     },
+    {
+      title: "BARANGAY SURVEILLANCE & COMMAND",
+      items: [
+        { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
+        { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
+        { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
+      ],
+    },
+    {
+      title: "FIELD OPERATIONS",
+      items: [
+        { name: "Barangay Surveillance", path: ROUTES.fieldOps.surveillance, icon: Eye },
+        { name: "Traps Deployment", path: ROUTES.fieldOps.trapOverview, icon: Boxes },
+        { name: "Action Logs", path: ROUTES.fieldOps.actionLogs, icon: FileText },
+      ],
+    },
   ],
 
   [ROLES.BARANGAY_ADMIN]: [
