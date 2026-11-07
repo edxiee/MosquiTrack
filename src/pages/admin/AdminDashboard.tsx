@@ -1,26 +1,20 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Activity,
+  AlertTriangle,
   ArrowRight,
-  BatteryLow,
-  BarChart3,
   CheckCircle2,
   ClipboardList,
+  Clock,
+  Info,
   LayoutDashboard,
-  Network,
+  MapPin,
+  Megaphone,
+  ShieldAlert,
   User,
+  Users,
   Wifi,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -40,52 +34,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { ROUTES } from "@/utils/navigation";
-import { useAdminDashboardData } from "@/hooks/useAdminDashboardData";
-import { formatDateTime, formatVoltage } from "@/utils/format";
-import { getDangerTier } from "@/utils/dangerTiers";
-
-// ─── Priority badge styles ───────────────────────────────────────────────────
-const priorityConfig = {
-  High: {
-    pill: "bg-rose-100 text-rose-700 border border-rose-200",
-    dot: "bg-rose-500",
-  },
-  Med: {
-    pill: "bg-amber-100 text-amber-700 border border-amber-200",
-    dot: "bg-amber-400",
-  },
-  Low: {
-    pill: "bg-sky-100 text-sky-700 border border-sky-200",
-    dot: "bg-sky-400",
-  },
-} as const;
-
-// ─── Custom tooltip for Recharts ─────────────────────────────────────────────
-function CustomTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: { value: number; payload: { fullDate: string } }[];
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  const item = payload[0];
-  if (!item) return null;
-  const fullDate = item.payload?.fullDate;
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-lg">
-      <p className="font-semibold text-slate-950">
-        {label} {fullDate ? `(${fullDate})` : ""}
-      </p>
-      <p className="font-medium text-emerald-600">
-        {item.value} {item.value === 1 ? "mosquito" : "mosquitoes"} detected
-      </p>
-    </div>
-  );
-}
+import { formatDateTime } from "@/utils/format";
+import { fetchDevices } from "@/services/device.service";
+import { getUsers } from "@/services/users.service";
+import {
+  fetchRequestActions,
+  type RequestActionRow,
+} from "@/services/requestActions.service";
+import {
+  ANNOUNCEMENT_PUBLISHED_EVENT,
+  getAnnouncements,
+  isAnnouncementActive,
+} from "@/services/announcement.service";
+import { isDeviceActive } from "@/utils/deviceHelpers";
+import type { OvitrapDevice } from "@/types/device.types";
+import type { DatabaseUser } from "@/types/user.types";
+import type { Announcement, AnnouncementLevel } from "@/types/announcement.types";
 
 function maskEmail(email: string): string {
   if (!email || !email.includes("@")) return email;
@@ -107,251 +73,198 @@ function maskEmail(email: string): string {
   return `${firstThree}${maskedStars}@${domain}`;
 }
 
-// ─── KPI card ─────────────────────────────────────────────────────────────────
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  detail,
-  accent = "emerald",
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  detail: string;
-  accent?: "emerald" | "amber" | "sky" | "slate";
-}) {
-  const accentMap = {
-    emerald: {
-      badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
-      bar: "bg-emerald-500",
-    },
-    amber: {
-      badge: "border-amber-200 bg-amber-50 text-amber-700",
-      bar: "bg-amber-500",
-    },
-    sky: {
-      badge: "border-sky-200 bg-sky-50 text-sky-700",
-      bar: "bg-sky-500",
-    },
-    slate: {
-      badge: "border-slate-200 bg-slate-50 text-slate-700",
-      bar: "bg-slate-400",
-    },
-  }[accent];
+const LEVEL_STYLES: Record<
+  AnnouncementLevel,
+  {
+    badge: string;
+    label: string;
+    icon: typeof Info;
+  }
+> = {
+  info: {
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
+    label: "Info",
+    icon: Info,
+  },
+  warning: {
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    label: "Warning",
+    icon: AlertTriangle,
+  },
+  critical: {
+    badge: "bg-rose-50 text-rose-700 border-rose-200",
+    label: "Critical",
+    icon: ShieldAlert,
+  },
+};
 
-  return (
-    <Card className="relative overflow-hidden border-slate-200 bg-white shadow-md backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg">
-      <div className={`absolute left-0 top-0 h-1 w-full ${accentMap.bar}`} />
-      <CardContent className="flex items-start gap-4 p-5 pt-6">
-        <div className={`rounded-2xl border p-3 ${accentMap.badge}`}>
-          <Icon className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-            {label}
-          </p>
-          <div className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
-            {value}
-          </div>
-          <p className="mt-0.5 text-xs text-slate-500">{detail}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { profile, user } = useAuth();
-  const {
-    counts,
-    deviceMap,
-    devices,
-    latestReadingsByDevice,
-    recentReadings,
-    weeklyReadings,
-    triageActions,
-    activeAccountsQuery,
-    devicesQuery,
-    recentReadingsQuery,
-    triageActionsQuery,
-    telemetryRateQuery,
-    weeklyReadingsQuery,
-    telemetry24hQuery,
-  } = useAdminDashboardData();
+  const isSiteAdmin = profile?.role?.role_code === "ADMIN";
 
-  const userEmail = profile?.email ?? user?.email ?? "";
-  const maskedUserEmail = maskEmail(userEmail);
+  const [devices, setDevices] = useState<OvitrapDevice[]>([]);
+  const [accounts, setAccounts] = useState<DatabaseUser[]>([]);
+  const [requestActions, setRequestActions] = useState<RequestActionRow[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const loading =
-    activeAccountsQuery.isLoading ||
-    devicesQuery.isLoading ||
-    recentReadingsQuery.isLoading ||
-    triageActionsQuery.isLoading ||
-    telemetryRateQuery.isLoading ||
-    weeklyReadingsQuery.isLoading ||
-    telemetry24hQuery.isLoading;
+  const userEmail = profile?.email || user?.email || "";
+  const maskedUserEmail = useMemo(() => maskEmail(userEmail), [userEmail]);
 
-  const errorMessage =
-    activeAccountsQuery.error?.message ||
-    devicesQuery.error?.message ||
-    recentReadingsQuery.error?.message ||
-    triageActionsQuery.error?.message ||
-    telemetryRateQuery.error?.message ||
-    weeklyReadingsQuery.error?.message ||
-    telemetry24hQuery.error?.message ||
-    null;
-
-  // Derive real-time pending triage actions based on trap levels (High, Med, Low)
-  const computedPendingActions = useMemo(() => {
-    const list: {
-      id: string;
-      priority: "High" | "Med" | "Low";
-      task: string;
-      meta: string;
-      status: string;
-      sortOrder: number;
-    }[] = [];
-
-    if (triageActions && triageActions.length > 0) {
-      for (const action of triageActions) {
-        const p: "High" | "Med" | "Low" =
-          action.priority === "Critical" || action.priority === "High"
-            ? "High"
-            : action.priority === "Medium"
-            ? "Med"
-            : "Low";
-
-        const devCode = action.device?.device_code;
-        const taskText = action.trigger_source
-          ? action.trigger_source
-          : devCode
-          ? `Triage alert on ${devCode}`
-          : "System triage alert";
-
-        list.push({
-          id: `action-${action.id}`,
-          priority: p,
-          task: taskText,
-          meta: action.due_date ? `Due: ${action.due_date}` : "Due: Today",
-          status: action.status || "Pending Assignment",
-          sortOrder: p === "High" ? 1 : p === "Med" ? 2 : 3,
-        });
-      }
+  const loadDashboardData = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setErrorMessage(null);
     }
 
-    for (const device of devices) {
-      const reading = latestReadingsByDevice.get(device.id);
-      const code = device.device_code || `TRAP-${device.id.slice(0, 4)}`;
-      const count = reading?.mosquito_count ?? 0;
-      const battery = reading?.battery_level ?? null;
-      const dangerTier = getDangerTier(count);
+    try {
+      const [devicesRes, usersRes, requestsRes, announcementsRes] =
+        await Promise.allSettled([
+          fetchDevices(),
+          getUsers(),
+          fetchRequestActions(),
+          getAnnouncements(),
+        ]);
 
-      if (dangerTier === "High" || dangerTier === "Critical") {
-        list.push({
-          id: `trap-high-${device.id}`,
-          priority: "High",
-          task: `Inspect ${code}: High vector detection (${count} mosquitoes)`,
-          meta: "Due: Today",
-          status: "Requires Field Inspection",
-          sortOrder: 1,
-        });
-      } else if (battery !== null && battery < 3.4) {
-        list.push({
-          id: `trap-bat-${device.id}`,
-          priority: "High",
-          task: `Critical Battery: ${code} (${formatVoltage(battery)})`,
-          meta: "Due: Today",
-          status: "Low Voltage Alert",
-          sortOrder: 1,
-        });
-      } else if (dangerTier === "Moderate") {
-        list.push({
-          id: `trap-med-${device.id}`,
-          priority: "Med",
-          task: `Monitor ${code}: Moderate detection (${count} mosquitoes)`,
-          meta: "Due: Routine",
-          status: "Elevated Activity",
-          sortOrder: 2,
-        });
-      } else {
-        list.push({
-          id: `trap-low-${device.id}`,
-          priority: "Low",
-          task: `Routine Check: ${code} (${count} mosquitoes)`,
-          meta: "Status: Normal",
-          status: "Baseline Active",
-          sortOrder: 3,
-        });
+      if (devicesRes.status === "fulfilled") {
+        setDevices(devicesRes.value);
+      }
+      if (usersRes.status === "fulfilled") {
+        setAccounts(usersRes.value);
+      }
+      if (requestsRes.status === "fulfilled") {
+        setRequestActions(requestsRes.value);
+      }
+      if (announcementsRes.status === "fulfilled") {
+        setAnnouncements(announcementsRes.value);
+      }
+
+      const firstRejected = [
+        devicesRes,
+        usersRes,
+        requestsRes,
+        announcementsRes,
+      ].find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+
+      if (firstRejected && !silent) {
+        console.error("Dashboard partial load error:", firstRejected.reason);
+      }
+    } catch (err) {
+      if (!silent) {
+        setErrorMessage(
+          err instanceof Error ? err.message : "Failed to load dashboard data."
+        );
+      }
+    } finally {
+      if (!silent) {
+        setLoading(false);
       }
     }
+  }, []);
 
-    return list.sort((a, b) => a.sortOrder - b.sortOrder);
-  }, [triageActions, devices, latestReadingsByDevice]);
+  useEffect(() => {
+    void loadDashboardData(false);
 
-  const latestTelemetry = useMemo(() => {
-    return recentReadings.map((reading) => {
-      const device = deviceMap.get(reading.device_id);
-      return {
-        ...reading,
-        deviceCode: device?.device_code ?? reading.device_id,
-      };
-    });
-  }, [deviceMap, recentReadings]);
-
-  const trendData = useMemo(() => {
-    const days: { day: string; dateKey: string; count: number; fullDate: string }[] = [];
-    const now = new Date();
-
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-      const fullDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      days.push({ day: dayName, dateKey, count: 0, fullDate });
-    }
-
-    const dayMap = new Map(days.map((item) => [item.dateKey, item]));
-
-    let todayCount = 0;
-    const todayDateKey = days[days.length - 1]?.dateKey;
-
-    for (const r of weeklyReadings) {
-      if (!r.captured_at) continue;
-      const rDate = new Date(r.captured_at);
-      const rKey = `${rDate.getFullYear()}-${String(rDate.getMonth() + 1).padStart(2, "0")}-${String(rDate.getDate()).padStart(2, "0")}`;
-      const target = dayMap.get(rKey);
-      if (target) {
-        target.count += r.mosquito_count ?? 0;
-      }
-      if (rKey === todayDateKey) {
-        todayCount += r.mosquito_count ?? 0;
-      }
-    }
-
-    const weeklyTotal = days.reduce((sum, item) => sum + item.count, 0);
-    const dailyAverage = (weeklyTotal / 7).toFixed(1);
-
-    let peakDay = "—";
-    let maxCount = 0;
-    for (const d of days) {
-      if (d.count > maxCount) {
-        maxCount = d.count;
-        peakDay = d.day;
-      }
-    }
-
-    return {
-      trend: days,
-      todayCount,
-      weeklyTotal,
-      dailyAverage,
-      peakDay,
-      peakCount: maxCount,
+    const handleAnnouncementUpdate = () => {
+      void loadDashboardData(true);
     };
-  }, [weeklyReadings]);
+    window.addEventListener(
+      ANNOUNCEMENT_PUBLISHED_EVENT,
+      handleAnnouncementUpdate
+    );
+
+    const channel = supabase
+      .channel("admin-overview-containers-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_devices" },
+        () => void loadDashboardData(true)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ovitrap_readings" },
+        () => void loadDashboardData(true)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => void loadDashboardData(true)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "request_actions" },
+        () => void loadDashboardData(true)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "announcements" },
+        () => void loadDashboardData(true)
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener(
+        ANNOUNCEMENT_PUBLISHED_EVENT,
+        handleAnnouncementUpdate
+      );
+      void supabase.removeChannel(channel);
+    };
+  }, [loadDashboardData]);
+
+  // 1. Active Traps
+  const activeTraps = useMemo(
+    () => devices.filter((d) => isDeviceActive(d)),
+    [devices]
+  );
+
+  // 2. Accounts & Pending Accounts (respecting Site Admin visibility rule)
+  const visibleAccounts = useMemo(() => {
+    if (isSiteAdmin) {
+      return accounts.filter((u) => u.role !== "SYS_ADMIN");
+    }
+    return accounts;
+  }, [accounts, isSiteAdmin]);
+
+  const pendingAccounts = useMemo(
+    () =>
+      visibleAccounts.filter(
+        (u) => String(u.status || "").toUpperCase() === "PENDING"
+      ),
+    [visibleAccounts]
+  );
+
+  const activeAccountsCount = useMemo(
+    () =>
+      visibleAccounts.filter(
+        (u) => String(u.status || "").toUpperCase() === "ACTIVE"
+      ).length,
+    [visibleAccounts]
+  );
+
+  // Sort accounts so PENDING accounts appear first
+  const sortedAccounts = useMemo(() => {
+    return [...visibleAccounts].sort((a, b) => {
+      const aPending = String(a.status || "").toUpperCase() === "PENDING" ? 0 : 1;
+      const bPending = String(b.status || "").toUpperCase() === "PENDING" ? 0 : 1;
+      if (aPending !== bPending) return aPending - bPending;
+      return (
+        new Date(b.invited_at || 0).getTime() -
+        new Date(a.invited_at || 0).getTime()
+      );
+    });
+  }, [visibleAccounts]);
+
+  // 3. Pending Actions from Request Actions Overview
+  const pendingRequestActions = useMemo(
+    () =>
+      requestActions.filter(
+        (r) =>
+          r.status === "Pending" ||
+          (!r.status && !r.approved_at && !r.completed_at)
+      ),
+    [requestActions]
+  );
 
   return (
     <div className="space-y-6">
@@ -383,306 +296,550 @@ export default function AdminDashboard() {
         )}
       </section>
 
-      {/* ── KPI cards ───────────────────────────────────────────────────────── */}
-      <div>
-        {errorMessage && (
-          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {errorMessage}
-          </div>
-        )}
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            icon={Wifi}
-            label="Active Traps"
-            value={
-              loading
-                ? "—"
-                : `${counts.onlineNodes} of ${counts.registeredNodes} Online`
-            }
-            detail="traps seen within the last 15 min."
-            accent="emerald"
-          />
-
-          <MetricCard
-            icon={Activity}
-            label="Mosquitoes Detected Today"
-            value={loading ? "—" : `${trendData.todayCount}`}
-            detail="Cumulative count across all traps."
-            accent="emerald"
-          />
-
-          <MetricCard
-            icon={BarChart3}
-            label="Trap Data 24h"
-            value={loading ? "—" : `${counts.telemetry24h}`}
-            detail="Data received in the last 24 hours."
-            accent="emerald"
-          />
-
-          <MetricCard
-            icon={BatteryLow}
-            label="Trap Alerts"
-            value={
-              loading
-                ? "—"
-                : counts.lowBatteryNodes === 0
-                ? "0 Critical"
-                : `${counts.lowBatteryNodes} Critical`
-            }
-            detail="Low-battery traps below 3.40 V."
-            accent="emerald"
-          />
+      {errorMessage && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {errorMessage}
         </div>
-      </div>
+      )}
 
-      <div className="space-y-6">
-        {/* ── Live feeds row ─────────────────────────────────────────────────── */}
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          {/* Recent telemetry feed */}
-          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur flex flex-col">
-            <CardHeader className="border-b border-slate-100 pb-4">
+      {/* ── 4 Individual Data Containers ─────────────────────────────────────── */}
+      <div className="grid gap-6 xl:grid-cols-2">
+        {/* 1. ACTIVE TRAPS CONTAINER */}
+        <Card className="border-slate-200 bg-white/95 shadow-sm flex flex-col">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
-                  <Activity className="size-4" />
+                <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700">
+                  <Wifi className="size-5" />
                 </div>
                 <div>
-                  <CardTitle>Recent trap data feed</CardTitle>
-                  <CardDescription className="mt-0.5">
-                    Live trap data received from deployed ovitraps.
+                  <CardTitle className="text-base font-bold text-slate-950">
+                    Active Traps
+                  </CardTitle>
+                  <CardDescription className="mt-0.5 text-xs">
+                    Ovitraps currently online and transmitting telemetry
                   </CardDescription>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="flex-1 p-0 overflow-auto max-h-[340px]">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-                  <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50">
-                    <TableHead className="font-semibold text-slate-600 text-xs py-3 pl-5">TRAP #</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-xs py-3">COUNT</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-xs py-3">BATTERY</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-xs py-3 pr-5 text-right">CAPTURED AT</TableHead>
+              <Badge
+                variant="outline"
+                className="border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700"
+              >
+                {loading
+                  ? "—"
+                  : `${activeTraps.length} of ${devices.length} Active`}
+              </Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex-1 p-0 overflow-auto max-h-[360px]">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50">
+                  <TableHead className="font-semibold text-slate-600 text-xs py-3 pl-5">
+                    TRAP CODE
+                  </TableHead>
+                  <TableHead className="font-semibold text-slate-600 text-xs py-3">
+                    LOCATION
+                  </TableHead>
+                  <TableHead className="font-semibold text-slate-600 text-xs py-3">
+                    STATUS
+                  </TableHead>
+                  <TableHead className="font-semibold text-slate-600 text-xs py-3 pr-5 text-right">
+                    LAST SEEN
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-slate-100">
+                {loading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="py-12 text-center text-sm text-slate-400"
+                    >
+                      Loading active traps...
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-slate-100">
-                  {latestTelemetry.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={4}
-                        className="py-12 text-center text-slate-500"
-                      >
-                        No trap data rows available.
+                ) : activeTraps.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="py-12 text-center text-sm text-slate-500"
+                    >
+                      No traps are currently active (online within the last 16
+                      minutes).
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  activeTraps.map((trap) => (
+                    <TableRow
+                      key={trap.id}
+                      className="hover:bg-slate-50/80 transition-colors"
+                    >
+                      <TableCell className="py-3.5 pl-5 font-medium text-slate-950">
+                        <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50/60 px-2 py-0.5 font-mono text-xs font-semibold text-emerald-800">
+                          {trap.device_code}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-3.5 text-xs text-slate-600">
+                        {trap.barangays?.barangay_name ? (
+                          <span className="inline-flex items-center gap-1 font-medium text-slate-800">
+                            <MapPin className="size-3 text-slate-400 shrink-0" />
+                            {trap.barangays.barangay_name}
+                            {trap.barangays.municipality
+                              ? `, ${trap.barangays.municipality}`
+                              : ""}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Unassigned</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-3.5">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Online
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-3.5 pr-5 text-right whitespace-nowrap text-xs text-slate-500">
+                        {trap.last_seen_at
+                          ? formatDateTime(trap.last_seen_at)
+                          : "—"}
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    latestTelemetry.map((reading) => (
-                      <TableRow key={reading.id} className="hover:bg-slate-50/80 transition-colors">
-                        <TableCell className="font-medium text-slate-950 py-3.5 pl-5">
-                          <span className="inline-flex items-center rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 font-mono text-xs font-semibold text-slate-800">
-                            {reading.deviceCode}
-                          </span>
-                        </TableCell>
-                        <TableCell className="py-3.5">
-                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
-                            {reading.mosquito_count ?? 0}
-                            <span className="text-xs font-normal text-slate-400">mos</span>
-                          </span>
-                        </TableCell>
-                        <TableCell className="py-3.5">
-                          {reading.battery_level !== null &&
-                          reading.battery_level < 3.4 ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-xs font-medium text-rose-700">
-                              <BatteryLow className="size-3 text-rose-600" />
-                              {formatVoltage(reading.battery_level)}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                              <span className="size-1.5 rounded-full bg-emerald-500" />
-                              {formatVoltage(reading.battery_level)}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="py-3.5 pr-5 text-right whitespace-nowrap text-xs text-slate-500">
-                          {formatDateTime(reading.captured_at)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-            <div className="border-t border-slate-100 p-4">
-              <Button asChild variant="outline" size="sm" className="w-full justify-between rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700">
-                <Link to={ROUTES.admin.trapDataOverview}>
-                  <span className="inline-flex items-center gap-2 text-xs font-medium">
-                    <Activity className="size-3.5 text-emerald-600" />
-                    Open raw telemetry hub
-                  </span>
-                  <ArrowRight className="size-3.5" />
-                </Link>
-              </Button>
-            </div>
-          </Card>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
 
-          {/* Pending Triage Actions */}
-          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur flex flex-col">
-            <CardHeader className="border-b border-slate-100 pb-4">
+          <div className="border-t border-slate-100 p-4">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="w-full justify-between rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700"
+            >
+              <Link to={ROUTES.admin.liveMonitoring}>
+                <span className="inline-flex items-center gap-2 text-xs font-medium">
+                  <Wifi className="size-3.5 text-emerald-600" />
+                  Open Live Trap Monitoring
+                </span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </Card>
+
+        {/* 2. ACCOUNTS & PENDING STATUS CONTAINER */}
+        <Card className="border-slate-200 bg-white/95 shadow-sm flex flex-col">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
-                  <ClipboardList className="size-4" />
+                <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700">
+                  <Users className="size-5" />
                 </div>
                 <div>
-                  <CardTitle>Pending Actions</CardTitle>
-                  <CardDescription className="mt-0.5">
-                    Actionable tasks generated from real-time trap triggers.
+                  <CardTitle className="text-base font-bold text-slate-950">
+                    User Accounts
+                  </CardTitle>
+                  <CardDescription className="mt-0.5 text-xs">
+                    Total registered accounts and pending activation status
                   </CardDescription>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="flex-1 divide-y divide-slate-100 p-0">
-              {computedPendingActions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center p-8 text-center text-slate-500">
-                  <CheckCircle2 className="size-8 text-emerald-500 mb-2 opacity-80" />
-                  <p className="text-sm font-medium text-slate-700">
-                    No pending triage actions
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    All traps are reporting normal baseline metrics.
-                  </p>
-                </div>
-              ) : (
-                computedPendingActions.slice(0, 4).map((action) => {
-                  const cfg = priorityConfig[action.priority] || priorityConfig.Low;
-                  return (
-                    <div
-                      key={action.id}
-                      className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/80"
-                    >
-                      {/* Priority badge */}
-                      <span
-                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide ${cfg.pill}`}
-                      >
-                        <span className={`size-1.5 rounded-full ${cfg.dot}`} />
-                        {action.priority}
-                      </span>
-
-                      {/* Task body */}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-900">
-                          {action.task}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {action.meta}
-                          <span className="mx-1.5 text-slate-300">·</span>
-                          {action.status}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* ── 7-Day Detection Trend bar chart ────────────────────────────────── */}
-        <section>
-          <Card className="border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-            <CardHeader className="border-b border-slate-100 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Network className="size-4 text-emerald-600" />
-                    7-Day Histogram of Mosquito Detections
-                  </CardTitle>
-                  <CardDescription className="mt-1">
-                    Daily mosquito detection counts across all active traps
-                    over the past week.
-                  </CardDescription>
-                </div>
+              <div className="flex items-center gap-2">
                 <Badge
                   variant="outline"
-                  className="border-emerald-200 bg-emerald-50 text-emerald-700 text-xs"
+                  className="border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700"
                 >
-                  Last 7 days
+                  {loading ? "—" : `${visibleAccounts.length} Total`}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700"
+                >
+                  {loading ? "—" : `${pendingAccounts.length} Pending`}
                 </Badge>
               </div>
-            </CardHeader>
-            <CardContent className="pt-6 pb-4">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart
-                  data={trendData.trend}
-                  margin={{ top: 4, right: 16, left: -8, bottom: 0 }}
-                  barCategoryGap="35%"
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="#f1f5f9"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="day"
-                    tick={{ fontSize: 12, fill: "#94a3b8" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: "#94a3b8" }}
-                    axisLine={false}
-                    tickLine={false}
-                    allowDecimals={false}
-                  />
-                  <Tooltip
-                    content={<CustomTooltip />}
-                    cursor={{ fill: "rgba(16,185,129,0.06)", radius: 8 }}
-                  />
-                  <Bar
-                    dataKey="count"
-                    fill="#10b981"
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={48}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            </div>
 
-              {/* summary strip */}
-              <div className="mt-4 grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 pt-4 text-center">
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-widest">
-                    Peak Day
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-slate-950">
-                    {trendData.peakDay}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {trendData.peakCount > 0
-                      ? `${trendData.peakCount} detections`
-                      : "No detections"}
-                  </p>
+            {/* Accounts KPI Strip */}
+            <div className="mt-3 grid grid-cols-3 gap-2.5 pt-1">
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Total Accounts
+                </p>
+                <p className="mt-0.5 text-lg font-bold text-slate-900">
+                  {loading ? "—" : visibleAccounts.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                  Status Pending
+                </p>
+                <p className="mt-0.5 text-lg font-bold text-amber-700">
+                  {loading ? "—" : pendingAccounts.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/60 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+                  Active Accounts
+                </p>
+                <p className="mt-0.5 text-lg font-bold text-emerald-700">
+                  {loading ? "—" : activeAccountsCount}
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex-1 p-0 overflow-auto max-h-[285px]">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50">
+                  <TableHead className="font-semibold text-slate-600 text-xs py-3 pl-5">
+                    USER
+                  </TableHead>
+                  <TableHead className="font-semibold text-slate-600 text-xs py-3">
+                    ROLE
+                  </TableHead>
+                  <TableHead className="font-semibold text-slate-600 text-xs py-3 pr-5 text-right">
+                    STATUS
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-slate-100">
+                {loading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={3}
+                      className="py-10 text-center text-sm text-slate-400"
+                    >
+                      Loading accounts...
+                    </TableCell>
+                  </TableRow>
+                ) : sortedAccounts.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={3}
+                      className="py-10 text-center text-sm text-slate-500"
+                    >
+                      No accounts found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  sortedAccounts.map((acc) => {
+                    const statusUpper = String(
+                      acc.status || "PENDING"
+                    ).toUpperCase();
+                    const isPending = statusUpper === "PENDING";
+                    const isActive = statusUpper === "ACTIVE";
+                    return (
+                      <TableRow
+                        key={acc.id}
+                        className="hover:bg-slate-50/80 transition-colors"
+                      >
+                        <TableCell className="py-3 pl-5">
+                          <p className="text-xs font-semibold text-slate-900">
+                            {acc.first_name} {acc.last_name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate max-w-[200px]">
+                            {acc.email}
+                          </p>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                            {acc.role}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 pr-5 text-right">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${
+                              isPending
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : isActive
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-rose-50 text-rose-700 border-rose-200"
+                            }`}
+                          >
+                            <span
+                              className={`size-1.5 rounded-full ${
+                                isPending
+                                  ? "bg-amber-500"
+                                  : isActive
+                                  ? "bg-emerald-500"
+                                  : "bg-rose-500"
+                              }`}
+                            />
+                            {statusUpper}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+
+          <div className="border-t border-slate-100 p-4">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="w-full justify-between rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700"
+            >
+              <Link to={ROUTES.admin.users}>
+                <span className="inline-flex items-center gap-2 text-xs font-medium">
+                  <Users className="size-3.5 text-emerald-600" />
+                  Open User Access Control
+                </span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </Card>
+
+        {/* 3. PENDING ACTIONS FROM REQUEST ACTIONS OVERVIEW CONTAINER */}
+        <Card className="border-slate-200 bg-white/95 shadow-sm flex flex-col">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-xl bg-amber-50 p-2.5 text-amber-700">
+                  <ClipboardList className="size-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-widest">
-                    Weekly Total
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-slate-950">
-                    {trendData.weeklyTotal}
-                  </p>
-                  <p className="text-xs text-slate-500">across all traps</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-widest">
-                    Daily Average
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-slate-950">
-                    {trendData.dailyAverage}
-                  </p>
-                  <p className="text-xs text-slate-500">mosquitoes / day</p>
+                  <CardTitle className="text-base font-bold text-slate-950">
+                    Pending Actions
+                  </CardTitle>
+                  <CardDescription className="mt-0.5 text-xs">
+                    Pending trap requests from Request Actions Overview
+                  </CardDescription>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </section>
+              <Badge
+                variant="outline"
+                className="border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700"
+              >
+                {loading ? "—" : `${pendingRequestActions.length} Pending`}
+              </Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex-1 divide-y divide-slate-100 p-0 overflow-auto max-h-[360px]">
+            {loading ? (
+              <div className="py-12 text-center text-sm text-slate-400">
+                Loading pending request actions...
+              </div>
+            ) : pendingRequestActions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-10 text-center text-slate-500">
+                <CheckCircle2 className="size-8 text-emerald-500 mb-2 opacity-80" />
+                <p className="text-sm font-semibold text-slate-700">
+                  No pending request actions
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  All submitted trap deployment and pickup requests have been
+                  processed.
+                </p>
+              </div>
+            ) : (
+              pendingRequestActions.map((req) => {
+                const requesterName =
+                  [req.requester_first_name, req.requester_last_name]
+                    .filter(Boolean)
+                    .join(" ") || "Unknown User";
+                const locationText = [
+                  req.device_barangay ? `Brgy. ${req.device_barangay}` : null,
+                  req.device_municipality,
+                ]
+                  .filter(Boolean)
+                  .join(", ");
+
+                return (
+                  <div
+                    key={req.req_id}
+                    className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-slate-50/80 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-800">
+                          {req.device_code || "UNASSIGNED"}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-900">
+                          {req.request}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                          <Clock className="size-3" />
+                          Pending
+                        </span>
+                      </div>
+
+                      {req.descriptions && (
+                        <p className="text-xs text-slate-600 line-clamp-2">
+                          {req.descriptions}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 pt-0.5">
+                        <span>
+                          Requested by{" "}
+                          <strong className="font-medium text-slate-700">
+                            {requesterName}
+                          </strong>
+                          {req.requester_role ? ` (${req.requester_role})` : ""}
+                        </span>
+                        {locationText && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span>{locationText}</span>
+                          </>
+                        )}
+                        <span className="text-slate-300">•</span>
+                        <span>{formatDateTime(req.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+
+          <div className="border-t border-slate-100 p-4">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="w-full justify-between rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700"
+            >
+              <Link to={ROUTES.admin.requestActionsOverview}>
+                <span className="inline-flex items-center gap-2 text-xs font-medium">
+                  <ClipboardList className="size-3.5 text-emerald-600" />
+                  Open Request Actions Overview
+                </span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </Card>
+
+        {/* 4. ALL ANNOUNCEMENTS CONTAINER */}
+        <Card className="border-slate-200 bg-white/95 shadow-sm flex flex-col">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700">
+                  <Megaphone className="size-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-950">
+                    All Announcements
+                  </CardTitle>
+                  <CardDescription className="mt-0.5 text-xs">
+                    All published broadcasts and advisories across the network
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge
+                variant="outline"
+                className="border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700"
+              >
+                {loading ? "—" : `${announcements.length} Total`}
+              </Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex-1 divide-y divide-slate-100 p-0 overflow-auto max-h-[360px]">
+            {loading ? (
+              <div className="py-12 text-center text-sm text-slate-400">
+                Loading announcements...
+              </div>
+            ) : announcements.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-10 text-center text-slate-500">
+                <Megaphone className="size-8 text-slate-300 mb-2" />
+                <p className="text-sm font-semibold text-slate-700">
+                  No announcements published
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Create a broadcast to notify LGU and Barangay teams.
+                </p>
+              </div>
+            ) : (
+              announcements.map((item) => {
+                const lvl = LEVEL_STYLES[item.level] ?? LEVEL_STYLES.info;
+                const LevelIcon = lvl.icon;
+                const active = isAnnouncementActive(
+                  item.start_date,
+                  item.end_date
+                );
+
+                return (
+                  <div
+                    key={item.id}
+                    className="px-5 py-4 hover:bg-slate-50/80 transition-colors space-y-1.5"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${lvl.badge}`}
+                        >
+                          <LevelIcon className="size-3" />
+                          {lvl.label}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                            active
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          <span
+                            className={`size-1.5 rounded-full ${
+                              active ? "bg-emerald-500" : "bg-slate-400"
+                            }`}
+                          />
+                          {active ? "Active" : "Archived"}
+                        </span>
+                        <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">
+                          Audience: {item.target_audience}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {formatDateTime(item.created_at)}
+                      </span>
+                    </div>
+
+                    <p className="text-sm font-bold text-slate-900">
+                      {item.title}
+                    </p>
+                    <p className="text-xs text-slate-600 line-clamp-2 whitespace-pre-line">
+                      {item.message}
+                    </p>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+
+          <div className="border-t border-slate-100 p-4">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="w-full justify-between rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700"
+            >
+              <Link to={ROUTES.admin.announcements}>
+                <span className="inline-flex items-center gap-2 text-xs font-medium">
+                  <Megaphone className="size-3.5 text-emerald-600" />
+                  Manage Announcements
+                </span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
+
+export { AdminDashboard };
+
