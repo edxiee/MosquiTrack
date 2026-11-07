@@ -1,5 +1,14 @@
 import { CreateUserRequest } from "./types.ts";
 
+const VALID_ROLES = [
+  "SYS_ADMIN",
+  "ADMIN",
+  "BRGY_ADMIN",
+  "FIELD_OP",
+  "MHO",
+  "BHW",
+];
+
 export function validateCreateUser(
   body: CreateUserRequest
 ): string | null {
@@ -14,18 +23,8 @@ export function validateCreateUser(
     return "Required fields are missing.";
   }
 
-  if (
-    (body.role === "MHO" || body.role === "BHW") &&
-    !body.municipality
-  ) {
-    return "Municipality is required.";
-  }
-
-  if (
-    body.role === "BHW" &&
-    !body.barangay
-  ) {
-    return "Barangay is required.";
+  if (!VALID_ROLES.includes(body.role)) {
+    return `Invalid role selected: ${body.role}`;
   }
 
   return null;

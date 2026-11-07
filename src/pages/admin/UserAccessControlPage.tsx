@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import UserPageHeader from "@/components/accounts/UserPageHeader";
 import UserStatistics from "@/components/accounts/UserStatistics";
 import UserToolbar from "@/components/accounts/UserToolbar";
@@ -42,6 +43,21 @@ export default function UserAccessControlPage() {
 
   useEffect(() => {
     loadUsers();
+
+    const channel = supabase
+      .channel("users_status_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => {
+          loadUsers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Built from whatever values actually exist right now — there's no

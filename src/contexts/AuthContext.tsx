@@ -64,6 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (currentSession.access_token) {
             await supabase.realtime.setAuth(currentSession.access_token);
           }
+          await markFirstLoginActive();
           await refreshProfile();
         }
       } finally {

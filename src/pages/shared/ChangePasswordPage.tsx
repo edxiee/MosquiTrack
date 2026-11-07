@@ -1,9 +1,9 @@
 // src/pages/shared/ChangePasswordPage.tsx
 
-import { useState, type FormEvent } from "react";
+import { useState, useMemo, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Check, X } from "lucide-react";
 import { changePassword, logout as logoutService } from "@/services/auth.service";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,15 +27,48 @@ export default function ChangePasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
 
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+  // Requirement criteria checks
+  const criteria = useMemo(() => {
+    return [
+      {
+        id: "length",
+        label: "At least 8 characters",
+        valid: newPassword.length >= 8,
+      },
+      {
+        id: "uppercase",
+        label: "At least one uppercase letter",
+        valid: /[A-Z]/.test(newPassword),
+      },
+      {
+        id: "lowercase",
+        label: "At least one lowercase letter",
+        valid: /[a-z]/.test(newPassword),
+      },
+      {
+        id: "number",
+        label: "At least one number",
+        valid: /\d/.test(newPassword),
+      },
+      {
+        id: "special",
+        label: "At least one special character",
+        valid: /[^A-Za-z0-9]/.test(newPassword),
+      },
+    ];
+  }, [newPassword]);
+
+  const allCriteriaMet = useMemo(() => {
+    return criteria.every((c) => c.valid);
+  }, [criteria]);
 
   const validate = () => {
     const newErrors: { new?: string; confirm?: string } = {};
 
     if (!newPassword) {
       newErrors.new = "New password is required.";
-    } else if (!passwordRegex.test(newPassword)) {
-      newErrors.new = "Password does not meet the requirements.";
+    } else if (!allCriteriaMet) {
+      newErrors.new = "Password does not meet all the requirements.";
     }
 
     if (!confirmPassword) {
@@ -85,8 +118,11 @@ export default function ChangePasswordPage() {
   return (
     <>
       <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-        <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl border border-emerald-100 ring-1 ring-slate-900/5">
           <div className="mb-6 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
             <h1 className="text-2xl font-bold text-slate-900">
               Change Your Password
             </h1>
@@ -110,21 +146,35 @@ export default function ChangePasswordPage() {
                   id="newPassword"
                   type={showNew ? "text" : "password"}
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-16 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    if (errors.new) {
+                      setErrors((prev) => {
+                        const { new: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }
+                  }}
+                  className={`w-full rounded-lg border px-3 py-2 pr-16 text-sm transition-colors focus:outline-none focus:ring-2 ${
+                    newPassword.length > 0
+                      ? allCriteriaMet
+                        ? "border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        : "border-red-400 focus:border-red-500 focus:ring-red-500/20"
+                      : "border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20"
+                  }`}
                   placeholder="Enter new password"
                   disabled={isSubmitting}
                 />
                 <button
                   type="button"
                   onClick={() => setShowNew(!showNew)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-blue-600 hover:text-blue-800"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
                 >
                   {showNew ? "Hide" : "Show"}
                 </button>
               </div>
               {errors.new && (
-                <p className="mt-1 text-xs text-red-600">{errors.new}</p>
+                <p className="mt-1 text-xs text-red-600 font-medium">{errors.new}</p>
               )}
             </div>
 
@@ -141,53 +191,100 @@ export default function ChangePasswordPage() {
                   id="confirmPassword"
                   type={showConfirm ? "text" : "password"}
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-16 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (errors.confirm) {
+                      setErrors((prev) => {
+                        const { confirm: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }
+                  }}
+                  className={`w-full rounded-lg border px-3 py-2 pr-16 text-sm transition-colors focus:outline-none focus:ring-2 ${
+                    confirmPassword.length > 0
+                      ? confirmPassword === newPassword
+                        ? "border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        : "border-red-400 focus:border-red-500 focus:ring-red-500/20"
+                      : "border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20"
+                  }`}
                   placeholder="Confirm new password"
                   disabled={isSubmitting}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-blue-600 hover:text-blue-800"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
                 >
                   {showConfirm ? "Hide" : "Show"}
                 </button>
               </div>
               {errors.confirm && (
-                <p className="mt-1 text-xs text-red-600">{errors.confirm}</p>
+                <p className="mt-1 text-xs text-red-600 font-medium">{errors.confirm}</p>
               )}
             </div>
 
             {/* Password Requirements */}
-            <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-              <p className="mb-1 font-semibold text-slate-700">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs">
+              <p className="mb-2 font-semibold text-slate-700">
                 Password requirements:
               </p>
-              <ul className="list-inside list-disc space-y-0.5">
-                <li>At least 8 characters</li>
-                <li>At least one uppercase letter</li>
-                <li>At least one lowercase letter</li>
-                <li>At least one number</li>
-                <li>At least one special character</li>
+              <ul className="space-y-1.5">
+                {criteria.map((item) => {
+                  const hasInput = newPassword.length > 0;
+                  const isMet = item.valid;
+
+                  return (
+                    <li
+                      key={item.id}
+                      className={`flex items-center gap-2 font-medium transition-colors ${
+                        hasInput
+                          ? isMet
+                            ? "text-emerald-700"
+                            : "text-red-600"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {hasInput ? (
+                        isMet ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        ) : (
+                          <X className="h-3.5 w-3.5 text-red-500 shrink-0 stroke-[2.5]" />
+                        )
+                      ) : (
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0 ml-1 mr-1" />
+                      )}
+                      <span>{item.label}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
             {/* API Error Message */}
             {apiError && (
-              <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+              <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
                 {apiError}
               </div>
             )}
 
             {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-300"
-            >
-              {isSubmitting ? "Changing Password..." : "Change Password"}
-            </button>
+            <div className="space-y-2 pt-1">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-emerald-300 transition-colors"
+              >
+                {isSubmitting ? "Changing Password..." : "Change Password"}
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => navigate("/dashboard")}
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            </div>
           </form>
         </div>
       </div>

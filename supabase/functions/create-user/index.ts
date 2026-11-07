@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { CreateUserRequest } from "./types.ts";
 import { validateCreateUser } from "./validators.ts";
-import { createUser } from "./user.service.ts";
+import { createUser, resendDefaultPasswordEmail } from "./user.service.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +26,44 @@ Deno.serve(async (req: Request) => {
   try {
     const body = (await req.json()) as CreateUserRequest;
 
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    if (body.action === "resend") {
+      if (!body.email) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Email is required to resend default password.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const resendResult = await resendDefaultPasswordEmail(body.email, supabaseAdmin);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          ...resendResult,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const validationError = validateCreateUser(body);
     if (validationError) {
       return new Response(
@@ -39,17 +77,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
 
     const result = await createUser(body, supabaseAdmin);
 

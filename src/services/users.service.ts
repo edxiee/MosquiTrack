@@ -44,15 +44,23 @@ export async function createUser(formData: CreateUserForm) {
   });
 
   if (error) {
+    let errorMsg = error.message;
     if (error instanceof FunctionsHttpError) {
-      const errorBody = await error.context.json();
-      console.error("Edge Function Response:", errorBody);
+      try {
+        const errorBody = await error.context.json();
+        console.error("Edge Function Response:", errorBody);
+        if (errorBody && typeof errorBody === "object" && errorBody.error) {
+          errorMsg = errorBody.error;
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse error context:", parseErr);
+      }
     }
     console.error("Function invoke error:", error);
-    throw error;
+    throw new Error(errorMsg);
   }
-  if (!data.success) {
-    throw new Error(data.error);
+  if (!data?.success) {
+    throw new Error(data?.error || "Failed to create user.");
   }
   return data;
 }
@@ -105,14 +113,22 @@ export async function deleteUser(userId: string) {
   });
 
   if (error) {
+    let errorMsg = error.message;
     if (error instanceof FunctionsHttpError) {
-      const errorBody = await error.context.json();
-      console.error("Edge Function Response:", errorBody);
+      try {
+        const errorBody = await error.context.json();
+        console.error("Edge Function Response:", errorBody);
+        if (errorBody && typeof errorBody === "object" && errorBody.error) {
+          errorMsg = errorBody.error;
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse error context:", parseErr);
+      }
     }
-    throw error;
+    throw new Error(errorMsg);
   }
-  if (!data.success) {
-    throw new Error(data.error);
+  if (!data?.success) {
+    throw new Error(data?.error || "Failed to delete user.");
   }
   return data;
 }
@@ -130,14 +146,22 @@ export async function setUserStatus(
   );
 
   if (error) {
+    let errorMsg = error.message;
     if (error instanceof FunctionsHttpError) {
-      const errorBody = await error.context.json();
-      console.error("Edge Function Response:", errorBody);
+      try {
+        const errorBody = await error.context.json();
+        console.error("Edge Function Response:", errorBody);
+        if (errorBody && typeof errorBody === "object" && errorBody.error) {
+          errorMsg = errorBody.error;
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse error context:", parseErr);
+      }
     }
-    throw error;
+    throw new Error(errorMsg);
   }
-  if (!data.success) {
-    throw new Error(data.error);
+  if (!data?.success) {
+    throw new Error(data?.error || "Failed to update user status.");
   }
   return data;
 }
@@ -164,13 +188,26 @@ export async function markFirstLoginActive(): Promise<void> {
 }
 
 export async function resendConfirmationEmail(email: string) {
-  const { data, error } = await supabase.auth.resend({
-    type: "signup",
-    email,
+  const { data, error } = await supabase.functions.invoke("create-user", {
+    body: { action: "resend", email },
   });
 
   if (error) {
-    throw error;
+    let errorMsg = error.message;
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const errorBody = await error.context.json();
+        if (errorBody && typeof errorBody === "object" && errorBody.error) {
+          errorMsg = errorBody.error;
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+    throw new Error(errorMsg);
+  }
+  if (!data?.success) {
+    throw new Error(data?.error || "Failed to resend email.");
   }
   return data;
 }
