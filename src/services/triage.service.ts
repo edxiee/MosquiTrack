@@ -63,20 +63,66 @@ const ACTION_SELECT_FALLBACK = `
 
 let hasImageUrlColumn = true;
 
-function flattenAction(row: RawActionRow): TriageAction {
+interface DeviceLocationSummary {
+  id: string;
+  device_code: string;
+  barangay_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  notes: string | null;
+}
+
+function extractDeviceCodeFromRemarks(remarks: string | null | undefined, triggerSource?: string | null): string | null {
+  const combined = `${remarks ?? ""} | ${triggerSource ?? ""}`;
+  const trapTagMatch = combined.match(/Trap:\s*([A-Za-z0-9_-]+)/i);
+  if (trapTagMatch?.[1]) return trapTagMatch[1].trim();
+  const codeMatch = combined.match(/\b(TRAP-[A-Za-z0-9_-]+)\b/i);
+  if (codeMatch?.[1]) return codeMatch[1].trim();
+  return null;
+}
+
+function flattenAction(
+  row: RawActionRow,
+  devicesByCode?: Map<string, DeviceLocationSummary>,
+  devicesByBarangay?: Map<string, DeviceLocationSummary[]>
+): TriageAction {
   const assignee = Array.isArray(row.assignee) ? row.assignee[0] : row.assignee;
   const requester = Array.isArray(row.requester) ? row.requester[0] : row.requester;
   const requesterName = requester
     ? `${requester.first_name} ${requester.last_name}`.trim()
     : null;
 
+  const parsedCode = extractDeviceCodeFromRemarks(row.remarks, row.trigger_source);
+  let matchedDevice: DeviceLocationSummary | undefined;
+
+  if (parsedCode && devicesByCode) {
+    matchedDevice = devicesByCode.get(parsedCode.toUpperCase());
+  }
+  if (!matchedDevice && row.barangay_id && devicesByBarangay) {
+    const brgyDevices = devicesByBarangay.get(row.barangay_id) ?? [];
+    // Prefer a device with valid coordinates
+    matchedDevice =
+      brgyDevices.find(
+        (d) =>
+          d.latitude != null &&
+          d.longitude != null &&
+          Number(d.latitude) !== 0 &&
+          Number(d.longitude) !== 0
+      ) ?? brgyDevices[0];
+  }
+
   return {
     id: row.id,
     barangayId: row.barangay_id,
     barangayName: row.barangay?.barangay_name ?? "Barangay San Juan",
     municipalityName: row.barangay?.municipality ?? null,
-    deviceId: null,
-    deviceCode: null,
+    deviceId: matchedDevice?.id ?? null,
+    deviceCode: matchedDevice?.device_code ?? parsedCode ?? null,
+    deviceLatitude: matchedDevice?.latitude != null ? Number(matchedDevice.latitude) : null,
+    deviceLongitude: matchedDevice?.longitude != null ? Number(matchedDevice.longitude) : null,
+    deviceDescription: matchedDevice?.description ?? null,
+    deviceNotes: matchedDevice?.notes ?? null,
     triggerSource: row.trigger_source,
     priority: row.priority,
     status: row.status,
@@ -95,6 +141,36 @@ function flattenAction(row: RawActionRow): TriageAction {
     imageUrl: row.image_url ?? null,
     createdAt: row.created_at,
   };
+}
+
+async function fetchDeviceLookups(): Promise<{
+  devicesByCode: Map<string, DeviceLocationSummary>;
+  devicesByBarangay: Map<string, DeviceLocationSummary[]>;
+}> {
+  const devicesByCode = new Map<string, DeviceLocationSummary>();
+  const devicesByBarangay = new Map<string, DeviceLocationSummary[]>();
+
+  try {
+    const { data } = await supabase
+      .from("ovitrap_devices")
+      .select("id, device_code, barangay_id, latitude, longitude, description, notes")
+      .order("device_code", { ascending: true });
+
+    for (const row of (data ?? []) as DeviceLocationSummary[]) {
+      if (row.device_code) {
+        devicesByCode.set(row.device_code.toUpperCase(), row);
+      }
+      if (row.barangay_id) {
+        const list = devicesByBarangay.get(row.barangay_id) ?? [];
+        list.push(row);
+        devicesByBarangay.set(row.barangay_id, list);
+      }
+    }
+  } catch (err) {
+    console.warn("Could not load device locations for triage actions:", err);
+  }
+
+  return { devicesByCode, devicesByBarangay };
 }
 
 /**
@@ -175,7 +251,11 @@ export async function getAssignedActions(options?: {
   }
   if (error) throw error;
 
-  return ((data ?? []) as unknown as RawActionRow[]).map(flattenAction);
+  const { devicesByCode, devicesByBarangay } = await fetchDeviceLookups();
+
+  return ((data ?? []) as unknown as RawActionRow[]).map((row) =>
+    flattenAction(row, devicesByCode, devicesByBarangay)
+  );
 }
 
 export async function getActionsByDeviceId(
@@ -207,7 +287,12 @@ export async function getActionById(id: string): Promise<TriageAction | null> {
     console.error("Failed to fetch action:", error);
     return null;
   }
-  return flattenAction(data as unknown as RawActionRow);
+  const { devicesByCode, devicesByBarangay } = await fetchDeviceLookups();
+  return flattenAction(
+    data as unknown as RawActionRow,
+    devicesByCode,
+    devicesByBarangay
+  );
 }
 
 export async function updateActionStatus(

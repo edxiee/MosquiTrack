@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import L from "leaflet";
+import { MapErrorBoundary } from "@/components/system/MapErrorBoundary";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -20,10 +23,13 @@ import {
   CalendarClock,
   CheckCircle2,
   Cpu,
+  ExternalLink,
   Image as ImageIcon,
   Inbox,
+  Loader2,
   MapPin,
   MessageSquare,
+  Navigation,
   Play,
   Settings2,
   UserRound,
@@ -36,6 +42,22 @@ import {
   PRIORITY_STYLES,
   STATUS_STYLES,
 } from "@/utils/triageHelpers";
+import "leaflet/dist/leaflet.css";
+
+const trapMapPinIcon = L.divIcon({
+  className: "custom-div-icon",
+  html: `
+    <div class="relative w-10 h-10 flex items-center justify-center -translate-y-3">
+      <div class="absolute inset-0 bg-emerald-500 rounded-full opacity-35 animate-ping"></div>
+      <div class="absolute inset-1.5 bg-emerald-100 rounded-full border-2 border-emerald-600 shadow-sm"></div>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-emerald-700 relative z-10 drop-shadow-sm">
+        <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+      </svg>
+    </div>
+  `,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+});
 
 interface TriageTableProps {
   actions: TriageAction[];
@@ -89,6 +111,88 @@ export default function TriageTable({
   newActionIds,
 }: TriageTableProps) {
   const [detailAction, setDetailAction] = useState<TriageAction | null>(null);
+  const [streetAddress, setStreetAddress] = useState<{
+    street: string;
+    fullAddress: string;
+    loading: boolean;
+  }>({ street: "", fullAddress: "", loading: false });
+
+  const detailLat = detailAction?.deviceLatitude;
+  const detailLng = detailAction?.deviceLongitude;
+  const hasValidCoordinates =
+    detailLat != null &&
+    detailLng != null &&
+    !Number.isNaN(Number(detailLat)) &&
+    !Number.isNaN(Number(detailLng)) &&
+    Number(detailLat) !== 0 &&
+    Number(detailLng) !== 0;
+
+  useEffect(() => {
+    if (!detailAction || !hasValidCoordinates) {
+      setStreetAddress({ street: "", fullAddress: "", loading: false });
+      return;
+    }
+
+    let cancelled = false;
+    setStreetAddress({ street: "", fullAddress: "", loading: true });
+
+    const lat = Number(detailLat);
+    const lng = Number(detailLng);
+
+    fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          "Accept-Language": "en",
+        },
+      }
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const addr = data?.address ?? {};
+        const road =
+          addr.road ||
+          addr.street ||
+          addr.pedestrian ||
+          addr.residential ||
+          addr.footway ||
+          addr.path ||
+          addr.neighbourhood ||
+          addr.suburb ||
+          addr.village ||
+          "";
+        const houseNumber = addr.house_number ? `${addr.house_number} ` : "";
+        const computedStreet = road ? `${houseNumber}${road}` : "";
+        const display = data?.display_name || "";
+
+        setStreetAddress({
+          street:
+            computedStreet ||
+            detailAction.deviceDescription ||
+            detailAction.deviceNotes ||
+            detailAction.barangayName,
+          fullAddress: display,
+          loading: false,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStreetAddress({
+          street:
+            detailAction.deviceDescription ||
+            detailAction.deviceNotes ||
+            detailAction.barangayName,
+          fullAddress: "",
+          loading: false,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailAction, hasValidCoordinates, detailLat, detailLng]);
+
   const showPriority = view !== "closed";
   const showPosted = view === "pending";
   const showDue = view !== "closed";
@@ -216,15 +320,20 @@ export default function TriageTable({
                       )}
                     </TableCell>
                     <TableCell>
-                    <p
-  className="flex items-center gap-1.5 text-sm font-medium text-slate-700"
-  title={[action.municipalityName, action.barangayName].filter(Boolean).join(", ")}
->
-  <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-  <span>
-    {[action.municipalityName, action.barangayName].filter(Boolean).join(", ")}
-  </span>
-</p>
+                      <p
+                        className="flex items-center gap-1.5 text-sm font-medium text-slate-700"
+                        title={[action.municipalityName, action.barangayName].filter(Boolean).join(", ")}
+                      >
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span>
+                          {[action.municipalityName, action.barangayName].filter(Boolean).join(", ")}
+                        </span>
+                      </p>
+                      {(action.deviceDescription || action.deviceNotes) && (
+                        <p className="mt-0.5 text-xs font-medium text-emerald-700 truncate max-w-[240px]">
+                          {action.deviceDescription || action.deviceNotes}
+                        </p>
+                      )}
                       {action.deviceCode && (
                         <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
                           <Cpu className="h-3.5 w-3.5 text-slate-400" />
@@ -458,13 +567,152 @@ export default function TriageTable({
           if (!open) setDetailAction(null);
         }}
       >
-        <DialogContent className="w-[calc(100vw-1rem)] max-h-[65dvh] overflow-y-auto rounded-xl p-4 sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
+        <DialogContent className="w-[calc(100vw-1rem)] max-h-[85dvh] overflow-y-auto rounded-2xl p-4 sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
           <DialogHeader>
-            <DialogTitle>Task Details</DialogTitle>
-            <DialogDescription>Review the action and choose an available action.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2 text-slate-900">
+              <span>Task & Trap Location Details</span>
+              {detailAction?.deviceCode && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                  <Cpu className="h-3.5 w-3.5" />
+                  {detailAction.deviceCode}
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Review the exact street address, trap placement, and map location for field operations.
+            </DialogDescription>
           </DialogHeader>
           {detailAction && (
             <div className="space-y-4">
+              {/* Exact Trap Location & Street Box for Field Operatives */}
+              <div className="overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-2xs">
+                <div className="flex flex-col gap-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                        <MapPin className="h-4 w-4" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+                          Exact Trap Location & Street
+                        </p>
+                        {streetAddress.loading ? (
+                          <p className="flex items-center gap-1.5 text-sm font-medium text-slate-600">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
+                            Identifying street address...
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-sm font-bold text-slate-900">
+                              Street:{" "}
+                              <span className="text-emerald-800">
+                                {streetAddress.street ||
+                                  detailAction.deviceDescription ||
+                                  detailAction.deviceNotes ||
+                                  detailAction.barangayName}
+                              </span>
+                            </p>
+                            {streetAddress.fullAddress && (
+                              <p className="text-xs leading-relaxed text-slate-600">
+                                {streetAddress.fullAddress}
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {hasValidCoordinates && (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${Number(detailAction.deviceLatitude)},${Number(detailAction.deviceLongitude)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-emerald-700"
+                      >
+                        <Navigation className="h-3.5 w-3.5" />
+                        Directions
+                        <ExternalLink className="h-3 w-3 opacity-80" />
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Where is the trap / Placement Details */}
+                  <div className="grid grid-cols-1 gap-2 rounded-lg border border-emerald-200/80 bg-white p-3 text-xs sm:grid-cols-2">
+                    <div>
+                      <span className="font-semibold uppercase text-[10px] tracking-wider text-slate-400 block">
+                        Where is the Trap (Landmark / Site)
+                      </span>
+                      <span className="font-semibold text-slate-800 mt-0.5 block">
+                        {detailAction.deviceDescription ||
+                          detailAction.deviceNotes ||
+                          `Deployed in ${detailAction.barangayName}`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-semibold uppercase text-[10px] tracking-wider text-slate-400 block">
+                        Exact GPS Coordinates
+                      </span>
+                      <span className="font-mono font-semibold text-slate-800 mt-0.5 block">
+                        {hasValidCoordinates
+                          ? `${Number(detailAction.deviceLatitude).toFixed(5)}, ${Number(detailAction.deviceLongitude).toFixed(5)}`
+                          : "Coordinates pending"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interactive Map Pinpointing the Trap */}
+                {hasValidCoordinates ? (
+                  <div className="relative h-56 w-full border-t border-emerald-200">
+                    <MapErrorBoundary>
+                      <MapContainer
+                        key={`${detailAction.id}-${detailAction.deviceLatitude}-${detailAction.deviceLongitude}`}
+                        center={[
+                          Number(detailAction.deviceLatitude),
+                          Number(detailAction.deviceLongitude),
+                        ]}
+                        zoom={17}
+                        scrollWheelZoom={false}
+                        className="h-full w-full z-0"
+                      >
+                        <TileLayer
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        <Marker
+                          position={[
+                            Number(detailAction.deviceLatitude),
+                            Number(detailAction.deviceLongitude),
+                          ]}
+                          icon={trapMapPinIcon}
+                        >
+                          <Popup>
+                            <div className="space-y-1 text-xs">
+                              <p className="font-bold text-slate-900">
+                                {detailAction.deviceCode || "Target Trap"}
+                              </p>
+                              <p className="font-medium text-emerald-700">
+                                {streetAddress.street || detailAction.barangayName}
+                              </p>
+                              {(detailAction.deviceDescription || detailAction.deviceNotes) && (
+                                <p className="text-slate-600">
+                                  {detailAction.deviceDescription || detailAction.deviceNotes}
+                                </p>
+                              )}
+                            </div>
+                          </Popup>
+                        </Marker>
+                      </MapContainer>
+                    </MapErrorBoundary>
+                  </div>
+                ) : (
+                  <div className="flex h-36 flex-col items-center justify-center border-t border-emerald-200 bg-slate-50 text-xs text-slate-400">
+                    <MapPin className="mb-1.5 h-6 w-6 opacity-50" />
+                    <p>No GPS coordinates recorded for this trap yet.</p>
+                  </div>
+                )}
+              </div>
+
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6">
                 {details.map(([label, value]) => (
                   <div

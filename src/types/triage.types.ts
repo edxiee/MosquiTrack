@@ -8,6 +8,10 @@ export interface TriageAction {
   municipalityName?: string | null;
   deviceId: string | null;
   deviceCode: string | null;
+  deviceLatitude?: number | null;
+  deviceLongitude?: number | null;
+  deviceDescription?: string | null;
+  deviceNotes?: string | null;
   triggerSource: string;
   priority: TriagePriority;
   status: TriageStatus;
