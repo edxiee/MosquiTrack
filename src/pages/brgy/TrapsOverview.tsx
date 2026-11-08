@@ -516,7 +516,7 @@ export default function HardwareNodesPage() {
                         {pendingReq ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50/80 border border-amber-200">
                             <Clock className="size-3.5 animate-pulse text-amber-600" />
-                            Awaiting LGU Action
+                            Waiting for Barangay Admin
                           </span>
                         ) : activeTab === "deployed" ? (
                           <Button

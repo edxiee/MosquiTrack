@@ -28,18 +28,20 @@ export const ROUTES = {
     liveMonitoring: "/admin/live-monitoring",
     announcements: "/admin/announcements",
     systemControls: "/admin/system-controls",
-    requestActionsOverview: "/admin/request-actions-overview",
+    requestActionsOverview: "/barangay/request-actions-overview",
   },
   barangay: {
     dashboard: "/barangay/dashboard",
     trapMap: "/barangay/trap-map",
     trapActionRequests: "/barangay/trap-action-requests",
+    requestActionsOverview: "/barangay/request-actions-overview",
     reports: "/barangay/reports",
   },
   lgu: {
     dashboard: "/barangay/dashboard",
     trapMap: "/barangay/trap-map",
     trapActionRequests: "/barangay/trap-action-requests",
+    requestActionsOverview: "/barangay/request-actions-overview",
     reports: "/barangay/reports",
   },
   fieldOps: {
@@ -73,7 +75,6 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "",
       items: [
         { name: "Dashboard", path: ROUTES.admin.dashboard, icon: LayoutDashboard },
-        { name: "Request Actions Overview", path: ROUTES.admin.requestActionsOverview, icon: StickyNote },
       ],
     },
     {
@@ -98,6 +99,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       items: [
         { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
         { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
+        { name: "Request Actions Overview", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
         { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
       ],
     },
@@ -116,7 +118,6 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       title: "",
       items: [
         { name: "Dashboard", path: ROUTES.admin.dashboard, icon: LayoutDashboard },
-        { name: "Request Actions Overview", path: ROUTES.admin.requestActionsOverview, icon: StickyNote },
       ],
     },
     {
@@ -134,6 +135,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       items: [
         { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
         { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
+        { name: "Request Actions Overview", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
         { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
       ],
     },
@@ -157,6 +159,7 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       items: [
         { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
         { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
+        { name: "Request Actions Overview", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
         { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
       ],
     },

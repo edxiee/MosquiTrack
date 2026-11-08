@@ -3,6 +3,7 @@ import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import RoleGuard from "@/components/layout/RoleGuard";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { ROLES } from "@/constants/roles";
+import RequestActionsOverviewPage from "@/pages/shared/RequestActionsOverviewPage";
 import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 const LguDashboard = lazyWithRetry(() => import("@/pages/lgu/LguDashboard"));
@@ -34,6 +35,10 @@ export const lguRoutes: RouteObject[] = [
         element: <TrapActionRequest />,
       },
       {
+        path: "request-actions-overview",
+        element: <RequestActionsOverviewPage />,
+      },
+      {
         path: "reports",
         element: <ReportsPage />,
       },
@@ -60,6 +65,10 @@ export const lguRoutes: RouteObject[] = [
       {
         path: "trap-action-requests",
         element: <TrapActionRequest />,
+      },
+      {
+        path: "request-actions-overview",
+        element: <RequestActionsOverviewPage />,
       },
       {
         path: "reports",

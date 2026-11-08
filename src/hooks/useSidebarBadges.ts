@@ -260,6 +260,7 @@ export function useSidebarBadges() {
       };
     }
     if (
+      path === ROUTES.barangay.requestActionsOverview ||
       path === ROUTES.admin.requestActionsOverview ||
       path.includes("request-actions") ||
       path === "/admin/request-actions"
