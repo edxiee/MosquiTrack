@@ -163,7 +163,7 @@ export default function Sidebar({ isMobile, className, onMobileClose }: SidebarP
       <nav className="flex-1 overflow-y-auto p-3">
         {navigationSections.map((section: NavSection) => {
           const isDropdownSection =
-            section.title === "BARANGAY SURVEILLANCE & COMMAND" ||
+            section.title === "BARANGAY ADMINISTRATION" ||
             section.title === "FIELD OPERATIONS";
           const isSectionCollapsed = Boolean(
             isDropdownSection && section.title && collapsedSections[section.title]

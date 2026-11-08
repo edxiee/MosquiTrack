@@ -599,7 +599,7 @@ export default function AdminDashboard() {
           </div>
         </Card>
 
-        {/* 3. PENDING ACTIONS FROM REQUEST ACTIONS OVERVIEW CONTAINER */}
+        {/* 3. PENDING ACTIONS FROM DEPLOYMENT REQUEST CONTAINER */}
         <Card className="border-slate-200 bg-white/95 shadow-sm flex flex-col">
           <CardHeader className="border-b border-slate-100 pb-4">
             <div className="flex items-center justify-between gap-3">
@@ -612,7 +612,7 @@ export default function AdminDashboard() {
                     Pending Actions
                   </CardTitle>
                   <CardDescription className="mt-0.5 text-xs">
-                    Pending trap requests from Request Actions Overview
+                    Pending trap requests from Deployment Request
                   </CardDescription>
                 </div>
               </div>
@@ -713,7 +713,7 @@ export default function AdminDashboard() {
               <Link to={ROUTES.admin.requestActionsOverview}>
                 <span className="inline-flex items-center gap-2 text-xs font-medium">
                   <ClipboardList className="size-3.5 text-emerald-600" />
-                  Open Request Actions Overview
+                  Open Deployment Request
                 </span>
                 <ArrowRight className="size-3.5" />
               </Link>

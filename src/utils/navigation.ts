@@ -95,11 +95,11 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       ],
     },
     {
-      title: "BARANGAY SURVEILLANCE & COMMAND",
+      title: "BARANGAY ADMINISTRATION",
       items: [
         { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
         { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
-        { name: "Request Actions Overview", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
+        { name: "Deployment Request", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
         { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
       ],
     },
@@ -131,11 +131,11 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       ],
     },
     {
-      title: "BARANGAY SURVEILLANCE & COMMAND",
+      title: "BARANGAY ADMINISTRATION",
       items: [
         { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
         { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
-        { name: "Request Actions Overview", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
+        { name: "Deployment Request", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
         { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
       ],
     },
@@ -155,11 +155,11 @@ export const SIDEBAR_CONFIG: Record<RoleCode, NavigationSection[]> = {
       items: [{ name: "Dashboard", path: ROUTES.barangay.dashboard, icon: LayoutDashboard }],
     },
     {
-      title: "BARANGAY SURVEILLANCE & COMMAND",
+      title: "BARANGAY ADMINISTRATION",
       items: [
         { name: "Mosquito Trap Map", path: ROUTES.barangay.trapMap, icon: Map },
         { name: "Traps List & Requests", path: ROUTES.barangay.trapActionRequests, icon: ClipboardList },
-        { name: "Request Actions Overview", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
+        { name: "Deployment Request", path: ROUTES.barangay.requestActionsOverview, icon: StickyNote },
         { name: "Trap Reports", path: ROUTES.barangay.reports, icon: BarChart3 },
       ],
     },
