@@ -18,7 +18,6 @@ import {
   AlertTriangle,
   Bug,
   Calendar,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -440,18 +439,9 @@ export default function ReportsAnalyticsPage() {
       {/* ==================================================================== */}
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between border-b border-slate-200 pb-5">
         <div>
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">
-            <Activity className="size-3.5 text-emerald-600" />
-            LGU Epidemiological Intelligence
-            {reportData?.municipality ? ` • ${reportData.municipality}` : ""}
-          </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
             Epidemiological Reports 
           </h1>
-          <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-            In-depth mosquito population surveillance trends, barangay risk rankings, and
-            intervention efficacy.
-          </p>
 
           {/* Trap Filter Dropdown with Left & Right Navigation Arrows */}
           <div className="mt-3.5 flex items-center gap-1.5 print:hidden">
@@ -582,13 +572,6 @@ export default function ReportsAnalyticsPage() {
                     <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-900">
                       {kpis.totalSuccessCount.toLocaleString()}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-semibold px-2 py-0.5 rounded-full gap-1"
-                    >
-                      <CheckCircle2 className="size-3 text-emerald-600" />
-                      Counted
-                    </Badge>
                   </div>
                 )}
               </div>
@@ -615,13 +598,6 @@ export default function ReportsAnalyticsPage() {
                     <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-900">
                       {kpis.failedCount.toLocaleString()}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-semibold px-2 py-0.5 rounded-full gap-1"
-                    >
-                      <AlertTriangle className="size-3 text-emerald-600" />
-                      Hz/ms Mismatch
-                    </Badge>
                   </div>
                 )}
               </div>
@@ -648,19 +624,6 @@ export default function ReportsAnalyticsPage() {
                     <span className="text-3xl font-bold tracking-tight text-slate-900">
                       {kpis.dangerLevel}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-semibold px-2 py-0.5 rounded-full gap-1"
-                    >
-                      <ShieldAlert className="size-3 text-emerald-600" />
-                      {kpis.dangerLevel === "Critical"
-                        ? "Action Needed"
-                        : kpis.dangerLevel === "High"
-                          ? "High Activity"
-                          : kpis.dangerLevel === "Moderate"
-                            ? "Moderate"
-                            : "Normal"}
-                    </Badge>
                   </div>
                 )}
               </div>
@@ -690,13 +653,6 @@ export default function ReportsAnalyticsPage() {
                     <span className="text-sm font-semibold text-slate-600">
                       {kpis.daysBeforeCycleEnd === 1 ? "day left" : "days left"}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-semibold px-2 py-0.5 rounded-full gap-1 ml-1"
-                    >
-                      <Clock className="size-3 text-emerald-600" />
-                      Day {Math.max(1, 7 - kpis.daysBeforeCycleEnd + 1)} of 7
-                    </Badge>
                   </div>
                 )}
               </div>
