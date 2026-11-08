@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  Bug,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Clock,
   LayoutDashboard,
+  Loader2,
   MapPin,
   User,
   Wifi,
@@ -28,11 +31,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  TrapExpandedAnalytics,
+  TRAP_DANGER_CONFIG,
+  type ReadingRow,
+} from "@/components/common/TrapExpandedAnalytics";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 import { fetchDevicesForCurrentUser } from "@/services/device.service";
 import { getAssignedActions } from "@/services/triage.service";
-import { isDeviceActive } from "@/utils/deviceHelpers";
+import { getDangerTier } from "@/utils/dangerTiers";
+import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
+import { getDeviceStatusName, isDeviceActive } from "@/utils/deviceHelpers";
 import { formatDateTime } from "@/utils/format";
 import { ROUTES } from "@/utils/navigation";
 import type { OvitrapDevice } from "@/types/device.types";
@@ -70,11 +81,22 @@ export default function BhwDashboard() {
 
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [actions, setActions] = useState<TriageAction[]>([]);
+  const [readings, setReadings] = useState<ReadingRow[]>([]);
+  const [selectedTrapId, setSelectedTrapId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const userEmail = profile?.email || user?.email || "";
   const maskedUserEmail = useMemo(() => maskEmail(userEmail), [userEmail]);
+
+  const toggleTrap = (id: string) => {
+    setSelectedTrapId((prev) => (prev === id ? null : id));
+  };
+
+  const selectedTrap = useMemo(
+    () => devices.find((d) => d.id === selectedTrapId) ?? null,
+    [devices, selectedTrapId]
+  );
 
   const loadDashboardData = useCallback(async (silent = false) => {
     if (!silent) {
@@ -89,7 +111,29 @@ export default function BhwDashboard() {
       ]);
 
       if (devicesRes.status === "fulfilled") {
-        setDevices(devicesRes.value);
+        const fetchedDevices = devicesRes.value;
+        setDevices(fetchedDevices);
+
+        const deviceIds = fetchedDevices.map((d) => d.id);
+        if (deviceIds.length > 0) {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          sevenDaysAgo.setHours(0, 0, 0, 0);
+
+          const { data: readingsData } = await supabase
+            .from("ovitrap_readings")
+            .select(
+              "device_id, mosquito_count, temperature_c, humidity_percent, captured_at, created_at"
+            )
+            .in("device_id", deviceIds)
+            .gte("captured_at", sevenDaysAgo.toISOString())
+            .order("captured_at", { ascending: false })
+            .limit(5000);
+
+          setReadings((readingsData as ReadingRow[]) ?? []);
+        } else {
+          setReadings([]);
+        }
       }
       if (actionsRes.status === "fulfilled") {
         setActions(actionsRes.value);
@@ -193,9 +237,9 @@ export default function BhwDashboard() {
         </div>
       )}
 
-      {/* ── 2 Main Data Containers: Online Traps & Pending Action Logs ─────── */}
+      {/* ── 2 Main Data Containers: Traps Deployment Status & Pending Action Logs ── */}
       <div className="grid gap-6 xl:grid-cols-2">
-        {/* CONTAINER 1: ONLINE TRAPS */}
+        {/* CONTAINER 1: TRAPS DEPLOYMENT STATUS */}
         <Card className="border-slate-200 bg-white/95 shadow-sm flex flex-col">
           <CardHeader className="border-b border-slate-100 pb-4">
             <div className="flex items-center justify-between gap-3">
@@ -205,10 +249,10 @@ export default function BhwDashboard() {
                 </div>
                 <div>
                   <CardTitle className="text-base font-bold text-slate-950">
-                    Online Traps
+                    Traps Deployment Status
                   </CardTitle>
                   <CardDescription className="mt-0.5 text-xs">
-                    Ovitraps currently online and transmitting telemetry
+                    Ovitraps deployment and telemetry transmission status
                   </CardDescription>
                 </div>
               </div>
@@ -248,7 +292,7 @@ export default function BhwDashboard() {
                       colSpan={4}
                       className="py-12 text-center text-sm text-slate-400"
                     >
-                      Loading online traps...
+                      Loading traps deployment status...
                     </TableCell>
                   </TableRow>
                 ) : onlineTraps.length === 0 ? (
@@ -441,6 +485,177 @@ export default function BhwDashboard() {
             </Button>
           </div>
         </Card>
+      </div>
+
+      {/* ── Monitored Traps Section ────────────────────────────────────────── */}
+      <div className="space-y-4 pt-2">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+            Monitored Traps
+          </h2>
+          <p className="text-xs text-slate-500">
+            Real-time status and telemetry activity of deployed ovitraps
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 text-slate-500 shadow-sm">
+            <div className="inline-flex items-center gap-2">
+              <Loader2 className="size-5 animate-spin text-emerald-600" />
+              <span className="text-sm font-medium">Loading traps data…</span>
+            </div>
+          </div>
+        ) : devices.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-500 shadow-sm">
+            No monitored traps found.
+          </div>
+        ) : (
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {devices.map((device) => {
+              const isSelected = selectedTrapId === device.id;
+              const todayCount = device.today_mosquito_count ?? 0;
+              const dangerTier = getDangerTier(
+                todayCount,
+                device.consecutive_critical_days ?? 0
+              );
+              const dangerConfig = TRAP_DANGER_CONFIG[dangerTier];
+              const statusName = getDeviceStatusName(device);
+              const isOnline = statusName === "Online";
+              const barangayLabel = [
+                device.barangays?.barangay_name,
+                device.barangays?.municipality,
+              ]
+                .filter(Boolean)
+                .join(", ");
+
+              return (
+                <Card
+                  key={device.id}
+                  onClick={() => toggleTrap(device.id)}
+                  className={cn(
+                    "cursor-pointer rounded-2xl border transition-all hover:-translate-y-0.5 hover:shadow-md",
+                    isSelected
+                      ? "border-emerald-500 bg-emerald-50/30 ring-2 ring-emerald-500/20 shadow-md"
+                      : "border-slate-200 bg-white shadow-sm hover:border-slate-300"
+                  )}
+                >
+                  <CardContent className="flex h-full flex-col justify-between p-5">
+                    <div className="space-y-3">
+                      {/* Top Row: Trap Code & Danger Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Monitored Trap
+                          </p>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <span className="font-mono text-lg font-bold tracking-tight text-slate-900">
+                              {device.device_code}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ring-1 ring-inset ${dangerConfig.badge}`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${dangerConfig.dot}`}
+                          />
+                          {dangerConfig.label}
+                        </span>
+                      </div>
+
+                      {/* Location & Description */}
+                      <div className="space-y-1 text-xs text-slate-600">
+                        <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                          <MapPin className="size-3.5 shrink-0 text-emerald-600" />
+                          <span className="truncate">
+                            {barangayLabel || "Unassigned Barangay"}
+                          </span>
+                        </div>
+                        {(device.description || device.notes) && (
+                          <p className="truncate pl-5 text-slate-500">
+                            {device.description || device.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Data Metrics Box */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="rounded-xl border border-slate-100 bg-slate-50/90 p-2.5">
+                          <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            <Bug className="size-3 text-emerald-600" />
+                            Today's Count
+                          </p>
+                          <p className="mt-1 text-xl font-bold tabular-nums leading-tight text-slate-900">
+                            {todayCount}
+                            <span className="ml-1 text-[11px] font-normal text-slate-400">
+                              mosq
+                            </span>
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-100 bg-slate-50/90 p-2.5">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            Status
+                          </p>
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <span
+                              className={cn(
+                                "h-2 w-2 rounded-full",
+                                isOnline
+                                  ? "bg-emerald-500 animate-pulse"
+                                  : "bg-slate-400"
+                              )}
+                            />
+                            <span className="truncate text-sm font-semibold text-slate-800">
+                              {statusName}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer Info */}
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                      <div className="flex items-center gap-1 truncate">
+                        <Clock className="size-3 shrink-0 text-slate-400" />
+                        <span className="truncate">
+                          {device.last_seen_at
+                            ? formatTelemetryTimestamp(device.last_seen_at)
+                            : "No readings yet"}
+                        </span>
+                      </div>
+
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 font-semibold transition-colors",
+                          isSelected ? "text-emerald-700" : "text-slate-500"
+                        )}
+                      >
+                        <span>{isSelected ? "Hide" : "View"}</span>
+                        <ChevronDown
+                          className={cn(
+                            "size-3.5 transition-transform duration-200",
+                            isSelected && "rotate-180"
+                          )}
+                        />
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </section>
+        )}
+
+        {/* Selected Trap Analytics: Mosquito Activity Graph & Risk Level Distribution */}
+        {selectedTrap && (
+          <TrapExpandedAnalytics
+            device={selectedTrap}
+            readings={readings}
+            isLoading={loading}
+          />
+        )}
       </div>
     </div>
   );
