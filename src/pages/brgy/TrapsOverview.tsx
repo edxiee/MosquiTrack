@@ -281,14 +281,14 @@ export default function HardwareNodesPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Trap Deployment
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Monitor deployed traps, manage storage inventory, and track pending requests.
           </p>
         </div>
@@ -299,7 +299,7 @@ export default function HardwareNodesPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
+              placeholder="Search traps…"
               className="pl-9 h-10 text-sm"
             />
           </div>
@@ -309,7 +309,8 @@ export default function HardwareNodesPage() {
             size="sm"
             onClick={() => loadData(true)}
             disabled={loading}
-            className="h-10 px-3 shrink-0"
+            className="h-10 w-10 p-0 sm:w-auto sm:px-3 shrink-0"
+            aria-label="Refresh traps"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
@@ -319,22 +320,22 @@ export default function HardwareNodesPage() {
       {/* Main Content Box with Tabs */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:rounded-2xl">
         {/* Top 3 Tabs: Deployed, Pending, In Storage */}
-        <div className="flex border-b border-slate-200 bg-slate-50/50">
+        <div className="grid grid-cols-3 sm:flex border-b border-slate-200 bg-slate-50/50">
           <button
             type="button"
             onClick={() => setActiveTab("deployed")}
             className={cn(
-              "flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1.5 py-3 text-[11px] font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
+              "flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-3 text-xs font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "deployed"
                 ? "border-emerald-600 text-emerald-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
             )}
           >
-            <MapPin className="hidden size-4 text-emerald-600 sm:block" />
-            <span>Deployed</span>
+            <MapPin className="size-3.5 text-emerald-600 shrink-0 sm:size-4" />
+            <span className="truncate">Deployed</span>
             <span
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs",
+                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs shrink-0",
                 activeTab === "deployed"
                   ? "bg-emerald-600 text-white"
                   : "bg-slate-200/80 text-slate-700"
@@ -348,17 +349,17 @@ export default function HardwareNodesPage() {
             type="button"
             onClick={() => setActiveTab("pending")}
             className={cn(
-              "flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1.5 py-3 text-[11px] font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
+              "flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-3 text-xs font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "pending"
                 ? "border-amber-500 text-amber-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
             )}
           >
-            <Clock className="hidden size-4 text-amber-600 sm:block" />
-            <span>Pending</span>
+            <Clock className="size-3.5 text-amber-600 shrink-0 sm:size-4" />
+            <span className="truncate">Pending</span>
             <span
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs",
+                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs shrink-0",
                 activeTab === "pending"
                   ? "bg-amber-500 text-white"
                   : "bg-slate-200/80 text-slate-700"
@@ -372,17 +373,17 @@ export default function HardwareNodesPage() {
             type="button"
             onClick={() => setActiveTab("in_storage")}
             className={cn(
-              "flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1.5 py-3 text-[11px] font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
+              "flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-3 text-xs font-semibold transition-all cursor-pointer sm:flex-none sm:justify-start sm:gap-2.5 sm:px-6 sm:py-3.5 sm:text-sm",
               activeTab === "in_storage"
                 ? "border-sky-600 text-sky-700 bg-white shadow-sm"
                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
             )}
           >
-            <Boxes className="hidden size-4 text-sky-600 sm:block" />
-            <span>Storage</span>
+            <Boxes className="size-3.5 text-sky-600 shrink-0 sm:size-4" />
+            <span className="truncate">Storage</span>
             <span
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs",
+                "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs shrink-0",
                 activeTab === "in_storage"
                   ? "bg-sky-600 text-white"
                   : "bg-slate-200/80 text-slate-700"
@@ -393,163 +394,208 @@ export default function HardwareNodesPage() {
           </button>
         </div>
 
-        {/* Table Content */}
+        {/* Table / Mobile Cards Content */}
         {loading ? (
           <div className="space-y-3 p-3 sm:p-5" aria-label="Loading traps">
             {[0, 1, 2, 3].map((row) => (
-              <div key={row} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3">
-                <span className="h-4 w-20 animate-pulse rounded bg-slate-200" />
+              <div key={row} className="flex flex-col gap-2.5 rounded-xl border border-slate-100 p-3.5 sm:flex-row sm:items-center sm:gap-3">
+                <div className="flex items-center justify-between gap-2 sm:w-auto">
+                  <span className="h-5 w-24 animate-pulse rounded bg-slate-200" />
+                  <span className="h-5 w-20 animate-pulse rounded bg-slate-100 sm:hidden" />
+                </div>
                 <span className="h-4 min-w-0 flex-1 animate-pulse rounded bg-slate-100" />
-                <span className="h-8 w-20 animate-pulse rounded bg-slate-100" />
+                <span className="h-9 w-full sm:h-8 sm:w-28 animate-pulse rounded-lg bg-slate-100" />
               </div>
             ))}
           </div>
         ) : error ? (
-          <div className="py-16 text-center text-rose-600 text-sm">{error}</div>
+          <div className="px-4 py-12 sm:py-16 text-center text-rose-600 text-sm">{error}</div>
         ) : (
           <>
-          <div className="divide-y divide-slate-100 md:hidden">
-            {filteredDevices.map((device) => {
-              const pendingReq = pendingRequests.get(device.id);
-              const hasLocation = device.latitude != null && device.longitude != null;
+            {/* Mobile Card List (< md) */}
+            <div className="divide-y divide-slate-100 md:hidden">
+              {filteredDevices.map((device) => {
+                const pendingReq = pendingRequests.get(device.id);
+                const hasLocation = device.latitude != null && device.longitude != null;
+                const deployedByText = formatDeployedBy(device.users);
+                const descText = device.description || device.notes;
 
-              return (
-                <article key={device.id} className="flex min-w-0 items-center gap-2.5 px-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="shrink-0 text-xs font-bold text-slate-900">{device.device_code}</span>
-                      <span className="min-w-0 truncate text-xs text-slate-500">
-                        {device.description || device.notes || formatDeployedBy(device.users)}
+                return (
+                  <article key={device.id} className="p-3.5 sm:p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                    {/* Top Row: Trap Code & Deployed By */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs font-bold text-slate-900">
+                          {device.device_code}
+                        </span>
+                        {pendingReq?.request && (
+                          <span className="inline-flex items-center rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-800 truncate">
+                            {pendingReq.request}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-slate-500 shrink-0">
+                        By <strong className="font-medium text-slate-700">{deployedByText}</strong>
                       </span>
                     </div>
-                    <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-slate-500">
-                      <span className="truncate">{formatDeployedBy(device.users)}</span>
-                      {hasLocation && (
-                        <button
-                          type="button"
-                          onClick={() => handleViewLocation(device)}
-                          className="shrink-0 font-semibold text-emerald-700"
-                        >
-                          Map
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="shrink-0">
-                    {pendingReq ? (
-                      <span className="text-[10px] font-medium text-amber-700">Pending</span>
-                    ) : activeTab === "deployed" ? (
-                      <Button size="sm" onClick={() => openRequestModal(device, "Request Pick-up")} className="h-8 px-2 text-[10px]">
-                        Pick-up
-                      </Button>
-                    ) : activeTab === "in_storage" ? (
-                      <Button size="sm" onClick={() => openRequestModal(device, "Request Deployment")} className="h-8 px-2 text-[10px]">
-                        Deploy
-                      </Button>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[700px] text-sm">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200">
-                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
-                    Trap ID
-                  </th>
-                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
-                    Description
-                  </th>
-                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
-                    Deployed by
-                  </th>
-                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
-                    Location
-                  </th>
-                  <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredDevices.map((device) => {
-                  const pendingReq = pendingRequests.get(device.id);
-                  const hasLocation =
-                    device.latitude != null && device.longitude != null;
 
-                  return (
-                    <tr
-                      key={device.id}
-                      className="hover:bg-slate-50/60 transition-colors"
-                    >
-                      <td className="px-5 py-4 font-medium text-slate-900 whitespace-nowrap">
-                        <span className="font-semibold">{device.device_code}</span>
-                      </td>
-                      <td className="px-5 py-4 text-slate-600 max-w-xs">
-                        {device.description || device.notes || "—"}
-                      </td>
-                      <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
-                        {formatDeployedBy(device.users)}
-                      </td>
+                    {/* Description */}
+                    <p className="text-xs text-slate-600 break-words">
+                      {descText || <span className="italic text-slate-400">No description provided</span>}
+                    </p>
 
-                      <td className="px-5 py-4 whitespace-nowrap">
+                    {/* Bottom Action Bar: Location + Request Button */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                      <div>
                         {hasLocation ? (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleViewLocation(device)}
-                            className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 border-slate-200 text-slate-700 hover:bg-slate-50"
+                            className="h-8 px-2.5 text-xs font-medium rounded-lg gap-1.5 border-slate-200 text-slate-700 hover:bg-slate-50"
                           >
-                            <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                            <Eye className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             View on Map
                           </Button>
                         ) : (
-                          <span className="text-xs text-slate-400">
+                          <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                            <MapPin className="size-3.5 text-slate-300 shrink-0" />
                             {activeTab === "in_storage" ? "In Warehouse / Storage" : "No Coordinates"}
                           </span>
                         )}
-                      </td>
+                      </div>
 
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        {pendingReq ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50/80 border border-amber-200">
-                            <Clock className="size-3.5 animate-pulse text-amber-600" />
+                      <div className="shrink-0">
+                        {pendingReq || activeTab === "pending" ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50/80 border border-amber-200">
+                            <Clock className="size-3.5 animate-pulse text-amber-600 shrink-0" />
                             Waiting for Barangay Admin
                           </span>
                         ) : activeTab === "deployed" ? (
                           <Button
                             size="sm"
-                            onClick={() =>
-                              openRequestModal(device, "Request Pick-up")
-                            }
+                            onClick={() => openRequestModal(device, "Request Pick-up")}
                             className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
                           >
-                            <Package className="w-3.5 h-3.5" />
+                            <Package className="w-3.5 h-3.5 shrink-0" />
                             Request Pick-up
                           </Button>
                         ) : activeTab === "in_storage" ? (
                           <Button
                             size="sm"
-                            onClick={() =>
-                              openRequestModal(device, "Request Deployment")
-                            }
+                            onClick={() => openRequestModal(device, "Request Deployment")}
                             className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                           >
-                            <MapPin className="w-3.5 h-3.5" />
+                            <MapPin className="w-3.5 h-3.5 shrink-0" />
                             Request Deployment
                           </Button>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table (>= md) */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200">
+                    <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
+                      Trap ID
+                    </th>
+                    <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
+                      Description
+                    </th>
+                    <th className="text-left font-semibold text-slate-600 px-5 py-3.5 whitespace-nowrap">
+                      Deployed by
+                    </th>
+                    <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
+                      Location
+                    </th>
+                    <th className="text-left font-semibold text-slate-600 px-5 py-3.5">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredDevices.map((device) => {
+                    const pendingReq = pendingRequests.get(device.id);
+                    const hasLocation =
+                      device.latitude != null && device.longitude != null;
+
+                    return (
+                      <tr
+                        key={device.id}
+                        className="hover:bg-slate-50/60 transition-colors"
+                      >
+                        <td className="px-5 py-4 font-medium text-slate-900 whitespace-nowrap">
+                          <span className="font-semibold">{device.device_code}</span>
+                        </td>
+                        <td className="px-5 py-4 text-slate-600 max-w-xs">
+                          {device.description || device.notes || "—"}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                          {formatDeployedBy(device.users)}
+                        </td>
+
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          {hasLocation ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewLocation(device)}
+                              className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 border-slate-200 text-slate-700 hover:bg-slate-50"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                              View on Map
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              {activeTab === "in_storage" ? "In Warehouse / Storage" : "No Coordinates"}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          {pendingReq || activeTab === "pending" ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50/80 border border-amber-200">
+                              <Clock className="size-3.5 animate-pulse text-amber-600" />
+                              Waiting for Barangay Admin
+                            </span>
+                          ) : activeTab === "deployed" ? (
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                openRequestModal(device, "Request Pick-up")
+                              }
+                              className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                            >
+                              <Package className="w-3.5 h-3.5" />
+                              Request Pick-up
+                            </Button>
+                          ) : activeTab === "in_storage" ? (
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                openRequestModal(device, "Request Deployment")
+                              }
+                              className="h-8 px-3 text-xs font-medium rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            >
+                              <MapPin className="w-3.5 h-3.5" />
+                              Request Deployment
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
 
@@ -625,13 +671,13 @@ export default function HardwareNodesPage() {
       >
         <DialogContent
           showCloseButton={false}
-          className="sm:max-w-lg p-0 gap-0 rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+          className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-0 gap-0 rounded-2xl border border-slate-200 bg-white shadow-2xl"
         >
           {selectedDevice && (
             <>
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100">
                 <div>
-                  <DialogTitle className="text-lg font-bold text-slate-900">
+                  <DialogTitle className="text-base sm:text-lg font-bold text-slate-900">
                     Submit Request Action
                   </DialogTitle>
                   <DialogDescription className="text-xs text-slate-500 mt-0.5">
@@ -649,7 +695,7 @@ export default function HardwareNodesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitRequest} className="px-6 py-5 space-y-4">
+              <form onSubmit={handleSubmitRequest} className="px-4 sm:px-6 py-5 space-y-4">
                 {modalError && (
                   <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">
                     {modalError}
@@ -714,20 +760,20 @@ export default function HardwareNodesPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={closeModal}
                     disabled={saving}
-                    className="h-9 px-4 text-sm"
+                    className="h-9 px-4 text-sm w-full sm:w-auto"
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
                     disabled={saving || !requestType}
-                    className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium gap-1.5"
+                    className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium gap-1.5 w-full sm:w-auto"
                   >
                     {saving ? (
                       <>

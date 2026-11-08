@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   ClipboardList,
   Clock,
   LayoutDashboard,
   MapPin,
-  ShieldAlert,
   User,
   Wifi,
 } from "lucide-react";
@@ -368,7 +366,7 @@ export default function BhwDashboard() {
                 const priorityKey = (item.priority || "medium").toLowerCase();
                 const priorityBadgeClass =
                   PRIORITY_STYLES[priorityKey] ?? PRIORITY_STYLES.medium;
-                const locationText = [item.barangayName, item.municipality]
+                const locationText = [item.barangayName, item.municipalityName]
                   .filter(Boolean)
                   .join(", ");
 
