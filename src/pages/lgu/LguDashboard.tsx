@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  ArrowRight,
   Bug,
+  CheckCircle2,
   ChevronDown,
+  ClipboardList,
   Clock,
-  FileText,
+  LayoutDashboard,
   Loader2,
   MapPin,
-  MapPinned,
   User,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,12 +23,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { fetchDevices } from "@/services/device.service";
+import {
+  fetchRequestActions,
+  type RequestActionRow,
+} from "@/services/requestActions.service";
 import type { OvitrapDevice } from "@/types/device.types";
 import {
   getDangerTier,
 } from "@/utils/dangerTiers";
 import { formatTelemetryTimestamp } from "@/utils/dateHelpers";
 import { getDeviceStatusName } from "@/utils/deviceHelpers";
+import { formatDateTime } from "@/utils/format";
 import { ROUTES } from "@/utils/navigation";
 import {
   TrapExpandedAnalytics,
@@ -61,36 +69,58 @@ export default function LguDashboard() {
 
   const [devices, setDevices] = useState<OvitrapDevice[]>([]);
   const [readings, setReadings] = useState<ReadingRow[]>([]);
+  const [requestActions, setRequestActions] = useState<RequestActionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTrapId, setSelectedTrapId] = useState<string | null>(null);
 
+  const pendingRequests = useMemo(
+    () =>
+      requestActions.filter(
+        (r) =>
+          r.status === "Pending" ||
+          (!r.status && !r.approved_at && !r.completed_at)
+      ),
+    [requestActions]
+  );
+
   const loadDashboardData = async () => {
     try {
-      const devicesList = await fetchDevices();
-      setDevices(devicesList);
+      const [devicesRes, requestsRes] = await Promise.allSettled([
+        fetchDevices(),
+        fetchRequestActions(),
+      ]);
 
-      const deviceIds = devicesList.map((d) => d.id);
-      if (deviceIds.length > 0) {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        sevenDaysAgo.setHours(0, 0, 0, 0);
+      if (devicesRes.status === "fulfilled") {
+        const devicesList = devicesRes.value;
+        setDevices(devicesList);
 
-        const { data: readingsData } = await supabase
-          .from("ovitrap_readings")
-          .select(
-            "device_id, mosquito_count, temperature_c, humidity_percent, captured_at, created_at"
-          )
-          .in("device_id", deviceIds)
-          .gte("captured_at", sevenDaysAgo.toISOString())
-          .order("captured_at", { ascending: false })
-          .limit(5000);
+        const deviceIds = devicesList.map((d) => d.id);
+        if (deviceIds.length > 0) {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          sevenDaysAgo.setHours(0, 0, 0, 0);
 
-        setReadings((readingsData as ReadingRow[]) ?? []);
-      } else {
-        setReadings([]);
+          const { data: readingsData } = await supabase
+            .from("ovitrap_readings")
+            .select(
+              "device_id, mosquito_count, temperature_c, humidity_percent, captured_at, created_at"
+            )
+            .in("device_id", deviceIds)
+            .gte("captured_at", sevenDaysAgo.toISOString())
+            .order("captured_at", { ascending: false })
+            .limit(5000);
+
+          setReadings((readingsData as ReadingRow[]) ?? []);
+        } else {
+          setReadings([]);
+        }
+      }
+
+      if (requestsRes.status === "fulfilled") {
+        setRequestActions(requestsRes.value);
       }
     } catch (err) {
-      console.error("Failed to load LGU dashboard traps:", err);
+      console.error("Failed to load LGU dashboard data:", err);
     } finally {
       setIsLoading(false);
     }
@@ -111,6 +141,11 @@ export default function LguDashboard() {
         { event: "*", schema: "public", table: "ovitrap_devices" },
         () => loadDashboardData()
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "request_actions" },
+        () => loadDashboardData()
+      )
       .subscribe();
 
     return () => {
@@ -129,54 +164,136 @@ export default function LguDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      {/* ── Page Header ──────────────────────────────────────────────────────── */}
+      <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
-            LGU Health Administrator
-          </p>
-          <h1 className="mt-1 bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-3xl font-bold tracking-tight text-transparent lg:text-4xl">
-            Mosquito Surveillance Overview
+          <div className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <LayoutDashboard className="size-3 text-emerald-600" />
+            Barangay Administration
+          </div>
+
+          <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
+            Barangay Administration Dashboard
           </h1>
-          <p className="mt-1 text-slate-600">
-            {profile ? `Welcome back, ${profile.first_name}. ` : ""}
-            Track mosquito activity and get early warning on high-alert barangays.
-          </p>
         </div>
 
-        {/* Upper right: masked email + action buttons */}
-        <div className="flex flex-col items-start gap-3 sm:items-end">
-          {userEmail && (
-            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-base font-medium text-slate-700 shadow-sm">
-              <User className="size-4 text-slate-500" />
-              <span>{maskedUserEmail}</span>
+        {/* Upper right: masked email */}
+        {userEmail && (
+          <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-base font-medium text-slate-700 shadow-sm sm:self-start">
+            <User className="size-4 text-slate-500" />
+            <span>{maskedUserEmail}</span>
+          </div>
+        )}
+      </section>
+
+      {/* ── Deployment Request Container (Compact) ────────────────────────── */}
+      <Card className="border-slate-200 bg-white/95 shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
+          <div className="flex items-center gap-2">
+            <div className="rounded-md bg-amber-100/80 p-1 text-amber-700">
+              <ClipboardList className="size-4" />
+            </div>
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+              Deployment Requests
+            </span>
+            <Badge
+              variant="outline"
+              className={cn(
+                "px-2 py-0 text-[10px] font-bold",
+                pendingRequests.length > 0
+                  ? "border-amber-300 bg-amber-50 text-amber-800"
+                  : "border-slate-200 bg-white text-slate-500"
+              )}
+            >
+              {isLoading ? "—" : `${pendingRequests.length} Pending`}
+            </Badge>
+          </div>
+
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+          >
+            <Link to={ROUTES.barangay.requestActionsOverview}>
+              <span>View All</span>
+              <ArrowRight className="size-3 ml-1" />
+            </Link>
+          </Button>
+        </div>
+
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="py-4 text-center text-xs text-slate-400">
+              <div className="inline-flex items-center gap-1.5">
+                <Loader2 className="size-3.5 animate-spin text-emerald-600" />
+                <span>Loading requests...</span>
+              </div>
+            </div>
+          ) : pendingRequests.length === 0 ? (
+            <div className="flex items-center justify-center gap-2 py-3 px-4 text-xs text-slate-500">
+              <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+              <span>No pending deployment requests — all submitted requests are processed.</span>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 max-h-[160px] overflow-auto">
+              {pendingRequests.map((req) => {
+                const requesterName =
+                  [req.requester_first_name, req.requester_last_name]
+                    .filter(Boolean)
+                    .join(" ") || "Unknown User";
+                const locationText = [
+                  req.device_barangay ? `Brgy. ${req.device_barangay}` : null,
+                  req.device_municipality,
+                ]
+                  .filter(Boolean)
+                  .join(", ");
+
+                return (
+                  <div
+                    key={req.req_id}
+                    className="flex items-center justify-between gap-3 px-4 py-2 hover:bg-slate-50/80 transition-colors text-xs"
+                  >
+                    <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                      <span className="inline-flex items-center rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-800">
+                        {req.device_code || "NEW TRAP"}
+                      </span>
+                      <span className="font-semibold text-slate-900 truncate">
+                        {req.request}
+                      </span>
+                      {locationText && (
+                        <span className="text-slate-500 truncate">
+                          • {locationText}
+                        </span>
+                      )}
+                      <span className="text-slate-400 text-[11px]">
+                        • by {requesterName}
+                      </span>
+                      <span className="text-slate-400 text-[11px]">
+                        • {formatDateTime(req.created_at)}
+                      </span>
+                    </div>
+
+                    <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                      <Clock className="size-2.5" />
+                      Pending
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
+        </CardContent>
+      </Card>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              asChild
-              size="sm"
-              className="rounded-full bg-emerald-600 px-4 text-white hover:bg-emerald-700"
-            >
-              <Link to={ROUTES.lgu.trapMap}>
-                <MapPinned className="mr-1 size-4" />
-                Trap map
-              </Link>
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="rounded-full px-4"
-            >
-              <Link to={ROUTES.lgu.reports}>
-                <FileText className="mr-1 size-4" />
-                Generate report
-              </Link>
-            </Button>
-          </div>
-        </div>
+      {/* ── Monitored Mosquito Traps Header ── */}
+      <div className="pt-2">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">
+          Monitored Mosquito Traps
+        </h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Real-time status and activity of deployed ovitraps across your barangay
+        </p>
       </div>
 
       {/* Traps Rectangle Containers (Side-by-Side Columns) */}
