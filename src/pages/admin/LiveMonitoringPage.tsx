@@ -30,7 +30,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice } from "@/types/device.types";
-import { ONLINE_THRESHOLD_MINUTES } from "@/utils/deviceHelpers";
+import {
+  ONLINE_THRESHOLD_MINUTES,
+  isTrapInStorage,
+  isTrapDeployed,
+} from "@/utils/deviceHelpers";
 import { getConsecutiveCriticalDays, getDangerTier } from "@/utils/dangerTiers";
 import {
   fetchOrCreateDeviceConfig,
@@ -72,13 +76,37 @@ function formatTimeAgo(dateStr: string | null | undefined): string {
   return `${days} day${days > 1 ? "s" : ""} ago`;
 }
 
-type ConnectionState = "Online" | "Offline" | "Not Connected";
+type ConnectionState = "Online" | "Offline" | "Offline (In Storage)" | "Not Connected";
 
-function getConnectionStatus(lastSeenStr: string | null | undefined) {
-  if (!lastSeenStr) {
+function getConnectionStatus(
+  deviceOrDate: OvitrapDevice | string | null | undefined,
+  lastSeenStr?: string | null | undefined
+) {
+  let device: OvitrapDevice | null = null;
+  let dateStr: string | null | undefined = null;
+
+  if (typeof deviceOrDate === "object" && deviceOrDate !== null && "device_code" in deviceOrDate) {
+    device = deviceOrDate as OvitrapDevice;
+    dateStr = lastSeenStr;
+  } else {
+    dateStr = deviceOrDate as string | null | undefined;
+  }
+
+  if (device && (isTrapInStorage(device) || !isTrapDeployed(device))) {
+    return {
+      state: "Offline (In Storage)" as ConnectionState,
+      bg: "bg-slate-100",
+      text: "text-slate-600 font-semibold",
+      dot: "bg-slate-400",
+      ping: false,
+      border: "border-slate-300",
+    };
+  }
+
+  if (!dateStr) {
     return { state: "Not Connected" as ConnectionState, bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400", ping: false, border: "border-slate-300" };
   }
-  const diffMinutes = (Date.now() - new Date(lastSeenStr).getTime()) / (1000 * 60);
+  const diffMinutes = (Date.now() - new Date(dateStr).getTime()) / (1000 * 60);
   if (diffMinutes <= ONLINE_THRESHOLD_MINUTES) {
     return { state: "Online" as ConnectionState, bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", ping: true, border: "border-emerald-300" };
   } else {
@@ -99,6 +127,7 @@ const createCustomMarker = (status: ConnectionState) => {
   const colorMap: Record<ConnectionState, { ring: string; icon: string }> = {
     Online: { ring: "bg-emerald-500", icon: "text-emerald-600" },
     Offline: { ring: "bg-slate-400", icon: "text-slate-500" },
+    "Offline (In Storage)": { ring: "bg-slate-400", icon: "text-slate-500" },
     "Not Connected": { ring: "bg-slate-400", icon: "text-slate-500" },
   };
   const colors = colorMap[status] ?? colorMap["Not Connected"];
@@ -465,13 +494,17 @@ export default function LiveMonitoringPage() {
 
   const devicesWithStatus = devices.map(d => {
     const lastSeenStr = deviceLatestReadings[d.id]?.captured_at || d.last_seen_at;
-    const status = getConnectionStatus(lastSeenStr);
+    const status = getConnectionStatus(d, lastSeenStr);
     return { ...d, computedStatus: status, lastSeenStr, latestBattery: deviceLatestReadings[d.id]?.battery_level };
   });
   void nowTick;
 
   const onlineCount = devicesWithStatus.filter(d => d.computedStatus.state === "Online").length;
-  const offlineCount = devicesWithStatus.filter(d => d.computedStatus.state === "Offline").length;
+  const offlineCount = devicesWithStatus.filter(
+    d =>
+      d.computedStatus.state === "Offline" ||
+      d.computedStatus.state === "Offline (In Storage)"
+  ).length;
 
   const filtered = devicesWithStatus.filter(d => {
     const q = search.toLowerCase();
@@ -482,7 +515,11 @@ export default function LiveMonitoringPage() {
       (d.barangays?.barangay_name ?? "").toLowerCase().includes(q) ||
       (d.barangays?.municipality ?? "").toLowerCase().includes(q);
 
-    const matchesStatus = statusFilter === "All" || d.computedStatus.state === statusFilter;
+    const matchesStatus =
+      statusFilter === "All" ||
+      d.computedStatus.state === statusFilter ||
+      (statusFilter === "Offline" &&
+        d.computedStatus.state === "Offline (In Storage)");
     return matchesSearch && matchesStatus;
   });
 
@@ -916,7 +953,15 @@ export default function LiveMonitoringPage() {
                     <div className="p-4 pb-0 flex items-center justify-between">
                       <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">Device Location</h3>
                     </div>
-                    {hasGpsFix ? (
+                    {isTrapInStorage(selectedDevice) || !isTrapDeployed(selectedDevice) ? (
+                      <div className="h-64 flex flex-col items-center justify-center bg-slate-50 text-slate-500 text-sm p-4 text-center">
+                        <MapPin className="h-8 w-8 mb-2 text-slate-400" />
+                        <p className="font-semibold text-slate-700">Trap in Storage</p>
+                        <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                          {selectedDevice.device_code} is currently in storage and is not deployed on the map.
+                        </p>
+                      </div>
+                    ) : hasGpsFix ? (
                       <div className="h-64 flex-1 relative z-0">
                         <MapErrorBoundary>
                           <MapContainer

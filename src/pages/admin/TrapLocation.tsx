@@ -28,7 +28,11 @@ import { supabase } from "@/lib/supabase";
 import type { OvitrapDevice } from "@/types/device.types";
 import { ROUTES } from "@/utils/navigation";
 import { fetchDevices } from "@/services/device.service";
-import { isDeviceActive } from "@/utils/deviceHelpers";
+import {
+  isDeviceActive,
+  isTrapDeployed,
+  getTrapDisplayStatus,
+} from "@/utils/deviceHelpers";
 import { formatRelativeTime } from "@/utils/dateHelpers";
 import RegionalDiseaseRiskButton from "@/components/lgu/RegionalDiseaseRiskModal";
 
@@ -147,7 +151,7 @@ export default function StaticGeoreferencingPage() {
       const targetId = viewId || selectedTrapId;
       if (targetId) {
         const target = allTraps.find((t) => t.id === targetId);
-        if (target && target.latitude != null && target.longitude != null) {
+        if (target && target.latitude != null && target.longitude != null && isTrapDeployed(target)) {
           setMapCenter([Number(target.latitude), Number(target.longitude)]);
           setMapZoom(16);
           setSelectedTrapId(target.id);
@@ -159,7 +163,7 @@ export default function StaticGeoreferencingPage() {
         }
       } else if (allTraps.length > 0) {
         const firstWithCoords = allTraps.find(
-          (t) => t.latitude != null && t.longitude != null
+          (t) => t.latitude != null && t.longitude != null && isTrapDeployed(t)
         );
         if (firstWithCoords) {
           setMapCenter([
@@ -206,7 +210,7 @@ export default function StaticGeoreferencingPage() {
   useEffect(() => {
     if (viewId && devices.length > 0) {
       const target = devices.find((t) => t.id === viewId);
-      if (target && target.latitude != null && target.longitude != null) {
+      if (target && target.latitude != null && target.longitude != null && isTrapDeployed(target)) {
         setSelectedTrapId(target.id);
         setMapCenter([Number(target.latitude), Number(target.longitude)]);
         setMapZoom(16);
@@ -225,17 +229,31 @@ export default function StaticGeoreferencingPage() {
     return !isNaN(nLat) && !isNaN(nLng) && nLat !== 0 && nLng !== 0;
   };
 
+  // Traps strictly deployed with valid coordinates (shown on the map)
   const deployedTraps = useMemo(() => {
-    return devices.filter((t) => isValidCoordinate(t.latitude, t.longitude));
+    return devices.filter(
+      (t) => isTrapDeployed(t) && isValidCoordinate(t.latitude, t.longitude)
+    );
   }, [devices]);
 
+  // Traps marked as deployed but lacking coordinates
   const awaitingGpsTraps = useMemo(() => {
-    return devices.filter((t) => !isValidCoordinate(t.latitude, t.longitude));
+    return devices.filter(
+      (t) => isTrapDeployed(t) && !isValidCoordinate(t.latitude, t.longitude)
+    );
   }, [devices]);
 
-  const filteredDeployedTraps = useMemo(() => {
+  const activeCount = useMemo(() => {
+    return devices.filter((t) => isTrapDeployed(t) && isDeviceActive(t)).length;
+  }, [devices]);
+
+  const offlineCount = useMemo(() => {
+    return devices.length - activeCount;
+  }, [devices, activeCount]);
+
+  const filteredTraps = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return deployedTraps.filter((t) => {
+    return devices.filter((t) => {
       const matchesSearch =
         !q ||
         t.device_code?.toLowerCase().includes(q) ||
@@ -243,24 +261,20 @@ export default function StaticGeoreferencingPage() {
         (t.description || "").toLowerCase().includes(q) ||
         (t.notes || "").toLowerCase().includes(q);
 
+      const isOnline = isTrapDeployed(t) && isDeviceActive(t);
       const matchesStatus =
         statusFilter === "ALL" ||
-        (statusFilter === "Online" || statusFilter === "Active"
-          ? isDeviceActive(t)
-          : !isDeviceActive(t));
+        (statusFilter === "Online" ? isOnline : !isOnline);
 
       return matchesSearch && matchesStatus;
     });
-  }, [deployedTraps, search, statusFilter]);
-
-  const activeCount = useMemo(() => {
-    return deployedTraps.filter((t) => isDeviceActive(t)).length;
-  }, [deployedTraps]);
+  }, [devices, search, statusFilter]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleSelectTrap = (trap: OvitrapDevice) => {
-    if (trap.latitude != null && trap.longitude != null) {
-      setSelectedTrapId(trap.id);
+    setSelectedTrapId(trap.id);
+    const canLocate = isTrapDeployed(trap) && isValidCoordinate(trap.latitude, trap.longitude);
+    if (canLocate) {
       setMapCenter([Number(trap.latitude), Number(trap.longitude)]);
       setMapZoom(16);
       setTimeout(() => {
@@ -352,16 +366,16 @@ export default function StaticGeoreferencingPage() {
           <div className="p-4 border-b border-slate-200/80 bg-white space-y-3">
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-center">
-                <span className="text-[11px] font-medium text-slate-500 block">Total GPS</span>
-                <span className="text-lg font-bold text-slate-900">{deployedTraps.length}</span>
+                <span className="text-[11px] font-medium text-slate-500 block">Total Traps</span>
+                <span className="text-lg font-bold text-slate-900">{devices.length}</span>
               </div>
               <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 text-center">
                 <span className="text-[11px] font-medium text-emerald-700 block">Online</span>
                 <span className="text-lg font-bold text-emerald-700">{activeCount}</span>
               </div>
-              <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-2.5 text-center">
-                <span className="text-[11px] font-medium text-amber-700 block">Awaiting</span>
-                <span className="text-lg font-bold text-amber-700">{awaitingGpsTraps.length}</span>
+              <div className="rounded-xl border border-slate-200 bg-slate-100/70 p-2.5 text-center">
+                <span className="text-[11px] font-medium text-slate-600 block">Offline</span>
+                <span className="text-lg font-bold text-slate-700">{offlineCount}</span>
               </div>
             </div>
 
@@ -402,19 +416,22 @@ export default function StaticGeoreferencingPage() {
                 <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
                 <span className="text-xs">Loading GPS traps…</span>
               </div>
-            ) : filteredDeployedTraps.length === 0 && awaitingGpsTraps.length === 0 ? (
+            ) : filteredTraps.length === 0 && awaitingGpsTraps.length === 0 ? (
               <div className="py-12 text-center text-slate-400 text-xs px-4">
                 No ovitrap devices found in database.
               </div>
             ) : (
               <>
                 <div className="text-[11px] font-bold tracking-wider text-slate-400 uppercase px-1">
-                  GPS Active Traps ({filteredDeployedTraps.length})
+                  Trap Directory ({filteredTraps.length})
                 </div>
 
-                {filteredDeployedTraps.map((trap) => {
+                {filteredTraps.map((trap) => {
                   const isSelected = selectedTrapId === trap.id;
-                  const active = isDeviceActive(trap);
+                  const displayStatus = getTrapDisplayStatus(trap);
+                  const isOnline = displayStatus === "Online";
+                  const isInStorage = displayStatus === "Offline (In Storage)";
+                  const canLocate = isTrapDeployed(trap) && isValidCoordinate(trap.latitude, trap.longitude);
 
                   return (
                     <div
@@ -431,9 +448,9 @@ export default function StaticGeoreferencingPage() {
                           <div className="flex items-center gap-2">
                             <span
                               className={`w-2 h-2 rounded-full shrink-0 ${
-                                active
+                                isOnline
                                   ? "bg-emerald-500 shadow-xs ring-2 ring-emerald-400/40"
-                                  : "bg-rose-500"
+                                  : "bg-slate-400"
                               }`}
                             />
                             <span className="font-semibold text-slate-900 text-xs">
@@ -441,29 +458,33 @@ export default function StaticGeoreferencingPage() {
                             </span>
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                active
+                                isOnline
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : isInStorage
+                                  ? "bg-slate-100 text-slate-700 border border-slate-200"
                                   : "bg-rose-50 text-rose-700 border border-rose-200"
                               }`}
                             >
-                              {active ? "Online" : "Offline"}
+                              {displayStatus}
                             </span>
                           </div>
 
                           <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
                             <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
                             <span className="truncate">
-                              {trap.barangays?.barangay_name || trap.description || "Unassigned Location"}
+                              {isInStorage
+                                ? `${trap.barangays?.barangay_name ? trap.barangays.barangay_name + " • " : ""}In Storage`
+                                : (trap.barangays?.barangay_name || trap.description || "Unassigned Location")}
                             </span>
                           </div>
                         </div>
-
-                        
                       </div>
 
                       <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                         <div className="font-mono text-[10px] text-slate-400">
-                          {Number(trap.latitude).toFixed(4)}, {Number(trap.longitude).toFixed(4)}
+                          {canLocate
+                            ? `${Number(trap.latitude).toFixed(4)}, ${Number(trap.longitude).toFixed(4)}`
+                            : "Not on map"}
                         </div>
                         {trap.last_seen_at && (
                           <div className="text-[10px] text-slate-400 flex items-center gap-1">

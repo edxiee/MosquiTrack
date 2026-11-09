@@ -30,7 +30,11 @@ import {
   type DangerTier,
 } from "@/utils/dangerTiers";
 import { getLocalDateKey } from "@/utils/dateHelpers";
-import { getDeviceStatusName } from "@/utils/deviceHelpers";
+import {
+  isTrapInStorage,
+  isTrapDeployed,
+  getTrapDisplayStatus,
+} from "@/utils/deviceHelpers";
 
 export const TRAP_DANGER_CONFIG: Record<
   DangerTier,
@@ -148,7 +152,8 @@ export function TrapExpandedAnalytics({
   readings: ReadingRow[];
   isLoading: boolean;
 }) {
-  const statusName = getDeviceStatusName(device);
+  const isInStorage = isTrapInStorage(device) || !isTrapDeployed(device);
+  const statusName = getTrapDisplayStatus(device);
   const isOnline = statusName === "Online";
 
   const rawLat = device.latitude != null ? Number(device.latitude) : null;
@@ -284,7 +289,7 @@ export function TrapExpandedAnalytics({
                 />
                 {statusName}
               </Badge>
-              {hasValidLocation && (
+              {hasValidLocation && !isInStorage && (
                 <a
                   href={`https://www.google.com/maps?q=${lat},${lng}`}
                   target="_blank"
@@ -300,7 +305,19 @@ export function TrapExpandedAnalytics({
         </CardHeader>
 
         <CardContent className="p-4">
-          {!hasValidLocation ? (
+          {isInStorage ? (
+            <div className="flex h-72 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
+              <div className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-2">
+                <MapPin className="size-6" />
+              </div>
+              <p className="text-sm font-semibold text-slate-800">
+                Trap in Storage
+              </p>
+              <p className="mt-1 max-w-sm text-xs text-slate-500">
+                {device.device_code} is currently in storage and is not deployed on the map.
+              </p>
+            </div>
+          ) : !hasValidLocation ? (
             <div className="flex h-72 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
               <div className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-2">
                 <MapPin className="size-6" />

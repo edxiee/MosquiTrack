@@ -8,12 +8,67 @@ export const formatDeployedBy = (user: UserName | null) => {
 export const ONLINE_THRESHOLD_MINUTES = 16;
 export const ONLINE_THRESHOLD_MS = ONLINE_THRESHOLD_MINUTES * 60 * 1000;
 
+export function isTrapInStorage(device: any): boolean {
+  if (!device) return false;
+
+  // 1. Check operational_status
+  const op = String(device.operational_status || "").trim().toLowerCase();
+  if (op === "in storage" || op === "in_storage") return true;
+
+  // 2. Check device_status_name or device_statuses
+  const rawStatus = Array.isArray(device.device_statuses)
+    ? device.device_statuses[0]?.status_name
+    : device.device_statuses?.status_name;
+  const sName = String(device.device_status_name || rawStatus || device.status || "").trim().toLowerCase();
+  if (sName === "in storage" || sName === "in_storage") return true;
+
+  return false;
+}
+
+export function isTrapDeployed(device: any): boolean {
+  if (!device) return false;
+
+  if (isTrapInStorage(device)) return false;
+
+  // 1. Check operational_status
+  const op = String(device.operational_status || "").trim().toLowerCase();
+  if (op === "deployed") return true;
+  if (op === "pending") return false;
+
+  // 2. Check status name
+  const rawStatus = Array.isArray(device.device_statuses)
+    ? device.device_statuses[0]?.status_name
+    : device.device_statuses?.status_name;
+  const sName = String(device.device_status_name || rawStatus || device.status || "").trim().toLowerCase();
+  if (sName === "pending") return false;
+
+  // 3. Coordinate check
+  const lat = Number(device.latitude ?? device.lat);
+  const lng = Number(device.longitude ?? device.lng);
+  const hasCoords = !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+
+  return hasCoords;
+}
+
+export function getTrapDisplayStatus(
+  device: any
+): "Online" | "Offline" | "Offline (In Storage)" | "Maintenance" {
+  if (!device) return "Offline";
+
+  if (isTrapInStorage(device) || !isTrapDeployed(device)) {
+    return "Offline (In Storage)";
+  }
+
+  return getDeviceStatusName(device);
+}
+
 export const isDeviceActive = (device: OvitrapDevice | null | undefined): boolean => {
   return getDeviceStatusName(device) === "Online";
 };
 
 export const getDeviceStatusName = (device: OvitrapDevice | null | undefined): "Online" | "Offline" | "Maintenance" => {
   if (!device) return "Offline";
+  if (isTrapInStorage(device) || !isTrapDeployed(device)) return "Offline";
 
   // 1. Direct status column from ovitrap_devices table
   if (device.status) {

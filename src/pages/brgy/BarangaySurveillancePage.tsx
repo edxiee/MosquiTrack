@@ -38,6 +38,7 @@ import {
   type BarangaySurveillanceDevice,
 } from "@/services/barangaySurveillance.service";
 import { cn } from "@/lib/utils";
+import { isTrapInStorage, isTrapDeployed } from "@/utils/deviceHelpers";
 import RegionalDiseaseRiskButton from "@/components/lgu/RegionalDiseaseRiskModal";
 
 import "leaflet/dist/leaflet.css";
@@ -180,14 +181,14 @@ export default function BarangaySurveillancePage() {
         }
       }
 
-      // Update currently selected trap in place or fallback to first valid trap
+      // Update currently selected trap in place or fallback to first valid deployed trap
       setSelectedTrap((prev) => {
         const next =
           prev && res.traps.find((t) => t.id === prev.id)
             ? res.traps.find((t) => t.id === prev.id)!
-            : res.traps.find((t) => hasValidCoords(t)) ?? null;
+            : res.traps.find((t) => isTrapDeployed(t) && hasValidCoords(t)) ?? null;
 
-        return next && hasValidCoords(next) ? next : null;
+        return next && isTrapDeployed(next) && hasValidCoords(next) ? next : null;
       });
     } catch (err) {
       console.error("Failed to load barangay surveillance data:", err);
@@ -262,50 +263,70 @@ export default function BarangaySurveillancePage() {
     };
   }, [loadData]);
 
-  // Filter strictly to DEPLOYED traps and recompute 16-minute online/offline status from nowTick
-  const deployedTraps = useMemo(() => {
+  // All traps with computed status and inStorage flag
+  const allTrapsWithStatus = useMemo(() => {
     const all = data?.traps ?? [];
-    return all
-      .filter((t) => {
-        // 1. If operational_status is explicitly recorded
-        if (t.operational_status) {
-          return t.operational_status.toLowerCase() === "deployed";
-        }
-        // 2. Otherwise check status not in storage and has valid coordinates
-        const sName = (t.device_status_name || "").toLowerCase();
-        if (sName === "in storage" || sName === "in_storage") {
-          return false;
-        }
-        return hasValidCoords(t);
-      })
-      .map((t) => {
-        if (!t.lastSeenAt) return t;
-        const diffMinutes = (nowTick - new Date(t.lastSeenAt).getTime()) / (1000 * 60);
-        let status: "Online" | "Offline" = "Offline";
-        let lastComm = "Never Connected";
-        if (diffMinutes <= 16) {
-          status = "Online";
-          lastComm = "Active (Live)";
+    return all.map((t) => {
+      const inStorage = isTrapInStorage(t) || !isTrapDeployed(t);
+      if (inStorage) {
+        return {
+          ...t,
+          isInStorage: true,
+          displayStatus: "Offline (In Storage)" as const,
+        };
+      }
+
+      if (!t.lastSeenAt) {
+        return {
+          ...t,
+          isInStorage: false,
+          displayStatus: t.status,
+        };
+      }
+
+      const diffMinutes = (nowTick - new Date(t.lastSeenAt).getTime()) / (1000 * 60);
+      let status: "Online" | "Offline" = "Offline";
+      let lastComm = "Never Connected";
+      if (diffMinutes <= 16) {
+        status = "Online";
+        lastComm = "Active (Live)";
+      } else {
+        status = "Offline";
+        if (diffMinutes < 60) {
+          lastComm = `${Math.floor(diffMinutes)}m ago`;
+        } else if (diffMinutes < 1440) {
+          lastComm = `${Math.floor(diffMinutes / 60)}h ago`;
         } else {
-          status = "Offline";
-          if (diffMinutes < 60) {
-            lastComm = `${Math.floor(diffMinutes)}m ago`;
-          } else if (diffMinutes < 1440) {
-            lastComm = `${Math.floor(diffMinutes / 60)}h ago`;
-          } else {
-            lastComm = `${Math.floor(diffMinutes / 1440)}d ago`;
-          }
+          lastComm = `${Math.floor(diffMinutes / 1440)}d ago`;
         }
-        return { ...t, status, lastComm };
-      });
+      }
+      return {
+        ...t,
+        status,
+        lastComm,
+        isInStorage: false,
+        displayStatus: status,
+      };
+    });
   }, [data, nowTick]);
 
-  // Search & Status filter within deployed traps
+  // Strictly DEPLOYED traps with valid coordinates (shown on the map)
+  const deployedTraps = useMemo(() => {
+    return allTrapsWithStatus.filter((t) => !t.isInStorage && hasValidCoords(t));
+  }, [allTrapsWithStatus]);
+
+  // Search & Status filter within all traps
   const filteredDeployedTraps = useMemo(() => {
-    return deployedTraps.filter((trap) => {
+    return allTrapsWithStatus.filter((trap) => {
       // Status filter
-      if (statusFilter === "online" && trap.status !== "Online") return false;
-      if (statusFilter === "offline" && trap.status !== "Offline") return false;
+      if (statusFilter === "online" && trap.displayStatus !== "Online") return false;
+      if (
+        statusFilter === "offline" &&
+        trap.displayStatus !== "Offline" &&
+        trap.displayStatus !== "Offline (In Storage)"
+      ) {
+        return false;
+      }
 
       // Search query
       if (!search.trim()) return true;
@@ -315,21 +336,26 @@ export default function BarangaySurveillancePage() {
       const serial = (trap.serial_number || "").toLowerCase();
       return code.includes(q) || loc.includes(q) || serial.includes(q);
     });
-  }, [deployedTraps, search, statusFilter]);
+  }, [allTrapsWithStatus, search, statusFilter]);
 
   const onlineCount = useMemo(
-    () => deployedTraps.filter((t) => t.status === "Online").length,
-    [deployedTraps]
+    () => allTrapsWithStatus.filter((t) => t.displayStatus === "Online").length,
+    [allTrapsWithStatus]
   );
   const offlineCount = useMemo(
-    () => deployedTraps.filter((t) => t.status === "Offline").length,
-    [deployedTraps]
+    () =>
+      allTrapsWithStatus.filter(
+        (t) =>
+          t.displayStatus === "Offline" ||
+          t.displayStatus === "Offline (In Storage)"
+      ).length,
+    [allTrapsWithStatus]
   );
 
   useEffect(() => {
     setSelectedTrap((prev) => {
       if (!prev) return prev;
-      const updated = deployedTraps.find((t) => t.id === prev.id);
+      const updated = allTrapsWithStatus.find((t) => t.id === prev.id);
       if (
         updated &&
         (updated.status !== prev.status || updated.lastComm !== prev.lastComm)
@@ -338,11 +364,11 @@ export default function BarangaySurveillancePage() {
       }
       return prev;
     });
-  }, [deployedTraps]);
+  }, [allTrapsWithStatus]);
 
-  const handleSelectTrap = (trap: BarangaySurveillanceDevice) => {
+  const handleSelectTrap = (trap: (typeof allTrapsWithStatus)[0]) => {
     setSelectedTrap(trap);
-    if (hasValidCoords(trap)) {
+    if (!trap.isInStorage && hasValidCoords(trap)) {
       setTimeout(() => {
         const marker = markerRefs.current[trap.id];
         if (marker) {
@@ -430,10 +456,10 @@ export default function BarangaySurveillancePage() {
               <div className="flex items-center gap-2">
                 <MapPin className="size-4 text-emerald-600" />
                 <h2 className="text-sm font-bold text-slate-900 tracking-tight">
-                  Deployed Traps
+                  Traps Directory
                 </h2>
-                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {deployedTraps.length}
+                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  {allTrapsWithStatus.length}
                 </span>
               </div>
               <span className="text-[11px] font-medium text-slate-400">
@@ -472,7 +498,7 @@ export default function BarangaySurveillancePage() {
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
                 )}
               >
-                All ({deployedTraps.length})
+                All ({allTrapsWithStatus.length})
               </button>
               <button
                 type="button"
@@ -511,19 +537,19 @@ export default function BarangaySurveillancePage() {
                 </div>
                 <p className="text-sm font-semibold text-slate-800">
                   {search.trim()
-                    ? "No matching deployed traps"
-                    : "No deployed traps in this barangay"}
+                    ? "No matching traps found"
+                    : "No traps found in this barangay"}
                 </p>
                 <p className="text-xs text-slate-400 max-w-xs mx-auto">
                   {search.trim()
                     ? "Try adjusting your search terms or filters."
-                    : "Traps must be deployed in Trap Deployment to appear on the surveillance map."}
+                    : "Traps must be registered to appear in the directory."}
                 </p>
               </div>
             ) : (
               filteredDeployedTraps.map((trap) => {
                 const isSelected = selectedTrap?.id === trap.id;
-                const canLocate = hasValidCoords(trap);
+                const canLocate = !trap.isInStorage && hasValidCoords(trap);
 
                 return (
                   <div
@@ -542,7 +568,7 @@ export default function BarangaySurveillancePage() {
                         <div
                           className={cn(
                             "size-2.5 rounded-full",
-                            trap.status === "Online"
+                            trap.displayStatus === "Online"
                               ? "bg-emerald-500 animate-pulse"
                               : "bg-slate-400"
                           )}
@@ -555,12 +581,14 @@ export default function BarangaySurveillancePage() {
                         <Badge
                           className={cn(
                             "text-[10px] font-bold uppercase tracking-wider border-none px-2 py-0.5",
-                            trap.status === "Online"
+                            trap.displayStatus === "Online"
                               ? "bg-emerald-100 text-emerald-800"
+                              : trap.isInStorage
+                              ? "bg-slate-100 text-slate-700 font-semibold"
                               : "bg-slate-100 text-slate-600"
                           )}
                         >
-                          {trap.status}
+                          {trap.displayStatus}
                         </Badge>
                         <Badge
                           className={cn(
@@ -583,7 +611,9 @@ export default function BarangaySurveillancePage() {
                     <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium truncate">
                       <MapPin className="size-3.5 text-slate-400 shrink-0" />
                       <span className="truncate">
-                        {canLocate
+                        {trap.isInStorage
+                          ? "In Storage Facility"
+                          : canLocate
                           ? trap.location
                           : "Location Pending Coordinates"}
                       </span>

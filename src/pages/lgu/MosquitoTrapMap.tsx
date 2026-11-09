@@ -39,6 +39,7 @@ import {
   type BarangaySurveillanceDevice,
 } from "@/services/barangaySurveillance.service";
 import { cn } from "@/lib/utils";
+import { isTrapInStorage, isTrapDeployed } from "@/utils/deviceHelpers";
 import RegionalDiseaseRiskButton from "@/components/lgu/RegionalDiseaseRiskModal";
 
 import "leaflet/dist/leaflet.css";
@@ -198,10 +199,12 @@ export default function MacroGeospatialHeatmapPage() {
 
         if (trapFromUrl) {
           setSelectedTrap(trapFromUrl);
-          setTimeout(() => {
-            const marker = markerRefs.current[trapFromUrl.id];
-            if (marker) marker.openPopup();
-          }, 800);
+          if (isTrapDeployed(trapFromUrl) && hasValidCoords(trapFromUrl)) {
+            setTimeout(() => {
+              const marker = markerRefs.current[trapFromUrl.id];
+              if (marker) marker.openPopup();
+            }, 800);
+          }
           return;
         }
       }
@@ -211,9 +214,9 @@ export default function MacroGeospatialHeatmapPage() {
         const next =
           prev && finalData.traps.find((t) => t.id === prev.id)
             ? finalData.traps.find((t) => t.id === prev.id)!
-            : finalData.traps.find((t) => hasValidCoords(t)) ?? null;
+            : finalData.traps.find((t) => isTrapDeployed(t) && hasValidCoords(t)) ?? null;
 
-        return next && hasValidCoords(next) ? next : null;
+        return next && isTrapDeployed(next) && hasValidCoords(next) ? next : null;
       });
     } catch (err) {
       console.error("Failed to load LGU surveillance map data:", err);
@@ -263,29 +266,37 @@ export default function MacroGeospatialHeatmapPage() {
     };
   }, [loadData]);
 
-  // Filter strictly to DEPLOYED traps
-  const deployedTraps = useMemo(() => {
+  // All traps with computed displayStatus (including In Storage)
+  const allTrapsWithStatus = useMemo(() => {
     const all = data?.traps ?? [];
-    return all.filter((t) => {
-      // 1. If operational_status is explicitly recorded
-      if (t.operational_status) {
-        return t.operational_status.toLowerCase() === "deployed";
-      }
-      // 2. Otherwise check status not in storage and has valid coordinates
-      const sName = (t.device_status_name || "").toLowerCase();
-      if (sName === "in storage" || sName === "in_storage") {
-        return false;
-      }
-      return hasValidCoords(t);
+    return all.map((t) => {
+      const inStorage = isTrapInStorage(t) || !isTrapDeployed(t);
+      const displayStatus = inStorage ? "Offline (In Storage)" : t.status;
+      return {
+        ...t,
+        isInStorage: inStorage,
+        displayStatus,
+      };
     });
   }, [data]);
 
-  // Search & Status filter within deployed traps
+  // Filter strictly to DEPLOYED traps with valid coordinates (shown on the map)
+  const deployedTraps = useMemo(() => {
+    return allTrapsWithStatus.filter((t) => !t.isInStorage && hasValidCoords(t));
+  }, [allTrapsWithStatus]);
+
+  // Search & Status filter for left sidebar cards
   const filteredDeployedTraps = useMemo(() => {
-    return deployedTraps.filter((trap) => {
+    return allTrapsWithStatus.filter((trap) => {
       // Status filter
-      if (statusFilter === "online" && trap.status !== "Online") return false;
-      if (statusFilter === "offline" && trap.status !== "Offline") return false;
+      if (statusFilter === "online" && trap.displayStatus !== "Online") return false;
+      if (
+        statusFilter === "offline" &&
+        trap.displayStatus !== "Offline" &&
+        trap.displayStatus !== "Offline (In Storage)"
+      ) {
+        return false;
+      }
 
       // Search query
       if (!search.trim()) return true;
@@ -301,20 +312,25 @@ export default function MacroGeospatialHeatmapPage() {
         serial.includes(q)
       );
     });
-  }, [deployedTraps, search, statusFilter]);
+  }, [allTrapsWithStatus, search, statusFilter]);
 
   const onlineCount = useMemo(
-    () => deployedTraps.filter((t) => t.status === "Online").length,
-    [deployedTraps]
+    () => allTrapsWithStatus.filter((t) => t.displayStatus === "Online").length,
+    [allTrapsWithStatus]
   );
   const offlineCount = useMemo(
-    () => deployedTraps.filter((t) => t.status === "Offline").length,
-    [deployedTraps]
+    () =>
+      allTrapsWithStatus.filter(
+        (t) =>
+          t.displayStatus === "Offline" ||
+          t.displayStatus === "Offline (In Storage)"
+      ).length,
+    [allTrapsWithStatus]
   );
 
-  const handleSelectTrap = (trap: BarangaySurveillanceDevice) => {
+  const handleSelectTrap = (trap: (typeof allTrapsWithStatus)[0]) => {
     setSelectedTrap(trap);
-    if (hasValidCoords(trap)) {
+    if (!trap.isInStorage && hasValidCoords(trap)) {
       setTimeout(() => {
         const marker = markerRefs.current[trap.id];
         if (marker) {
@@ -430,8 +446,8 @@ export default function MacroGeospatialHeatmapPage() {
                 <h2 className="text-sm font-bold text-slate-900 tracking-tight">
                   Deployed Traps
                 </h2>
-                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {deployedTraps.length}
+                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  {allTrapsWithStatus.length}
                 </span>
               </div>
               <span className="text-[11px] font-medium text-slate-400">
@@ -470,7 +486,7 @@ export default function MacroGeospatialHeatmapPage() {
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
                 )}
               >
-                All ({deployedTraps.length})
+                All ({allTrapsWithStatus.length})
               </button>
               <button
                 type="button"
@@ -509,19 +525,19 @@ export default function MacroGeospatialHeatmapPage() {
                 </div>
                 <p className="text-sm font-semibold text-slate-800">
                   {search.trim()
-                    ? "No matching deployed traps"
-                    : `No deployed traps found in ${barangayName || "Barangay San Juan"}`}
+                    ? "No matching traps found"
+                    : `No traps found in ${barangayName || "Barangay San Juan"}`}
                 </p>
                 <p className="text-xs text-slate-400 max-w-xs mx-auto">
                   {search.trim()
                     ? "Try adjusting your search terms or filters."
-                    : "Traps must be deployed in this municipality to appear on the map."}
+                    : "Traps must be registered to appear in the directory."}
                 </p>
               </div>
             ) : (
               filteredDeployedTraps.map((trap) => {
                 const isSelected = selectedTrap?.id === trap.id;
-                const canLocate = hasValidCoords(trap);
+                const canLocate = !trap.isInStorage && hasValidCoords(trap);
 
                 return (
                   <div
@@ -540,7 +556,7 @@ export default function MacroGeospatialHeatmapPage() {
                         <div
                           className={cn(
                             "size-2.5 rounded-full",
-                            trap.status === "Online"
+                            trap.displayStatus === "Online"
                               ? "bg-emerald-500 animate-pulse"
                               : "bg-slate-400"
                           )}
@@ -553,12 +569,14 @@ export default function MacroGeospatialHeatmapPage() {
                         <Badge
                           className={cn(
                             "text-[10px] font-bold uppercase tracking-wider border-none px-2 py-0.5",
-                            trap.status === "Online"
+                            trap.displayStatus === "Online"
                               ? "bg-emerald-100 text-emerald-800"
+                              : trap.isInStorage
+                              ? "bg-slate-100 text-slate-700 font-semibold"
                               : "bg-slate-100 text-slate-600"
                           )}
                         >
-                          {trap.status}
+                          {trap.displayStatus}
                         </Badge>
                         <Badge
                           className={cn(
@@ -581,7 +599,12 @@ export default function MacroGeospatialHeatmapPage() {
                     <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium truncate">
                       <MapPin className="size-3.5 text-slate-400 shrink-0" />
                       <span className="truncate">
-                        {canLocate ? (
+                        {trap.isInStorage ? (
+                          <>
+                            {trap.barangay_name ? `Brgy. ${trap.barangay_name} • ` : ""}
+                            In Storage
+                          </>
+                        ) : canLocate ? (
                           <>
                             {trap.location}
                             {trap.barangay_name && (
